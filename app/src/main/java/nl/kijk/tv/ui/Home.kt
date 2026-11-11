@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -75,7 +77,18 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
         if (idx < 0) return@LaunchedEffect
         if (hs.tab == 1) hs.jump = vm.channels[idx] else nav.push(Screen.Live(vm.channels, idx))
     }
-    if (hs.tab != 0) BackHandler { hs.tab = 0; vm.store.lastTab = 0; runCatching { tabFocus[0].requestFocus() } }
+    // Terug: eerst naar de tabbalk, dan naar Live, dan vragen of je wilt afsluiten.
+    val activity = LocalContext.current as? android.app.Activity
+    var tabsFocused by remember { mutableStateOf(false) }
+    BackHandler {
+        when {
+            !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
+            hs.tab != 0 -> { hs.tab = 0; vm.store.lastTab = 0; runCatching { tabFocus[0].requestFocus() } }
+            else -> nav.confirm("Kijk afsluiten?", "Kijk blijft op de achtergrond klaarstaan, zodat hij de volgende keer meteen weer start.", yes = "Afsluiten") {
+                activity?.moveTaskToBack(true)
+            }
+        }
+    }
 
     Box(
         Modifier.fillMaxSize().background(Kijk.Background)
@@ -87,7 +100,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
     ) {
         Column(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
             Box(Modifier.fillMaxWidth()) {
-                Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.align(Alignment.Center).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TABS.forEachIndexed { i, title ->
                         FocusCard(
                             onClick = { hs.tab = i; vm.store.lastTab = i }, onFocus = { hs.tab = i; vm.store.lastTab = i },
