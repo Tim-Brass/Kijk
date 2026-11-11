@@ -91,7 +91,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
     val favs = remember(series, vm.vodFavs) { if (series) vm.favShows() else vm.favMovies() }
 
     LaunchedEffect(source, series) {
-        cats = try { if (series) vm.showCategories() else vm.movieCategories() } catch (e: Exception) { error = "Laden mislukt: ${e.message ?: e.javaClass.simpleName}"; emptyList() }
+        cats = try { if (series) vm.showCategories() else vm.movieCategories() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { error = "Laden mislukt: ${e.message ?: e.javaClass.simpleName}"; emptyList() }
     }
     val visibleCats = remember(cats, hiddenCats, vm.unlocked, vm.lockOn) { cats?.filter { it.id !in hiddenCats } }
     val all = remember(visibleCats, cont, favs.isEmpty()) {
@@ -102,6 +102,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
 
     LaunchedEffect(catId, vm.unlocked, cont, favs) {
         val id = catId ?: return@LaunchedEffect
+        error = null
         val cat = all.firstOrNull { it.id == id }
         if (id == CONTINUE) { items = cont; return@LaunchedEffect }
         if (id == FAVS) { items = favs; return@LaunchedEffect }
@@ -111,6 +112,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
         items = try {
             val l: List<Any> = if (series) vm.shows(id) else vm.movies(id)
             if (vm.unlocked) l else l.filter { !vm.isLocked(if (it is Movie) it.name else (it as Show).name) }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e   // weggescrold naar een andere categorie: geen fout
         } catch (e: Exception) { error = "Laden mislukt: ${e.message ?: e.javaClass.simpleName}"; emptyList() }
     }
 
