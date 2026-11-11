@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +46,20 @@ import nl.kijk.tv.ui.VodPlayer
 
 /** Logo's van IPTV-aanbieders zijn vaak SVG; die kan Coil met deze decoder tonen. */
 class KijkApplication : android.app.Application(), coil.ImageLoaderFactory {
+    override fun onCreate() {
+        super.onCreate()
+        // Bij een crash de foutmelding bewaren; de volgende keer toont Kijk hem (en hij staat op http://<tv>:8080/crash).
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                val text = "Kijk ${BuildConfig.VERSION_NAME} · ${java.util.Date()} · thread ${t.name}\n" + android.util.Log.getStackTraceString(e)
+                java.io.File(filesDir, "crash.txt").writeText(text)
+                java.io.File(filesDir, "crash_last.txt").writeText(text)
+            } catch (_: Throwable) { }
+            prev?.uncaughtException(t, e)
+        }
+    }
+
     override fun newImageLoader(): coil.ImageLoader =
         coil.ImageLoader.Builder(this).components { add(coil.decode.SvgDecoder.Factory()) }.crossfade(true).build()
 }
@@ -105,6 +122,12 @@ private fun KijkApp(vm: AppViewModel) {
     LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && nav.top is Screen.Setup) nav.replaceAll(Screen.Home) }
     LaunchedEffect(vm.notice) { if (vm.notice != null) { kotlinx.coroutines.delay(5000); vm.notice = null } }
 
+    var crash by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val f = java.io.File(ctx.filesDir, "crash.txt")
+        if (f.exists()) { crash = runCatching { f.readText() }.getOrNull(); f.delete() }
+    }
+
     val screen = nav.top
     Box(Modifier.fillMaxSize()) {
     saveable.SaveableStateProvider(screen.id) {
@@ -122,9 +145,20 @@ private fun KijkApp(vm: AppViewModel) {
             Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
             is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
             Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
-            is Screen.SubSearch -> { BackHandler { nav.pop() }; SubSearchScreen(vm, nav, screen.item, screen.onPick) }
+            is Screen.SubSearch -> SubSearchScreen(vm, screen.item, { nav.pop() }, screen.onPick)
             is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
             is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }
+        }
+    }
+    crash?.let { c ->
+        BackHandler { crash = null }
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(Color(0xFA101014)).padding(48.dp)) {
+            nl.kijk.tv.ui.Label("Kijk is de vorige keer onverwacht gestopt", size = nl.kijk.tv.ui.Kijk.Title, weight = nl.kijk.tv.ui.Kijk.Bold)
+            nl.kijk.tv.ui.Label("Maak een foto van dit scherm, of open op je laptop http://${PhoneServer.address() ?: "<tv>:8080"}/crash en kopieer de tekst. Druk op Terug om verder te gaan.",
+                size = nl.kijk.tv.ui.Kijk.Body, color = nl.kijk.tv.ui.Kijk.Secondary, maxLines = 2)
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(6.dp))
+            nl.kijk.tv.ui.Label(c.lines().filter { it.isNotBlank() }.take(22).joinToString("\n"), size = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp),
+                color = Color(0xFFD1D1D6), maxLines = 24)
         }
     }
     vm.notice?.let { n ->

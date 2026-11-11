@@ -86,7 +86,7 @@ private val BUTTONS = listOf("play", "subs", "audio", "next")
 fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int, startPosition: Long, showId: String?) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val player = remember { buildPlayer(ctx) }
+    val player = remember { buildPlayer(ctx, vm.store.softAudio) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, items.lastIndex)) }
     val item = items[index]
     val currentItem by rememberUpdatedState(item)
@@ -105,6 +105,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     var row by remember { mutableIntStateOf(0) }         // 0 = tijdlijn, 1 = knoppen
     var button by remember { mutableIntStateOf(0) }
     var panel by remember { mutableStateOf<String?>(null) }   // "subs" of "audio"
+    var searching by remember { mutableStateOf(false) }   // OpenSubtitles zoeken (speler loopt door op de achtergrond)
     var scrub by remember { mutableStateOf<Long?>(null) }
     var scrubTick by remember { mutableIntStateOf(0) }
     var scrubRepeat by remember { mutableIntStateOf(0) }
@@ -238,7 +239,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     }
     LaunchedEffect(controls, tick, playing, scrub) { if (controls && playing && scrub == null) { delay(5000); controls = false; row = 0 } }
     LaunchedEffect(scrub, scrubTick) { val s = scrub ?: return@LaunchedEffect; delay(1400); seekTo(s); scrub = null; scrubRepeat = 0 }
-    LaunchedEffect(panel) { if (panel == null) runCatching { focus.requestFocus() } }
+    LaunchedEffect(panel, searching) { if (panel == null && !searching) runCatching { focus.requestFocus() } }
 
     fun scrubBy(dir: Int, repeat: Int) {
         val step = when { repeat > 24 -> 300_000L; repeat > 12 -> 60_000L; repeat > 4 -> 30_000L; else -> 10_000L }
@@ -259,6 +260,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
 
     BackHandler {
         when {
+            searching -> searching = false
             panel != null -> panel = null
             scrub != null -> { scrub = null; scrubRepeat = 0 }
             countdown != null -> { countdown = null; nav.pop() }
@@ -270,7 +272,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     Box(
         Modifier.fillMaxSize().background(Color.Black).focusRequester(focus)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown || panel != null) return@onKeyEvent false
+                if (e.type != KeyEventType.KeyDown || panel != null || searching) return@onKeyEvent false
                 val repeat = e.nativeKeyEvent.repeatCount
                 when (e.key) {
                     Key.MediaPlayPause -> { press("play"); true }
@@ -383,8 +385,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                 items(subs, key = { "s" + it.label + it.index + refresh }) { o -> OptionRow(o.label, o.selected && !subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
                 if (!catchup) item(key = "os") {
                     OptionRow("🔎  Zoeken bij OpenSubtitles…", false) {
-                        panel = null
-                        nav.push(Screen.SubSearch(item) { fileId -> useExt(fileId, 0.0, if (vm.subStyle.language == "en") "en" else "nl") })
+                        panel = null; searching = true
                     }
                 }
                 val e = ext
@@ -398,6 +399,11 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                 item(key = "h-style") { PanelHeader("Weergave") }
                 subStyleRows(vm)
             }
+        }
+        if (searching) {
+            // Zoekscherm over de film heen; de film loopt zacht door op de achtergrond
+            DisposableEffect(Unit) { val v = player.volume; player.volume = 0.25f; onDispose { player.volume = v } }
+            SubSearchScreen(vm, item, onClose = { searching = false }) { fileId -> useExt(fileId, 0.0, if (vm.subStyle.language == "en") "en" else "nl") }
         }
     }
 }

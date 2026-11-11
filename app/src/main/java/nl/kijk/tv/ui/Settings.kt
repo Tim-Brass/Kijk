@@ -109,6 +109,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
         item { tick.hashCode(); SettingRow("Achtergrond", SUB_BGS[st.background]) { vm.updateSubStyle(st.copy(background = (st.background + 1) % 3)) } }
         item { tick.hashCode(); SettingRow("Positie", if (st.position == 1) "Hoger" else "Laag") { vm.updateSubStyle(st.copy(position = 1 - st.position)) } }
         item { tick.hashCode(); SettingRow("Automatisch zoeken bij OpenSubtitles", if (s.autoSubs) "Aan, als de film geen eigen ondertitels heeft" else "Uit") { s.autoSubs = !s.autoSubs; changed() } }
+        item { tick.hashCode(); SettingRow("Dolby- en DTS-geluid omzetten", if (s.softAudio) "Aan: de app zet het om, werkt altijd" else "Uit: doorgeven aan tv of soundbar") { s.softAudio = !s.softAudio; changed() } }
         item { tick.hashCode(); SettingRow("OpenSubtitles-account", if (vm.subs.configured) "Ingesteld" + (if (s.osUser.isNotBlank()) " · ${s.osUser}" else "") else "Niet ingesteld") { nav.push(Screen.OsConfig) } }
 
         item { Section("KIJKGESCHIEDENIS") }
@@ -267,7 +268,7 @@ fun OsConfigScreen(vm: AppViewModel, nav: Nav) {
 }
 
 @Composable
-fun SubSearchScreen(vm: AppViewModel, nav: Nav, item: Playable, onPick: (Long) -> Unit) {
+fun SubSearchScreen(vm: AppViewModel, item: Playable, onClose: () -> Unit, onPick: (Long) -> Unit) {
     val base = vm.subStyle.language.takeIf { it == "nl" || it == "en" } ?: "nl"
     var lang by remember { mutableStateOf(base) }
     var q by remember { mutableStateOf(item.subs?.query ?: item.title) }
@@ -276,8 +277,9 @@ fun SubSearchScreen(vm: AppViewModel, nav: Nav, item: Playable, onPick: (Long) -
     LaunchedEffect(lang, q) {
         delay(300); results = null; error = null
         val query = (item.subs ?: SubsQuery()).let { if (q != (it.query ?: item.title)) SubsQuery(query = q, season = it.season, episode = it.episode) else it.copy(query = it.query ?: item.title) }
-        results = try { withContext(Dispatchers.IO) { vm.subs.search(query, lang) } } catch (e: Exception) { error = e.message ?: e.javaClass.simpleName; emptyList() }
+        results = try { withContext(Dispatchers.IO) { vm.subs.search(query, lang).filter { it.fileId > 0 }.distinctBy { it.fileId } } } catch (e: Exception) { error = e.message ?: e.javaClass.simpleName; emptyList() }
     }
+    BackHandler { onClose() }
     Column(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 40.dp, vertical = Kijk.SafeV)) {
         Label("Ondertitels zoeken", size = Kijk.LargeTitle, weight = Kijk.Bold)
         Label(listOfNotNull(item.title, item.subtitle).joinToString(" · ") + (vm.subs.remaining?.let { " · nog $it downloads vandaag" } ?: ""), size = Kijk.Caption, color = Kijk.Secondary)
@@ -292,8 +294,8 @@ fun SubSearchScreen(vm: AppViewModel, nav: Nav, item: Playable, onPick: (Long) -
             r == null -> EmptyState("Zoeken…")
             r.isEmpty() -> EmptyState(if (error != null) "Zoeken mislukt" else "Geen ondertitels gevonden", error ?: "Probeer een andere taal of pas de zoekterm aan.")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                items(r, key = { it.fileId }) { s ->
-                    FocusCard(onClick = { nav.pop(); onPick(s.fileId) }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
+                items(r, key = { "f" + it.fileId }) { s ->
+                    FocusCard(onClick = { onClose(); onPick(s.fileId) }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
                         Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Label(s.release, Modifier.weight(1f), weight = Kijk.Medium, maxLines = 2)
                             Label(listOfNotNull(if (s.cached) "✓ gedownload" else null, if (s.hearingImpaired) "SDH" else null, if (s.ai) "AI-vertaald" else null, "${s.downloads}×").joinToString(" · "),

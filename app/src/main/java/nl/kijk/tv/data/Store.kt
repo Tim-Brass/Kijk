@@ -53,6 +53,8 @@ class Store(ctx: Context) {
     var subStyle: SubStyle
         get() = SubStyle(str("subLang", "nl"), sp.getInt("subSize", 1), sp.getInt("subBg", 0), sp.getInt("subPos", 0))
         set(v) = sp.edit().putString("subLang", v.language).putInt("subSize", v.size).putInt("subBg", v.background).putInt("subPos", v.position).apply()
+    /** Dolby/DTS-geluid in de app zelf omzetten (anders soms geen geluid via tv of soundbar). */
+    var softAudio: Boolean get() = sp.getBoolean("softAudio", true); set(v) = putBool("softAudio", v)
     var autoSubs: Boolean get() = sp.getBoolean("autoSubs", true); set(v) = putBool("autoSubs", v)
     var osKey: String get() = str("osKey"); set(v) = put("osKey", v)
     var osUser: String get() = str("osUser"); set(v) = put("osUser", v)

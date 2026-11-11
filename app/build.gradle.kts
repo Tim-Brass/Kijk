@@ -75,6 +75,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:$media3")
     implementation("androidx.media3:media3-exoplayer-hls:$media3")
     implementation("androidx.media3:media3-ui:$media3")
+    // Dolby Digital (AC3/E-AC3), DTS e.d. zelf decoderen: veel tv's/boxen geven anders geen geluid
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-svg:2.7.0")

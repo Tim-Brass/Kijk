@@ -86,14 +86,16 @@ data class TrackOption(val group: Tracks.Group?, val index: Int, val label: Stri
 val SUB_SIZE_NAMES = listOf("Klein", "Normaal", "Groot", "Extra groot")
 val SUB_BG_NAMES = listOf("Omlijnd", "Zwarte balk", "Half doorzichtig")
 
-fun buildPlayer(ctx: Context): ExoPlayer {
+fun buildPlayer(ctx: Context, softAudio: Boolean = true): ExoPlayer {
     val http = DefaultHttpDataSource.Factory().setUserAgent(Net.USER_AGENT).setAllowCrossProtocolRedirects(true)
         .setConnectTimeoutMs(15_000).setReadTimeoutMs(30_000)
     // IPTV-streams beginnen vaak midden in een GOP.
     val extractors = DefaultExtractorsFactory().setTsExtractorFlags(
         DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
     )
+    // Met softAudio gaat Dolby/DTS via FFmpeg in de app naar gewoon (PCM-)geluid, in plaats van doorgeven aan tv/soundbar.
     val renderers = DefaultRenderersFactory(ctx).setEnableDecoderFallback(true)
+        .setExtensionRendererMode(if (softAudio) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
     return ExoPlayer.Builder(ctx, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(http, extractors)).build()
 }
 
@@ -228,7 +230,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, list.lastIndex)) }
     var prevKey by remember { mutableStateOf<String?>(null) }
     val channel = list[index.coerceIn(0, list.lastIndex)]
-    val player = remember { buildPlayer(ctx) }
+    val player = remember { buildPlayer(ctx, vm.store.softAudio) }
     var showInfo by remember { mutableStateOf(true) }
     var infoTick by remember { mutableIntStateOf(0) }
     var browse by remember { mutableStateOf<Int?>(null) }     // index in de lijst waar je in de infobalk naar kijkt
