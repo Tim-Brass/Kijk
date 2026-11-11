@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -66,6 +67,14 @@ fun SmallPill(text: String, modifier: Modifier = Modifier, selected: Boolean = f
             Label(text, Modifier.padding(horizontal = 14.dp, vertical = 5.dp), size = Kijk.Caption, weight = Kijk.Semibold)
         }
     }
+}
+
+/** Zachte fade-in (0,15 s) bij een nieuw scherm of tab; goedkoop via graphicsLayer. */
+@Composable
+fun FadeIn(key: Any?, enabled: Boolean = true, content: @Composable () -> Unit) {
+    val a = androidx.compose.runtime.remember(key) { androidx.compose.animation.core.Animatable(if (enabled) 0f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(key) { if (enabled) a.animateTo(1f, androidx.compose.animation.core.tween(150)) }
+    androidx.compose.foundation.layout.Box(Modifier.graphicsLayer { alpha = a.value }) { content() }
 }
 
 @Composable

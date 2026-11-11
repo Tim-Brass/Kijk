@@ -72,6 +72,11 @@ fun catchupPlayable(vm: AppViewModel, ch: Channel, p: Programme, offsetMs: Long 
 
 private fun halfHour(t: Long) = t - t % STEP
 
+/** Kleur per soort programma (uit de gids). */
+fun genreColor(g: String?): Color? = when (g) {
+    "news" -> Color(0xFF378ADD); "sport" -> Color(0xFF6FB02E); "film" -> Color(0xFF8B83E6); "kids" -> Color(0xFFEF9F27); else -> null
+}
+
 /**
  * Gids als raster, zoals bij Ziggo/KPN: zenders onder elkaar, programma's in de tijd naast elkaar.
  * Links/rechts aan de rand schuift het tijdvenster per half uur; terugkijken gaat via OK op een afgelopen programma.
@@ -136,6 +141,10 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
             SmallPill("↺ Alleen terugkijken", selected = archOnly) { archOnly = !archOnly; vm.store.guideArch = archOnly }
             Spacer(Modifier.width(8.dp))
             Label("${groupLabel(hs.group)} · ${Format.dayLabel(winStart, vm.now)}", size = Kijk.Caption, color = Kijk.Secondary)
+            Spacer(Modifier.weight(1f))
+            listOf("news" to "Nieuws", "sport" to "Sport", "film" to "Film/serie", "kids" to "Kinderen").forEach { (g, n) ->
+                Label("■ ", size = Kijk.Caption, color = genreColor(g)!!); Label(n + "   ", size = Kijk.Caption, color = Kijk.Secondary)
+            }
         }
         if (list.isEmpty()) {
             EmptyState("Geen zenders", if (favOnly) "Je hebt (in deze groep) nog geen favorieten." else if (archOnly) "Geen zenders met terugkijken in deze groep." else "Kies een andere groep onder Live.")
@@ -260,7 +269,10 @@ private fun GuideRow(
                     selected = live, shape = RoundedCornerShape(8.dp), focusedScale = 1f,
                 ) { f ->
                     // al uitgezonden deel van een lopend programma kleurt mee
+                    val gc = genreColor(p.cat)
+                    if (gc != null && !f) Box(Modifier.matchParentSize().background(gc.copy(alpha = if (past && !catchup) 0.10f else 0.20f)))
                     if (live && !f) Box(Modifier.fillMaxHeight().fillMaxWidth(p.progress(vm.now).coerceIn(0f, 1f)).background(Kijk.AccentSoft))
+                    if (gc != null) Box(Modifier.width(3.dp).fillMaxHeight().background(gc))
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (catchup) Label("↺ ", size = Kijk.Caption, color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)

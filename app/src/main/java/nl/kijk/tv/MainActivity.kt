@@ -131,6 +131,7 @@ private fun KijkApp(vm: AppViewModel) {
     val screen = nav.top
     Box(Modifier.fillMaxSize()) {
     saveable.SaveableStateProvider(screen.id) {
+      nl.kijk.tv.ui.FadeIn(screen, enabled = screen !is Screen.Live && screen !is Screen.Vod) {
         when (screen) {
             Screen.Setup -> {
                 if (vm.configured) BackHandler { nav.replaceAll(Screen.Home) }
@@ -149,6 +150,7 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
             is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }
         }
+      }
     }
     crash?.let { c ->
         BackHandler { crash = null }

@@ -57,6 +57,7 @@ class HomeState(tab: Int) {
     var tab by mutableIntStateOf(tab)
     var group by mutableStateOf(GROUP_ALL)
     var jump by mutableStateOf<Channel?>(null)   // zendernummer ingetypt: gids springt hierheen
+    var backdrop by mutableStateOf<String?>(null) // achtergrondfoto bij Films/Series
 }
 
 fun groupLabel(g: String) = when (g) {
@@ -98,6 +99,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
                 digits = (digits + d).take(5); true
             },
     ) {
+        if (hs.tab == 2 || hs.tab == 3) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
             Box(Modifier.fillMaxWidth()) {
                 Row(Modifier.align(Alignment.Center).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -115,13 +117,15 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
             ProgressLine(vm.progress, vm.error ?: vm.status, vm.error != null)
             Spacer(Modifier.height(6.dp))
             Box(Modifier.weight(1f)) {
-                when (hs.tab) {
-                    0 -> LiveTab(vm, nav, hs)
-                    1 -> GuideGrid(vm, nav, hs)
-                    2 -> VodTab(vm, nav, series = false)
-                    3 -> VodTab(vm, nav, series = true)
-                    4 -> SearchTab(vm, nav)
-                    else -> SettingsTab(vm, nav)
+                FadeIn(hs.tab) {
+                    when (hs.tab) {
+                        0 -> LiveTab(vm, nav, hs)
+                        1 -> GuideGrid(vm, nav, hs)
+                        2 -> VodTab(vm, nav, series = false, hs = hs)
+                        3 -> VodTab(vm, nav, series = true, hs = hs)
+                        4 -> SearchTab(vm, nav)
+                        else -> SettingsTab(vm, nav)
+                    }
                 }
             }
         }

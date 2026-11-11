@@ -21,6 +21,7 @@ data class Programme(
     val stop: Long,
     val title: String,
     val desc: String?,
+    val cat: String? = null,
 ) {
     fun isLive(now: Long) = now in start until stop
     fun progress(now: Long): Float =

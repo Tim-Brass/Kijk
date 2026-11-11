@@ -75,7 +75,7 @@ fun episodePlayables(show: Show, d: ShowDetails): List<Playable> = d.episodes.ma
 // ---------------------------------------------------------------- overzicht
 
 @Composable
-fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
+fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
     val source = vm.vod
     if (source == null) {
         EmptyState(if (vm.progress != null) "Laden…" else if (series) "Geen series gevonden" else "Geen films gevonden",
@@ -87,6 +87,18 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
     var items by remember(series) { mutableStateOf<List<Any>?>(null) }
     var error by remember(series) { mutableStateOf<String?>(null) }
     val hiddenCats = if (series) vm.hiddenShowCats else vm.hiddenMovieCats
+    // achtergrondfoto: pas ophalen als je even op een poster blijft staan
+    var focusItem by remember(series) { mutableStateOf<Any?>(null) }
+    androidx.compose.runtime.DisposableEffect(series) { onDispose { hs?.backdrop = null } }
+    LaunchedEffect(focusItem) {
+        val it = focusItem ?: return@LaunchedEffect
+        delay(600)
+        hs?.backdrop = when (it) {
+            is Movie -> vm.movieInfo(it)?.backdrop ?: it.poster
+            is Show -> it.poster
+            else -> null
+        }
+    }
     val cont = remember(series, vm.dataVersion) { if (series) vm.continueShows() else vm.continueMovies() }
     val favs = remember(series, vm.vodFavs) { if (series) vm.favShows() else vm.favMovies() }
 
@@ -136,32 +148,53 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
                 cur != null && vm.isLocked(cur.name) && !vm.unlocked -> EmptyState("🔒 Vergrendeld", "Druk op OK op de categorie om je pincode in te voeren.")
                 list == null -> EmptyState("Laden…")
                 list.isEmpty() -> EmptyState(error ?: "Deze categorie is leeg")
-                else -> LazyVerticalGrid(
+                else -> Column(Modifier.fillMaxSize()) {
+                    val fi = focusItem
+                    val head = when (fi) { is Movie -> listOfNotNull(fi.name, fi.year).joinToString("  ·  "); is Show -> listOfNotNull(fi.name, fi.year).joinToString("  ·  "); else -> "" }
+                    Label(head, Modifier.padding(start = 12.dp, bottom = 2.dp).height(26.dp), size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
+                    LazyVerticalGrid(
                     columns = GridCells.Adaptive(118.dp), modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(20.dp), contentPadding = PaddingValues(12.dp),
                 ) {
                     items(list) { item ->
                         when (item) {
                             is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction,
-                                fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }) {
+                                fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
                                 vm.addRecentMovie(item); nav.push(Screen.MovieDetail(item))
                             }
-                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }) {
+                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
                                 vm.addRecentShow(item); nav.push(Screen.ShowDetail(item))
                             }
                         }
                     }
+                }
                 }
             }
         }
     }
 }
 
+/** Gedimde achtergrondfoto achter Films/Series (kleine afbeelding + verloop i.p.v. zware blur). */
 @Composable
-fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+fun VodBackdrop(url: String?) {
+    androidx.compose.animation.Crossfade(url, animationSpec = androidx.compose.animation.core.tween(400), label = "backdrop") { u ->
+        if (u != null) Box(Modifier.fillMaxSize()) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            AsyncImage(
+                coil.request.ImageRequest.Builder(ctx).data(u).size(960, 540).crossfade(false).build(),
+                contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.32f),
+            )
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Kijk.Background, Kijk.Background.copy(alpha = 0.75f), Kijk.Background.copy(alpha = 0.2f)))))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Kijk.Background.copy(alpha = 0.6f), Color.Transparent, Kijk.Background))))
+        }
+    }
+}
+
+@Composable
+fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
-        FocusCard(onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
+        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 if (poster != null) AsyncImage(poster, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
