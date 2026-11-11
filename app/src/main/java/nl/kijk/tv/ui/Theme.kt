@@ -20,7 +20,8 @@ object Kijk {
     val Background = Color(0xFF0B0B0F)
     val Elevated = Color(0xFF1C1C22)
     val Fill = Color(0x1AFFFFFF)           // ongefocust element
-    val FillSelected = Color(0x33FFFFFF)   // geselecteerd, niet gefocust
+    val FillSelected = Color(0x660A84FF)   // geselecteerd, niet gefocust: blauw getint
+    val AccentSoft = Color(0x400A84FF)     // lopende uitzending in de gids
     val Focused = Color(0xFFF2F2F7)        // gefocust: licht "opgetild" element
     val Accent = Color(0xFF0A84FF)         // systemBlue (donker)
     val Live = Color(0xFFFF453A)           // systemRed (donker)

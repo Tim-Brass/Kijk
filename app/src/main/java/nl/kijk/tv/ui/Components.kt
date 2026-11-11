@@ -103,13 +103,13 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier, focused: Boolean
         modifier
             .height(height)
             .clip(RoundedCornerShape(50))
-            .background(if (focused) Color(0x33000000) else Color(0x33FFFFFF)),
+            .background(if (focused) Color(0x26000000) else Color(0x33FFFFFF)),
     ) {
         Box(
             Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .background(if (focused) Color.Black else Color.White),
+                .background(Kijk.Accent),
         )
     }
 }

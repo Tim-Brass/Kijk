@@ -32,7 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.zIndex
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -213,6 +213,8 @@ private fun GuideRow(
                         .onPreviewKeyEvent { e -> edgeKey(e, idx == 0 && p.start <= winStart, idx == inWin.lastIndex && p.stop >= winEnd, onEdge) },
                     selected = live, shape = RoundedCornerShape(8.dp), focusedScale = 1f,
                 ) { f ->
+                    // al uitgezonden deel van een lopend programma kleurt mee
+                    if (live && !f) Box(Modifier.fillMaxHeight().fillMaxWidth(p.progress(vm.now).coerceIn(0f, 1f)).background(Kijk.AccentSoft))
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (catchup) Label("↺ ", size = Kijk.Caption, color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)
