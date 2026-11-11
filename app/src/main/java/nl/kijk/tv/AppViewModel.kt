@@ -362,10 +362,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .take(60)
         val mCats = (try { movieCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
         val sCats = (try { showCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
-        val movies = (try { cached("m:*") { it.movies(null) } } catch (_: Exception) { null } ?: emptyList())
+        val movies = (try { cached("m:*") { it.movies(null) } } catch (_: Throwable) { null } ?: emptyList())
             .filter { q in it.name.lowercase() && it.categoryId !in hiddenMovieCats && (unlocked || (!isLocked(mCats[it.categoryId]) && !isLocked(it.name))) }
             .sortedBy { rank(it.name) }.take(60)
-        val shows = (try { cached("s:*") { it.shows(null) } } catch (_: Exception) { null } ?: emptyList())
+        val shows = (try { cached("s:*") { it.shows(null) } } catch (_: Throwable) { null } ?: emptyList())
             .filter { q in it.name.lowercase() && it.categoryId !in hiddenShowCats && (unlocked || (!isLocked(sCats[it.categoryId]) && !isLocked(it.name))) }
             .sortedBy { rank(it.name) }.take(60)
         return SearchResult(chans, progs, movies, shows)

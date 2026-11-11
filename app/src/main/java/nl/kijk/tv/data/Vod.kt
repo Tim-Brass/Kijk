@@ -22,6 +22,10 @@ private fun JSONObject.str(name: String): String? = optString(name, "").takeIf {
 private fun JSONObject.firstOf(vararg names: String): String? = names.firstNotNullOfOrNull { str(it) }
 
 /** Xtream Codes-API: categorieën, posters, beschrijvingen, seizoenen, terugkijken. */
+private val MOVIE_KEYS = setOf("stream_id", "container_extension", "name", "stream_icon", "category_id", "rating", "year")
+private val SHOW_KEYS = setOf("series_id", "name", "cover", "category_id", "plot", "rating", "releaseDate", "release_date")
+private val LIVE_KEYS = setOf("stream_id", "tv_archive", "tv_archive_duration")
+
 class Xtream(val host: String, val user: String, val pass: String) : VodSource {
     private fun enc(s: String) = Uri.encode(s)
 
@@ -29,6 +33,38 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
         val a = if (action != null) "&action=$action" else ""
         return Net.text("$host/player_api.php?username=${enc(user)}&password=${enc(pass)}$a$extra")
     }
+
+    /**
+     * Grote lijsten (alle films, alle zenders) niet als één tekst inlezen: dat kan >100 MB zijn en de tv heeft
+     * te weinig geheugen. In plaats daarvan object voor object lezen en alleen de velden bewaren die we nodig hebben.
+     */
+    private fun stream(action: String, extra: String, keys: Set<String>, each: (Map<String, String>) -> Unit) {
+        val url = "$host/player_api.php?username=${enc(user)}&password=${enc(pass)}&action=$action$extra"
+        Net.open(url).use { input ->
+            val r = android.util.JsonReader(java.io.InputStreamReader(java.io.BufferedInputStream(input, 65536), Charsets.UTF_8))
+            r.isLenient = true
+            if (r.peek() != android.util.JsonToken.BEGIN_ARRAY) return
+            r.beginArray()
+            val m = HashMap<String, String>()
+            while (r.hasNext()) {
+                if (r.peek() != android.util.JsonToken.BEGIN_OBJECT) { r.skipValue(); continue }
+                m.clear()
+                r.beginObject()
+                while (r.hasNext()) {
+                    val name = r.nextName()
+                    if (name !in keys) { r.skipValue(); continue }
+                    when (r.peek()) {
+                        android.util.JsonToken.STRING, android.util.JsonToken.NUMBER -> m[name] = r.nextString()
+                        android.util.JsonToken.BOOLEAN -> m[name] = r.nextBoolean().toString()
+                        else -> r.skipValue()
+                    }
+                }
+                r.endObject()
+                each(m)
+            }
+        }
+    }
+    private fun Map<String, String>.s(k: String) = this[k]?.takeIf { it.isNotBlank() && it != "null" }
 
     private fun array(json: String): JSONArray = json.trim().let { if (it.startsWith("[")) JSONArray(it) else JSONArray() }
     private fun obj(json: String): JSONObject = json.trim().let { if (it.startsWith("{")) JSONObject(it) else JSONObject() }
@@ -45,14 +81,14 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
     override fun showCategories() = categories("get_series_categories")
 
     override fun movies(cat: String?): List<Movie> {
-        val a = array(api("get_vod_streams", if (cat != null) "&category_id=${enc(cat)}" else ""))
-        return (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            val id = o.str("stream_id") ?: return@mapNotNull null
-            val ext = o.str("container_extension") ?: "mp4"
-            Movie(id, o.str("name") ?: "Film", o.str("stream_icon"), cat ?: o.str("category_id") ?: "",
-                "$host/movie/${enc(user)}/${enc(pass)}/$id.$ext", o.str("rating")?.takeIf { it != "0" }, o.str("year"))
+        val out = ArrayList<Movie>()
+        stream("get_vod_streams", if (cat != null) "&category_id=${enc(cat)}" else "", MOVIE_KEYS) { o ->
+            val id = o.s("stream_id") ?: return@stream
+            val ext = o.s("container_extension") ?: "mp4"
+            out += Movie(id, o.s("name") ?: "Film", o.s("stream_icon"), cat ?: o.s("category_id") ?: "",
+                "$host/movie/${enc(user)}/${enc(pass)}/$id.$ext", o.s("rating")?.takeIf { it != "0" }, o.s("year"))
         }
+        return out
     }
 
     override fun movieInfo(movie: Movie): MovieInfo? {
@@ -68,12 +104,14 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
     }
 
     override fun shows(cat: String?): List<Show> {
-        val a = array(api("get_series", if (cat != null) "&category_id=${enc(cat)}" else ""))
-        return (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            Show(o.str("series_id") ?: return@mapNotNull null, o.str("name") ?: "Serie", o.str("cover"), cat ?: o.str("category_id") ?: "",
-                o.str("plot"), o.str("rating")?.takeIf { it != "0" }, o.firstOf("releaseDate", "release_date")?.take(4))
+        val out = ArrayList<Show>()
+        // bij "alles" (zoeken) de beschrijving overslaan: scheelt veel geheugen
+        val keys = if (cat == null) SHOW_KEYS - "plot" else SHOW_KEYS
+        stream("get_series", if (cat != null) "&category_id=${enc(cat)}" else "", keys) { o ->
+            out += Show(o.s("series_id") ?: return@stream, o.s("name") ?: "Serie", o.s("cover"), cat ?: o.s("category_id") ?: "",
+                o.s("plot"), o.s("rating")?.takeIf { it != "0" }, (o.s("releaseDate") ?: o.s("release_date"))?.take(4))
         }
+        return out
     }
 
     override fun showDetails(show: Show): ShowDetails {
@@ -106,10 +144,8 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
     /** {zendernummer: dagen terugkijken} en het tijdsverschil van de server (ms t.o.v. UTC). */
     fun archiveInfo(): Pair<Map<String, Int>, Long> {
         val days = HashMap<String, Int>()
-        val a = array(api("get_live_streams"))
-        for (i in 0 until a.length()) {
-            val o = a.optJSONObject(i) ?: continue
-            if (o.str("tv_archive") == "1") days[o.str("stream_id") ?: continue] = o.str("tv_archive_duration")?.toIntOrNull()?.takeIf { it > 0 } ?: 1
+        stream("get_live_streams", "", LIVE_KEYS) { o ->
+            if (o.s("tv_archive") == "1" || o.s("tv_archive") == "true") days[o.s("stream_id") ?: return@stream] = o.s("tv_archive_duration")?.toIntOrNull()?.takeIf { it > 0 } ?: 1
         }
         var offset = 0L
         try {
