@@ -45,6 +45,9 @@ import java.util.Date
 import java.util.Locale
 
 data class LoadProgress(val label: String, val done: Long = 0, val total: Long = 0)
+
+/** Stap op het laadscherm: 0 wacht, 1 bezig, 2 klaar, 3 niet nodig, 4 mislukt. */
+data class Step(val label: String, val state: Int = 0, val done: Long = 0, val total: Long = 0, val note: String? = null)
 data class SearchResult(
     val channels: List<Channel>,
     val programmes: List<Pair<Channel, Programme>>,
@@ -96,6 +99,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val xtream: Xtream? get() = Xtream.fromPlaylistUrl(store.playlistUrl)
     val configured get() = store.playlistUrl.isNotBlank()
+
+    // ---- laadscherm bij het opstarten
+    var startupDone by mutableStateOf(store.playlistUrl.isBlank()); private set
+    var steps by mutableStateOf(listOf(Step("Playlist"), Step("Zenders"), Step("Terugkijken"), Step("Gids"), Step("Films en series"))); private set
+    private fun step(i: Int, f: (Step) -> Step) { steps = steps.toMutableList().also { it[i] = f(it[i]) } }
+    fun finishStartup() { startupDone = true }
 
     // ---------------------------------------------------------------- delen met andere apparaten
     val sync = nl.kijk.tv.data.Sync(app)
@@ -235,37 +244,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val pl: Playlist? = withContext(Dispatchers.IO) {
                     try {
                         if (download) {
+                            step(0) { it.copy(state = 1, note = "Downloaden") }
                             progress = LoadProgress("Playlist downloaden")
                             val tmp = File(cacheFile.path + ".tmp")
-                            Net.open(store.playlistUrl) { d, t -> progress = LoadProgress("Playlist downloaden", d, t) }.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+                            Net.open(store.playlistUrl) { d, t -> progress = LoadProgress("Playlist downloaden", d, t); step(0) { it.copy(state = 1, done = d, total = t) } }.use { input -> tmp.outputStream().use { input.copyTo(it) } }
                             tmp.renameTo(cacheFile); downloaded = true
                             store.playlistUpdated = System.currentTimeMillis()
-                        } else progress = LoadProgress("Opgeslagen playlist openen")
+                            step(0) { it.copy(state = 2, note = "Vernieuwd") }
+                        } else { progress = LoadProgress("Opgeslagen playlist openen"); step(0) { it.copy(state = 2, note = "Opgeslagen versie van ${Format.dayTime(store.playlistUpdated)}") } }
                         progress = LoadProgress("Zenders verwerken")
+                        step(1) { it.copy(state = 1) }
                         cacheFile.useLines { M3u.parse(it, xt != null) }
                     } catch (e: Exception) {
                         error = "Playlist laden mislukt: ${e.message ?: e.javaClass.simpleName}"
                         if (cacheFile.exists()) { error += " (opgeslagen versie gebruikt)"; cacheFile.useLines { M3u.parse(it, xt != null) } } else null
                     }
                 }
-                if (pl == null) { progress = null; return@withLock }
+                if (pl == null) { progress = null; step(0) { it.copy(state = 4, note = error) }; startupDone = true; return@withLock }
+                step(1) { it.copy(state = 2, note = "${pl.channels.size} zenders") }
                 // terugkijken (Xtream): alleen opnieuw vragen als de playlist vers is
                 var chans = pl.channels
                 if (xt != null) {
                     val (arch, off) = withContext(Dispatchers.IO) {
                         val cached = try { JSONObject(store.archiveJson) } catch (_: Exception) { JSONObject() }
                         if (!downloaded && cached.has("archive")) {
+                            step(2) { it.copy(state = 2, note = "Opgeslagen") }
                             val a = cached.getJSONObject("archive"); a.keys().asSequence().associateWith { a.getInt(it) } to cached.optLong("offset")
                         } else try {
                             progress = LoadProgress("Terugkijk-informatie ophalen")
+                            step(2) { it.copy(state = 1) }
                             val r = xt.archiveInfo()
+                            step(2) { it.copy(state = 2, note = "${r.first.size} zenders met terugkijken") }
                             store.archiveJson = JSONObject().put("archive", JSONObject(r.first as Map<*, *>)).put("offset", r.second).toString()
                             r
-                        } catch (_: Exception) { emptyMap<String, Int>() to 0L }
+                        } catch (_: Exception) { step(2) { it.copy(state = 4, note = "Niet gelukt") }; emptyMap<String, Int>() to 0L }
                     }
                     serverOffset = off
                     chans = chans.map { c -> c.streamId?.let { sid -> arch[sid] }?.let { c.copy(archiveDays = it) } ?: c.copy(archiveDays = if (c.catchup != null) c.archiveDays else 0) }
                 }
+                if (xt == null) step(2) { it.copy(state = if (pl.channels.any { c -> c.catchup != null }) 2 else 3) }
                 playlistEpgUrl = pl.epgUrl
                 // Zenders meteen tonen; de gids wordt daarna gekoppeld.
                 allChannels = chans
@@ -281,6 +298,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 refreshNowNext()
                 ensureVodIndex(force = downloaded && indexFile.exists() && System.currentTimeMillis() - indexFile.lastModified() > DAY)
                 if (forceEpg || epgDue(startup)) refreshEpgLocked()
+                else step(3) { it.copy(state = 2, note = epgStatsText()) }
+                // laadscherm: ook wachten op de zoeklijst van films en series
+                if (!startupDone) {
+                    if (vod == null) step(4) { it.copy(state = 3) }
+                    else {
+                        step(4) { it.copy(state = 1) }
+                        indexJob?.join()
+                        step(4) { it.copy(state = if (vodIndexReady) 2 else 4, note = if (vodIndexReady) "${movieIndex.size} films · ${showIndex.size} series" else vodIndexStatus) }
+                    }
+                    delay(400)
+                    startupDone = true
+                }
             }
         }
     }
@@ -289,23 +318,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun refreshEpgLocked() {
         val urls = (store.epgUrl.ifBlank { playlistEpgUrl ?: xtream?.xmltvUrl() ?: "" }).split(',').map { it.trim() }.filter { it.startsWith("http") }
-        if (urls.isEmpty()) { status = "Geen gids-link. Vul er een in bij Instellingen › Playlist."; return }
+        if (urls.isEmpty()) { status = "Geen gids-link. Vul er een in bij Instellingen › Playlist."; step(3) { it.copy(state = 3, note = "Geen gids-link") }; return }
         epgBusy = true
+        step(3) { it.copy(state = 1) }
         try {
             withContext(Dispatchers.IO) {
                 var label = "Gids downloaden"
                 epg.refresh(urls) { msg, d, t ->
                     if (msg != null) label = msg.trimEnd('…')
                     progress = if (d >= 0) LoadProgress(label, d, t) else LoadProgress(label, progress?.done ?: 0, progress?.total ?: 0)
+                    step(3) { it.copy(state = 1, note = label, done = if (d >= 0) d else it.done, total = if (d >= 0) t else it.total) }
                 }
             }
             status = null
         } catch (e: Exception) {
             status = "Gids bijwerken mislukt: ${e.message ?: e.javaClass.simpleName}"
+            step(3) { it.copy(state = 4, note = status) }
         } finally { epgBusy = false; progress = null }
         epgMatch = withContext(Dispatchers.IO) { epg.match(allChannels, store.epgLinks) }
         refreshNowNext()
         dataVersion++
+        if (steps[3].state == 1) step(3) { it.copy(state = 2, note = epgStatsText()) }
     }
 
     private suspend fun refreshNowNext() {
@@ -557,8 +590,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
                 if (fresh && readIndex(f, tag)) { vodIndexReady = true; baselineFavShows(); return@launch }
                 vodIndexStatus = "Films ophalen voor zoeken…"
+                step(4) { it.copy(note = "Films ophalen") }
                 val m = src.movies(null)
                 vodIndexStatus = "Series ophalen voor zoeken…"
+                step(4) { it.copy(note = "Series ophalen") }
                 val sh = src.shows(null)
                 movieIndex = m; showIndex = sh.map { it.copy(plot = null) }
                 vodIndexReady = true; vodIndexStatus = null
