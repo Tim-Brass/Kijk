@@ -136,7 +136,7 @@ fun GroupsScreen(vm: AppViewModel, nav: Nav, kind: String) {
         }
     }
     val hidden = when (kind) { "live" -> vm.hidden; "movie" -> vm.hiddenMovieCats; else -> vm.hiddenShowCats }
-    fun set(v: Set<String>) = when (kind) { "live" -> vm.setHiddenGroups(v); "movie" -> vm.setHiddenMovieCats(v); else -> vm.setHiddenShowCats(v) }
+    fun set(v: Set<String>) = when (kind) { "live" -> vm.updateHiddenGroups(v); "movie" -> vm.updateHiddenMovieCats(v); else -> vm.updateHiddenShowCats(v) }
     val title = when (kind) { "live" -> "Zendergroepen"; "movie" -> "Filmcategorieën"; else -> "Seriecategorieën" }
     val all = cats ?: emptyList()
     val shown = all.filter { q.isBlank() || q.trim().lowercase() in it.name.lowercase() }

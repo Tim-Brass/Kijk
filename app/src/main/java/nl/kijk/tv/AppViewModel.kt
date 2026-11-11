@@ -287,9 +287,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         store.lastChannel = ch.key; store.addRecentChannel(ch.key); recentChannels = store.recentChannels
     }
 
-    fun setHiddenGroups(v: Set<String>) { hidden = v; store.hiddenGroups = v; applyHidden() }
-    fun setHiddenMovieCats(v: Set<String>) { hiddenMovieCats = v; store.hiddenMovieCats = v }
-    fun setHiddenShowCats(v: Set<String>) { hiddenShowCats = v; store.hiddenShowCats = v }
+    fun updateHiddenGroups(v: Set<String>) { hidden = v; store.hiddenGroups = v; applyHidden() }
+    fun updateHiddenMovieCats(v: Set<String>) { hiddenMovieCats = v; store.hiddenMovieCats = v }
+    fun updateHiddenShowCats(v: Set<String>) { hiddenShowCats = v; store.hiddenShowCats = v }
 
     fun unlock() { unlocked = true; applyHidden() }
     fun relock() { unlocked = false; applyHidden() }
