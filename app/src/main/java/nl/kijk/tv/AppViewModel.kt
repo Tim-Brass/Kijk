@@ -177,14 +177,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     chans = chans.map { c -> c.streamId?.let { sid -> arch[sid] }?.let { c.copy(archiveDays = it) } ?: c.copy(archiveDays = if (c.catchup != null) c.archiveDays else 0) }
                 }
                 playlistEpgUrl = pl.epgUrl
-                progress = LoadProgress("Zenders aan de gids koppelen")
-                val m = withContext(Dispatchers.IO) { epg.match(chans, store.epgLinks) }
+                // Zenders meteen tonen; de gids wordt daarna gekoppeld.
                 allChannels = chans
                 allGroups = chans.map { it.group }.distinct()
-                epgMatch = m
                 val newVod: VodSource? = xt ?: pl.vod.takeIf { it.isNotEmpty() }?.let { M3uVodSource(it) }
                 vod = newVod; vodCache.clear(); archCache.clear()
                 applyHidden()
+                progress = LoadProgress("Zenders aan de gids koppelen")
+                epgMatch = try { withContext(Dispatchers.Default) { epg.match(chans, store.epgLinks) } } catch (e: Exception) { status = "Gids koppelen mislukt: ${e.message}"; emptyMap() }
+                dataVersion++
                 progress = null
                 refreshNowNext()
                 if (forceEpg || epgDue(startup)) refreshEpgLocked()

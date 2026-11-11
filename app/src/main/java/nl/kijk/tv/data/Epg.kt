@@ -129,22 +129,24 @@ class EpgRepository(ctx: Context) {
                 if (id in ids) byName.getOrPut(c.getString(1)) { ArrayList(2) }.let { if (id !in it) it += id }
             }
         }
+        if (ids.isEmpty()) return emptyMap()   // nog geen gids: niets te koppelen
         val dispCountry = HashMap<String, String>()
         db.rawQuery("SELECT cid, name FROM disp", null).use { c -> while (c.moveToNext()) countryOf(c.getString(1))?.let { dispCountry.putIfAbsent(c.getString(0), it) } }
 
         fun cidCountry(cid: String): String? =
-            Regex("""\.([a-z]{2})$""").find(cid.lowercase())?.let { cc(it.groupValues[1]) } ?: dispCountry[cid] ?: countryOf(cid)
+            RX_CID_CC.find(cid.lowercase())?.let { cc(it.groupValues[1]) } ?: dispCountry[cid] ?: countryOf(cid)
 
-        fun byNameFor(name: String, want: String?): String? {
-            val cands = byName[normalize(name)] ?: return null
+        val out = HashMap<String, String>()
+        val norm = HashMap<String, String>()   // veel zenders delen dezelfde naam (HD/FHD/4K-varianten)
+        fun byNameCached(name: String, want: String?): String? {
+            val n = norm.getOrPut(name) { normalize(name) }
+            val cands = byName[n] ?: return null
             if (want != null) {
                 cands.firstOrNull { cidCountry(it) == want }?.let { return it }
-                return cands.firstOrNull { cidCountry(it) == null }  // liever geen gids dan die van een ander land
+                return cands.firstOrNull { cidCountry(it) == null }
             }
             return cands.firstOrNull { cidCountry(it) == null } ?: cands.first()
         }
-
-        val out = HashMap<String, String>()
         for (ch in channels) {
             val link = links[ch.name]
             if (link != null) {
@@ -155,9 +157,9 @@ class EpgRepository(ctx: Context) {
             val want = countryOf(ch.name) ?: countryOf(ch.group)
             val t = ch.tvgId
             val cid = t?.let { if (it in ids) it else lower[it.lowercase()] }
-                ?: t?.let { byNameFor(it, want) }
-                ?: byNameFor(ch.name, want)
-                ?: ch.tvgName?.let { byNameFor(it, want) }
+                ?: t?.let { byNameCached(it, want) }
+                ?: byNameCached(ch.name, want)
+                ?: ch.tvgName?.let { byNameCached(it, want) }
             if (cid != null) out[ch.key] = cid
         }
         return out
@@ -229,17 +231,25 @@ class EpgRepository(ctx: Context) {
         private fun cc(c: String): String? { val l = c.lowercase(); return if (l == "gb") "uk" else if (l in COUNTRIES) l else null }
 
         /** Land uit "NL: NPO 1", "NL | RTL 4", "NL 4K-Discovery", "|NL| …" of een id als "Discovery.nl". */
+        // Eén keer compileren: matchen gebeurt voor tienduizenden zenders.
+        private val RX_CID_CC = Regex("""\.([a-z]{2})$""")
+        private val RX_PREFIX_CC = Regex("""^\W*([A-Za-z]{2})(?:\W|$)""")
+        private val RX_SUFFIX_CC = Regex("""\.([A-Za-z]{2})$""")
+        private val RX_BRACKETS = Regex("""[(\[{].*?[)\]}]""")
+        private val RX_NAME_PREFIX = Regex("""^\s*[a-z]{2,3}\s*[:|]\s*""")
+        private val RX_SPLIT = Regex("""[^\p{L}\p{N}+]+""")
+
         fun countryOf(name: String?): String? {
             if (name.isNullOrBlank()) return null
             val s = name.trim()
-            Regex("""^\W*([A-Za-z]{2})(?:\W|$)""").find(s)?.let { m -> cc(m.groupValues[1])?.let { return it } }
-            return Regex("""\.([A-Za-z]{2})$""").find(s)?.let { cc(it.groupValues[1]) }
+            RX_PREFIX_CC.find(s)?.let { m -> cc(m.groupValues[1])?.let { return it } }
+            return RX_SUFFIX_CC.find(s)?.let { cc(it.groupValues[1]) }
         }
 
         fun normalize(s: String): String {
-            val noBrackets = s.lowercase().replace(Regex("""[(\[{].*?[)\]}]"""), " ")
-            val noPrefix = noBrackets.replace(Regex("""^\s*[a-z]{2,3}\s*[:|]\s*"""), " ")
-            val tokens = noPrefix.split(Regex("""[^\p{L}\p{N}+]+""")).filter { it.isNotEmpty() && it !in NOISE }
+            val noBrackets = s.lowercase().replace(RX_BRACKETS, " ")
+            val noPrefix = noBrackets.replace(RX_NAME_PREFIX, " ")
+            val tokens = noPrefix.split(RX_SPLIT).filter { it.isNotEmpty() && it !in NOISE }
             return tokens.joinToString("").ifEmpty { noPrefix.filter { it.isLetterOrDigit() } }
         }
 
