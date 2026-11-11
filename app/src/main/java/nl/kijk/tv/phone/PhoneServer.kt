@@ -22,7 +22,8 @@ import kotlin.random.Random
 object PhoneServer {
     @Volatile private var server: ServerSocket? = null
     @Volatile var port = 0; private set
-    val code: String = "%06d".format(Random.nextInt(0, 1_000_000))
+    /** Koppelcode; blijft bewaard, zodat een geopende pagina op je telefoon ook na een herstart blijft werken. */
+    @Volatile var code: String = "------"; private set
     private val main = Handler(Looper.getMainLooper())
     /** Altijd de nieuwste ontvanger: na het opnieuw opbouwen van het scherm mag de oude niet meer gebruikt worden. */
     @Volatile private var listener: ((JSONObject) -> Unit)? = null
@@ -41,6 +42,8 @@ object PhoneServer {
 
     fun start(ctx: Context, onImport: (JSONObject) -> Unit) {
         listener = onImport
+        val sp = ctx.getSharedPreferences("kijk", Context.MODE_PRIVATE)
+        code = sp.getString("phoneCode", null) ?: "%06d".format(Random.nextInt(0, 1_000_000)).also { sp.edit().putString("phoneCode", it).apply() }
         if (server != null || starting) return
         starting = true
         thread(name = "kijk-phone", isDaemon = true) {
@@ -88,7 +91,7 @@ object PhoneServer {
         when {
             method == "OPTIONS" -> send("204 No Content", "text/plain", ByteArray(0))
             method == "GET" && path == "/" -> send("200 OK", "text/html; charset=utf-8", PAGE.replace("{{CODE}}", query["code"]?.filter { it.isDigit() } ?: "").toByteArray())
-            method == "GET" && path == "/status" -> json("200 OK", JSONObject().put("app", "Kijk").put("ok", true))
+            method == "GET" && path == "/status" -> json("200 OK", JSONObject().put("app", "Kijk").put("ok", true).put("open", listener != null))
             method == "POST" && path == "/import" -> {
                 val o = try { JSONObject(String(body, Charsets.UTF_8)) } catch (_: Exception) { return json("400 Bad Request", JSONObject().put("error", "Ongeldige gegevens")) }
                 if (o.optString("code") != code) return json("403 Forbidden", JSONObject().put("error", "Onjuiste code. Kijk op de tv: Instellingen › Instellen via telefoon."))
@@ -121,7 +124,7 @@ label{display:block;font-size:13px;color:#98989f;margin:10px 0 4px}input,select{
 <h2>OpenSubtitles</h2><label>API-sleutel (Consumer)</label><input id="osk" autocapitalize="off" autocomplete="off">
 <label>Gebruikersnaam</label><input id="osu" autocapitalize="off"><div class="hint">Je gebruikersnaam, niet je e-mailadres.</div><label>Wachtwoord</label><input id="osp" type="password">
 <h2>Koppelcode</h2><label>Code op het tv-scherm</label><input id="code" inputmode="numeric" value="{{CODE}}">
-<button class="go" onclick="send()">Naar tv sturen</button><div id="msg"></div>
+<button class="go" onclick="send()">Naar tv sturen</button><div id="msg"></div><div id="st" class="hint" style="text-align:center"></div>
 <script>
 let md='m';function mode(v){md=v;m.hidden=v!='m';x.hidden=v!='x';bm.className=v=='m'?'on':'';bx.className=v=='x'?'on':''}
 function $(i){return document.getElementById(i).value.trim()}
@@ -130,7 +133,12 @@ if(md=='m'&&$('url'))o.playlist_url=$('url');
 if(md=='x'&&$('host')&&$('user')&&$('pass')){let h=$('host');if(!/^https?:/.test(h))h='http://'+h;h=h.replace(/\/+$/,'');o.playlist_url=h+'/get.php?username='+encodeURIComponent($('user'))+'&password='+encodeURIComponent($('pass'))+'&type=m3u_plus&output=ts'}
 if($('epg'))o.epg_url=$('epg');if($('rp'))o.refresh_playlist=$('rp');if($('re'))o.refresh_epg=$('re');
 if($('osk'))o.os_key=$('osk').replace(/\s/g,'');if($('osu'))o.os_user=$('osu');if(document.getElementById('osp').value)o.os_pass=document.getElementById('osp').value;
-msg.textContent='Versturen…';try{const r=await fetch('/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});const j=await r.json();
-msg.textContent=j.ok?'✓ Verstuurd. Kijk op je tv.':'✕ '+(j.error||'Mislukt')}catch(e){msg.textContent='✕ Geen verbinding met de tv'}}
+msg.textContent='Versturen…';const ac=new AbortController();const t=setTimeout(()=>ac.abort(),10000);
+try{const r=await fetch('/import?t='+Date.now(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),signal:ac.signal,cache:'no-store'});const j=await r.json();
+msg.textContent=j.ok?'✓ Verstuurd. Bovenin de tv verschijnt een bevestiging.':'✕ '+(j.error||'Mislukt')}
+catch(e){msg.textContent='✕ Geen antwoord van de tv. Staat Kijk open op de tv en zit je telefoon op hetzelfde wifi-netwerk (niet op 4G/5G of een gastnetwerk)?'}finally{clearTimeout(t)}}
+async function check(){try{const ac=new AbortController();setTimeout(()=>ac.abort(),4000);const j=await (await fetch('/status?t='+Date.now(),{signal:ac.signal,cache:'no-store'})).json();
+st.textContent=j.open?'● Verbonden met de tv':'● De tv is bereikbaar, maar Kijk staat niet open';st.style.color=j.open?'#30d158':'#ff9f0a'}catch(e){st.textContent='● Geen verbinding met de tv';st.style.color='#ff453a'}}
+check();setInterval(check,5000);
 </script></body></html>"""
 }
