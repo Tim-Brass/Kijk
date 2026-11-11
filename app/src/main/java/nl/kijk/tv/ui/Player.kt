@@ -96,7 +96,9 @@ fun buildPlayer(ctx: Context, softAudio: Boolean = true): ExoPlayer {
     // Met softAudio gaat Dolby/DTS via FFmpeg in de app naar gewoon (PCM-)geluid, in plaats van doorgeven aan tv/soundbar.
     val renderers = DefaultRenderersFactory(ctx).setEnableDecoderFallback(true)
         .setExtensionRendererMode(if (softAudio) DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER else DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-    return ExoPlayer.Builder(ctx, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(http, extractors)).build()
+    // DefaultDataSource: naast http ook lokale bestanden (de gedownloade OpenSubtitles-ondertitels)
+    val data = androidx.media3.datasource.DefaultDataSource.Factory(ctx, http)
+    return ExoPlayer.Builder(ctx, renderers).setMediaSourceFactory(DefaultMediaSourceFactory(data, extractors)).build()
 }
 
 fun mediaItem(url: String, start: MediaItem.Builder.() -> Unit = {}): MediaItem = MediaItem.Builder().setUri(url).apply {
@@ -185,9 +187,10 @@ fun StatusBubble(text: String, modifier: Modifier = Modifier) {
 
 /** Zijpaneel rechts (opties, ondertitels, audio). */
 @Composable
-fun SidePanel(content: LazyListScope.(first: FocusRequester) -> Unit) {
+fun SidePanel(refocus: Any? = null, content: LazyListScope.(first: FocusRequester) -> Unit) {
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { delay(60); runCatching { first.requestFocus() } }
+    // ook opnieuw als de lijst verandert (bijv. sporen geladen): anders raakt de selectie kwijt en reageert niets meer
+    LaunchedEffect(refocus) { delay(60); runCatching { first.requestFocus() } }
     Box(Modifier.fillMaxHeight().width(420.dp).background(Color(0xF21C1C22))) {
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(horizontal = 24.dp, vertical = Kijk.SafeV + 8.dp)) {
             content(first)
@@ -337,7 +340,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             val audio = trackOptions(tracks, C.TRACK_TYPE_AUDIO)
             val subsOff = player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) || subs.none { it.selected }
             var refresh by remember { mutableIntStateOf(0) }
-            SidePanel { first ->
+            SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader(shortName(channel.name)) }
                 val cur = current()
                 if (cur != null && vm.canRestart(channel, cur)) item(key = "restart") {

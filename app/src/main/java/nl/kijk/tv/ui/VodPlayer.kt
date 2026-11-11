@@ -113,6 +113,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     var ext by remember { mutableStateOf<ExtSub?>(null) }
     var subMsg by remember { mutableStateOf<String?>(null) }
     var autoTried by remember { mutableStateOf(false) }
+    var userChose by remember { mutableStateOf(false) }   // zelf iets gekozen: niet meer automatisch wisselen
     val focus = remember { FocusRequester() }
     val hasNext = index < items.lastIndex && !catchup
     val progLen = prog?.let { it.stop - it.start } ?: 0L
@@ -202,7 +203,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
 
     // Automatisch ondertitels: eerder gekozen bestand, of zoeken als de film geen eigen ondertitels in je taal heeft.
     LaunchedEffect(tracks, index) {
-        if (autoTried || ext != null || tracks.groups.isEmpty() || item.isCatchup) return@LaunchedEffect
+        if (autoTried || userChose || ext != null || tracks.groups.isEmpty() || item.isCatchup) return@LaunchedEffect
         autoTried = true
         val lang = vm.subStyle.language
         if (lang == "off" || !vm.subs.configured) return@LaunchedEffect
@@ -213,7 +214,9 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
         if (own) return@LaunchedEffect
         val langs = when (lang) { "en" -> listOf("en"); "auto" -> listOf("nl", "en"); else -> listOf("nl") }
         for (l in langs) {
+            if (userChose || panel != null || searching) return@LaunchedEffect   // niet wisselen terwijl je zelf aan het kiezen bent
             val r = try { withContext(Dispatchers.IO) { vm.subs.search(item.subs ?: SubsQuery(query = item.title), l) } } catch (_: Exception) { emptyList() }
+            if (userChose || panel != null || searching) return@LaunchedEffect
             r.firstOrNull()?.let { useExt(it.fileId, 0.0, l); subMsg = "Ondertitels van OpenSubtitles (${if (l == "nl") "Nederlands" else "Engels"})"; return@LaunchedEffect }
         }
     }
@@ -250,7 +253,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     fun press(b: String) {
         when (b) {
             "play" -> if (player.isPlaying) player.pause() else player.play()
-            "subs" -> { panel = "subs"; controls = false }
+            "subs" -> { panel = "subs"; controls = false; autoTried = true }
             "audio" -> { panel = "audio"; controls = false }
             "next" -> go(index + 1)
         }
@@ -282,7 +285,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                     Key.MediaFastForward -> { scrubBy(1, 13); true }
                     Key.MediaNext -> { go(index + 1); true }
                     Key.MediaPrevious -> { go(index - 1); true }
-                    Key.Captions -> { panel = "subs"; true }
+                    Key.Captions -> { panel = "subs"; autoTried = true; true }
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         when {
                             countdown != null -> go(index + 1)
@@ -300,8 +303,8 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                         true
                     }
                     Key.DirectionDown -> { if (controls && scrub == null) row = 1; poke(); true }
-                    Key.DirectionUp -> { if (controls && row == 1) row = 0 else if (!controls) poke() else { panel = "subs"; controls = false }; poke(); true }
-                    Key.Menu -> { panel = "subs"; controls = false; true }
+                    Key.DirectionUp -> { if (controls && row == 1) row = 0 else if (!controls) poke() else { panel = "subs"; controls = false; autoTried = true }; poke(); true }
+                    Key.Menu -> { panel = "subs"; controls = false; autoTried = true; true }
                     else -> false
                 }
             }
@@ -373,16 +376,16 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
             val subs = trackOptions(tracks, C.TRACK_TYPE_TEXT)
             val audio = trackOptions(tracks, C.TRACK_TYPE_AUDIO)
             val subsOff = player.trackSelectionParameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT) || subs.none { it.selected }
-            if (panel == "audio") SidePanel { first ->
+            if (panel == "audio") SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader("Audio") }
                 if (audio.isEmpty()) item(key = "none") { Label("Geen audiosporen gevonden.", Modifier.padding(6.dp), color = Kijk.Secondary) }
                 items(audio) { o ->
                     OptionRow(o.label, o.selected, if (o == audio.first()) Modifier.focusRequester(first) else Modifier) { selectTrack(player, C.TRACK_TYPE_AUDIO, o); refresh++ }
                 }
-            } else SidePanel { first ->
+            } else SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader("Ondertitels") }
-                item(key = "off$refresh") { OptionRow("Uit", subsOff, Modifier.focusRequester(first)) { selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
-                items(subs) { o -> OptionRow(o.label, o.selected && !subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
+                item(key = "off$refresh") { OptionRow("Uit", subsOff, Modifier.focusRequester(first)) { userChose = true; selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
+                items(subs) { o -> OptionRow(o.label, o.selected && !subsOff) { userChose = true; selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
                 if (!catchup) item(key = "os") {
                     OptionRow("🔎  Zoeken bij OpenSubtitles…", false) {
                         panel = null; searching = true
