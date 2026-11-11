@@ -66,7 +66,7 @@ fun QrCode(text: String, modifier: Modifier = Modifier.size(220.dp)) {
 
 /** Instellen: links een QR-code voor de telefoon (makkelijk voor lange links en sleutels), rechts invullen met de afstandsbediening. */
 @Composable
-fun SetupScreen(vm: AppViewModel, onDone: () -> Unit) {
+fun SetupScreen(vm: AppViewModel, onPair: () -> Unit = {}, onDone: () -> Unit) {
     var xtream by rememberSaveable { mutableStateOf(false) }
     var m3u by rememberSaveable { mutableStateOf(vm.store.playlistUrl) }
     var server by rememberSaveable { mutableStateOf("") }
@@ -138,6 +138,7 @@ fun SetupScreen(vm: AppViewModel, onDone: () -> Unit) {
                     vm.saveSource(playlist, epg.trim()); onDone()
                 }
                 if (vm.configured) PillButton("Annuleren") { onDone() }
+                PillButton("Overnemen van andere tv") { onPair() }
             }
         }
     }

@@ -38,6 +38,7 @@ import nl.kijk.tv.data.VodCategory
 import nl.kijk.tv.data.VodSource
 import nl.kijk.tv.data.Xtream
 import org.json.JSONObject
+import nl.kijk.tv.phone.PhoneServer
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -95,6 +96,94 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val xtream: Xtream? get() = Xtream.fromPlaylistUrl(store.playlistUrl)
     val configured get() = store.playlistUrl.isNotBlank()
+
+    // ---------------------------------------------------------------- delen met andere apparaten
+    val sync = nl.kijk.tv.data.Sync(app)
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    var syncStatus by mutableStateOf<String?>(null); private set
+    var peersVersion by mutableStateOf(0); private set
+    /** Wat er nu speelt (sleutel + huidige positie), gezet door de spelers. */
+    var playing: Pair<String, () -> Long>? = null
+    /** Gezet als een ander apparaat het afspelen overneemt: de speler stopt dan. */
+    var stoppedBy by mutableStateOf<String?>(null)
+
+    private fun <T> onMain(block: () -> T): T? {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return block()
+        val latch = java.util.concurrent.CountDownLatch(1); var out: T? = null
+        mainHandler.post { try { out = block() } finally { latch.countDown() } }
+        latch.await(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        return out
+    }
+
+    private fun startSync() {
+        PhoneServer.syncHandler = { path, o, from ->
+            sync.handle(path, o, from, PhoneServer.port,
+                onChanged = { ch -> mainHandler.post { reloadFromStore(ch); peersVersion++ } },
+                onStop = { name -> onMain { stopForPeer(name) } })
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            while (PhoneServer.port == 0) delay(1000)
+            sync.startDiscovery(PhoneServer.port)
+            while (true) {
+                if (sync.paired) {
+                    val ch = try { sync.syncAll() } catch (_: Exception) { emptySet() }
+                    withContext(Dispatchers.Main) { if (ch.isNotEmpty()) reloadFromStore(ch); peersVersion++ }
+                }
+                delay(12_000)
+            }
+        }
+    }
+
+    private fun stopForPeer(name: String): Pair<String, Long>? {
+        val p = playing ?: return null
+        val r = p.first to (try { p.second() } catch (_: Exception) { 0L })
+        playing = null
+        stoppedBy = name
+        return r
+    }
+
+    /** Vóór het afspelen: andere apparaten laten stoppen (je aanbieder staat één stream toe). */
+    suspend fun claimPlayback(): List<Pair<String, Long>> =
+        if (!sync.paired) emptyList() else withContext(Dispatchers.IO) { try { sync.claim() } catch (_: Exception) { emptyList() } }
+
+    fun pairWith(address: String, code: String) {
+        syncStatus = "Koppelen…"
+        viewModelScope.launch {
+            try {
+                val (name, changed) = withContext(Dispatchers.IO) { sync.pair(address.trim().let { if (':' in it) it else "$it:8080" }, code.trim()) }
+                syncStatus = "Gekoppeld met $name"
+                notice = "✓ Gekoppeld met $name: instellingen overgenomen"
+                reloadFromStore(changed + "playlistUrl")
+                imports++
+                peersVersion++
+            } catch (e: Exception) {
+                syncStatus = "Koppelen mislukt: ${e.message ?: e.javaClass.simpleName}"
+            }
+        }
+    }
+    fun unpair() { sync.unpair(); syncStatus = "Ontkoppeld"; peersVersion++ }
+    fun syncNow() {
+        syncStatus = "Synchroniseren…"
+        viewModelScope.launch {
+            val ch = withContext(Dispatchers.IO) { try { sync.syncAll() } catch (_: Exception) { emptySet() } }
+            if (ch.isNotEmpty()) reloadFromStore(ch)
+            syncStatus = if (ch.isEmpty()) "Alles is gelijk" else "Bijgewerkt: ${ch.size} onderdelen"
+            peersVersion++
+        }
+    }
+
+    /** Na ontvangen instellingen: schermstatus opnieuw uit de opslag lezen. */
+    private fun reloadFromStore(changed: Set<String>) {
+        favorites = store.favorites; hidden = store.hiddenGroups
+        hiddenMovieCats = store.hiddenMovieCats; hiddenShowCats = store.hiddenShowCats
+        subStyle = store.subStyle; epgOffsetMinutes = store.epgOffsetMinutes; lockOn = store.lockOn
+        vodFavs = store.vodFavs; reminders = store.reminders
+        if (("playlistUrl" in changed || "epgUrl" in changed) && store.playlistUrl.isNotBlank() && (allChannels.isEmpty() || "playlistUrl" in changed && store.playlistUrl != loadedUrl))
+            saveSource(store.playlistUrl, store.epgUrl)
+        else if ("epgLinks" in changed) viewModelScope.launch { epgMatch = withContext(Dispatchers.IO) { epg.match(allChannels, store.epgLinks) }; refreshNowNext(); dataVersion++ }
+        applyHidden()
+    }
+    private var loadedUrl = store.playlistUrl
     private val offset get() = epgOffsetMinutes * MINUTE
 
     init {
@@ -108,6 +197,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         if (configured) load(startup = true)
+        startSync()
     }
 
     // ---------------------------------------------------------------- vernieuwen
@@ -528,6 +618,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- bron en import
     fun saveSource(playlistUrl: String, epgUrl: String) {
+        loadedUrl = playlistUrl
         store.playlistUrl = playlistUrl; store.epgUrl = epgUrl; store.playlistUpdated = 0L; store.archiveJson = "{}"
         allChannels = emptyList(); channels = emptyList(); cacheFile.delete()
         load(forcePlaylist = true, forceEpg = true)

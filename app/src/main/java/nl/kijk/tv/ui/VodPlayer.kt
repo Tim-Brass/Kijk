@@ -189,18 +189,26 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
             override fun onPlayerError(e: PlaybackException) { error = "Verbinding verbroken (${e.errorCodeName})" }
         }
         player.addListener(l)
-        onDispose { save(); player.removeListener(l); player.release() }
+        onDispose { save(); player.removeListener(l); player.release(); if (vm.playing?.first?.startsWith("live:") == false) vm.playing = null }
     }
     LaunchedEffect(vm.subStyle) { if (ext == null) applyPreferences(player, vm.subStyle) }
 
     var first by remember { mutableStateOf(true) }
+    LaunchedEffect(vm.stoppedBy) {
+        val n = vm.stoppedBy ?: return@LaunchedEffect
+        vm.stoppedBy = null; save(); player.stop(); vm.notice = "Gestopt: je kijkt nu op $n"; nav.pop()
+    }
     LaunchedEffect(index) {
-        val start = if (first) startPosition else vm.store.progress(item.key)?.takeIf { it.resumable }?.pos ?: 0L
+        var start = if (first) startPosition else vm.store.progress(item.key)?.takeIf { it.resumable }?.pos ?: 0L
+        // de andere tv laten stoppen; speelde daar hetzelfde, dan precies daar verder
+        val other = vm.claimPlayback().firstOrNull { it.first == item.key && it.second > 0 }
+        if (other != null) { start = if (catchup) other.second - item.offsetMs else other.second; vm.notice = "Verder waar je op de andere tv was" }
         first = false
         showId?.let { vm.store.setLastEpisode(it, item.key) }
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverrides().build()
         applyPreferences(player, vm.subStyle)
         load(if (catchup) item.offsetMs + start else start)
+        vm.playing = item.key to { if (catchup) baseOffset + player.currentPosition else player.currentPosition }
         poke()
     }
 

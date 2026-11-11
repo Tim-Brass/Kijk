@@ -40,6 +40,7 @@ import nl.kijk.tv.ui.KijkTheme
 import nl.kijk.tv.ui.LivePlayer
 import nl.kijk.tv.ui.MovieDetailScreen
 import nl.kijk.tv.ui.OsConfigScreen
+import nl.kijk.tv.ui.SyncPairScreen
 import nl.kijk.tv.ui.PinScreen
 import nl.kijk.tv.ui.SetupScreen
 import nl.kijk.tv.ui.ShowDetailScreen
@@ -86,6 +87,7 @@ sealed interface Screen {
     data object EpgChannels : Screen { override val id = "epgchans" }
     data class EpgLink(val channel: Channel) : Screen { override val id = "epglink:${channel.key}" }
     data object OsConfig : Screen { override val id = "osconfig" }
+    data object SyncPair : Screen { override val id = "syncpair" }
     data class SubSearch(val item: Playable, val onPick: (Long) -> Unit) : Screen { override val id = "subsearch" }
     data class Pin(val title: String, val sub: String, val check: (String) -> Boolean, val onResult: (String?) -> Unit) : Screen { override val id = "pin:$title" }
     data class Confirm(val title: String, val text: String, val yes: String, val onResult: (Boolean) -> Unit) : Screen { override val id = "confirm" }
@@ -121,7 +123,7 @@ private fun KijkApp(vm: AppViewModel) {
         onDispose { PhoneServer.stop(receiver) }
     }
     // Instellingen ontvangen: van het instelscherm door naar Home.
-    LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && nav.top is Screen.Setup) nav.replaceAll(Screen.Home) }
+    LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && (nav.top is Screen.Setup || nav.top is Screen.SyncPair)) nav.replaceAll(Screen.Home) }
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(8_000); vm.checkUpdate() }
     LaunchedEffect(vm.notice) { if (vm.notice != null) { kotlinx.coroutines.delay(5000); vm.notice = null } }
 
@@ -138,7 +140,7 @@ private fun KijkApp(vm: AppViewModel) {
         when (screen) {
             Screen.Setup -> {
                 if (vm.configured) BackHandler { nav.replaceAll(Screen.Home) }
-                SetupScreen(vm, onDone = { nav.replaceAll(Screen.Home) })
+                SetupScreen(vm, onPair = { nav.push(Screen.SyncPair) }, onDone = { nav.replaceAll(Screen.Home) })
             }
             Screen.Home -> HomeScreen(vm, nav)
             is Screen.Live -> LivePlayer(vm, nav, screen.list, screen.index)
@@ -149,6 +151,7 @@ private fun KijkApp(vm: AppViewModel) {
             Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
             is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
             Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
+            Screen.SyncPair -> { BackHandler { nav.pop() }; SyncPairScreen(vm, nav) }
             is Screen.SubSearch -> SubSearchScreen(vm, screen.item, { nav.pop() }, screen.onPick)
             is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
             is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }

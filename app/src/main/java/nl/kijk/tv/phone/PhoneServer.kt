@@ -58,6 +58,8 @@ object PhoneServer {
     @Volatile private var starting = false
 
     @Volatile private var filesDir: java.io.File? = null
+    /** Verzoeken tussen Kijk-apparaten (instellingen delen); wordt ingesteld door de app. */
+    @Volatile var syncHandler: ((String, JSONObject, String) -> JSONObject)? = null
 
     fun start(ctx: Context, onImport: (JSONObject) -> Unit) {
         filesDir = ctx.filesDir
@@ -115,6 +117,17 @@ object PhoneServer {
             method == "GET" && path == "/crash" -> send("200 OK", "text/plain; charset=utf-8",
                 (filesDir?.let { java.io.File(it, "crash_last.txt") }?.takeIf { it.exists() }?.readText() ?: "Geen crash bewaard.").toByteArray())
             method == "GET" && path == "/status" -> json("200 OK", JSONObject().put("app", "Kijk").put("ok", true).put("open", listener != null))
+            method == "POST" && path.startsWith("/sync/") -> {
+                val o = try { JSONObject(String(body, Charsets.UTF_8).ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
+                val h = syncHandler ?: return json("503 Service Unavailable", JSONObject().put("error", "Kijk staat niet open"))
+                val r = try { h(path, o, c.inetAddress.hostAddress ?: "") } catch (e: Exception) { JSONObject().put("_status", 500).put("error", e.message ?: "fout") }
+                when (r.optInt("_status", 200)) {
+                    200 -> json("200 OK", r)
+                    403 -> json("403 Forbidden", r)
+                    404 -> json("404 Not Found", r)
+                    else -> json("500 Internal Server Error", r)
+                }
+            }
             method == "POST" && path == "/import" -> {
                 val o = try { JSONObject(String(body, Charsets.UTF_8)) } catch (_: Exception) { return json("400 Bad Request", JSONObject().put("error", "Ongeldige gegevens")) }
                 if (o.optString("code") != code) return json("403 Forbidden", JSONObject().put("error", "Onjuiste code. Kijk op de tv: Instellingen › Instellen via telefoon."))

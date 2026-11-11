@@ -255,10 +255,18 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             override fun onPlayerError(e: PlaybackException) { error = "Deze zender speelt niet af (${e.errorCodeName})." }
         }
         player.addListener(l)
-        onDispose { player.removeListener(l); player.release() }
+        onDispose { player.removeListener(l); player.release(); if (vm.playing?.first?.startsWith("live:") == true) vm.playing = null }
     }
     LaunchedEffect(vm.subStyle) { applyPreferences(player, vm.subStyle) }
+    var claimed by remember { mutableStateOf(false) }
+    // Een ander apparaat neemt het over: stoppen (je aanbieder staat maar één stream toe)
+    LaunchedEffect(vm.stoppedBy) {
+        val n = vm.stoppedBy ?: return@LaunchedEffect
+        vm.stoppedBy = null; player.stop(); vm.notice = "Gestopt: je kijkt nu op $n"; nav.pop()
+    }
     LaunchedEffect(channel.key) {
+        if (!claimed) { claimed = true; vm.claimPlayback() }   // eerst de andere tv laten stoppen
+        vm.playing = "live:${channel.key}" to { 0L }
         vm.watched(channel)
         error = null; retries = 0; tracks = Tracks.EMPTY
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverrides().build()

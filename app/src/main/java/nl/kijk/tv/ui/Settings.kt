@@ -86,6 +86,18 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
         item { tick.hashCode(); SettingRow("Gids koppelen per zender", "${s.epgLinks.size} handmatig gekoppeld") { nav.push(Screen.EpgChannels) } }
         item { tick.hashCode(); SettingRow("Tijdverschuiving gids", if (vm.epgOffsetMinutes == 0) "Geen" else "%+d min".format(vm.epgOffsetMinutes)) { vm.setEpgOffset(next(OFFSETS, vm.epgOffsetMinutes)) } }
 
+        item { Section("ANDERE TV") }
+        item {
+            vm.peersVersion.hashCode()
+            val peers = vm.sync.peers.values.toList()
+            SettingRow(if (vm.sync.paired) "Gekoppelde apparaten" else "Koppelen met een andere tv",
+                if (vm.sync.paired && peers.isNotEmpty()) peers.joinToString(", ") { p -> p.name + (if (p.lastSync > 0) " (${Format.time(p.lastSync)})" else "") }
+                else "Instellingen, favorieten en kijkvoortgang delen; kies dit op het nieuwe apparaat") { nav.push(Screen.SyncPair) }
+        }
+        if (vm.sync.paired) {
+            item { SettingRow("Nu synchroniseren", vm.syncStatus ?: "Gaat ook vanzelf, elke paar seconden") { vm.syncNow() } }
+            item { SettingRow("Ontkoppelen", "Dit apparaat deelt dan niets meer") { nav.confirm("Ontkoppelen?", "Instellingen blijven op dit apparaat staan, maar worden niet meer gedeeld.", yes = "Ontkoppelen") { vm.unpair() } } }
+        }
         item { Section("KINDERSLOT") }
         item { tick.hashCode(); SettingRow("Kinderslot op volwassen groepen", if (vm.lockOn) "Aan" else "Uit") {
             if (vm.lockOn) nav.askPin(vm, sub = "Voer je pincode in om het kinderslot uit te zetten.") { vm.setLock(false) } else vm.setLock(true)
@@ -369,6 +381,50 @@ fun ConfirmScreen(screen: Screen.Confirm) {
                 PillButton("Annuleren", Modifier.focusRequester(no)) { screen.onResult(false) }
                 PillButton(screen.yes) { screen.onResult(true) }
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- koppelen met een andere tv
+
+@Composable
+fun SyncPairScreen(vm: AppViewModel, nav: Nav) {
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(1500); tick++ } }   // gevonden apparaten verversen
+    var address by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    val found = remember(tick) { vm.sync.discovered.values.sortedBy { it.name } }
+    Row(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 20.dp, vertical = Kijk.SafeV)) {
+        Column(Modifier.weight(1f)) {
+            Label("Koppelen met een andere tv", size = Kijk.LargeTitle, weight = Kijk.Bold)
+            Label("Doe dit op het nieuwe apparaat. Het neemt dan alle instellingen, favorieten en kijkvoortgang over van de andere tv. Daarna blijven ze vanzelf gelijk.",
+                size = Kijk.Body, color = Kijk.Secondary, maxLines = 3)
+            Spacer(Modifier.height(14.dp))
+            Section("GEVONDEN IN JE NETWERK")
+            if (found.isEmpty()) Label("Zoeken… Staat Kijk open op de andere tv? Je kunt ook hiernaast het adres invullen.", Modifier.padding(6.dp), size = Kijk.Body, color = Kijk.Secondary, maxLines = 2)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                items(found) { f ->
+                    FocusCard(onClick = { address = f.address }, selected = address == f.address, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { foc ->
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Label("📺  " + f.name, Modifier.weight(1f), size = Kijk.Headline, weight = Kijk.Semibold)
+                            Label(f.address + if (vm.sync.peers.containsKey(f.id)) " · gekoppeld" else "", size = Kijk.Caption, color = secondary(foc))
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.width(40.dp))
+        Column(Modifier.width(380.dp)) {
+            Spacer(Modifier.height(60.dp))
+            Field("Adres van de andere tv", address, { address = it }, "192.168.1.239:8080", KeyboardType.Uri)
+            Field("Code op de andere tv", code, { code = it.filter { c -> c.isDigit() }.take(6) }, "Instellingen › Instellen via telefoon", KeyboardType.Number, last = true)
+            Spacer(Modifier.height(8.dp))
+            PillButton("Koppelen") { if (address.isNotBlank() && code.length == 6) vm.pairWith(address, code) }
+            Spacer(Modifier.height(10.dp))
+            Label(vm.syncStatus ?: "De code staat op de andere tv bij Instellingen › Instellen via telefoon of laptop.", size = Kijk.Body,
+                color = if (vm.syncStatus?.startsWith("Koppelen mislukt") == true) Kijk.Live else Kijk.Secondary, maxLines = 3)
+            Spacer(Modifier.height(18.dp))
+            Label("Deze tv: ${vm.sync.deviceName} · ${PhoneServer.address() ?: "geen netwerk"} · code ${PhoneServer.code}", size = Kijk.Caption, color = Kijk.Secondary, maxLines = 2)
         }
     }
 }
