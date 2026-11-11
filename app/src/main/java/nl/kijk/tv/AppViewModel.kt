@@ -279,6 +279,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         else Catchup.m3uUrl(ch, s, e)
     }
 
+    var vodFavs by mutableStateOf(store.vodFavs); private set
+    fun isFav(m: Movie) = vodFavs.any { it.kind == "movie" && it.id == m.id }
+    fun isFav(s: Show) = vodFavs.any { it.kind == "show" && it.id == s.id }
+    fun toggleFav(m: Movie) = toggleVod(Recent("movie", m.id, m.name, m.poster, m.categoryId, m.url))
+    fun toggleFav(s: Show) = toggleVod(Recent("show", s.id, s.name, s.poster, s.categoryId, null))
+    private fun toggleVod(r: Recent) {
+        val has = vodFavs.any { it.kind == r.kind && it.id == r.id }
+        vodFavs = if (has) vodFavs.filter { !(it.kind == r.kind && it.id == r.id) } else listOf(r) + vodFavs
+        store.vodFavs = vodFavs
+    }
+    fun favMovies(): List<Movie> = vodFavs.filter { it.kind == "movie" }.map { Movie(it.id, it.name, it.poster, it.categoryId, it.url ?: "", null, null) }
+    fun favShows(): List<Show> = vodFavs.filter { it.kind == "show" }.map { Show(it.id, it.name, it.poster, it.categoryId, null, null, null) }
+
     fun toggleFavorite(ch: Channel) {
         favorites = if (ch.key in favorites) favorites - ch.key else favorites + ch.key
         store.favorites = favorites

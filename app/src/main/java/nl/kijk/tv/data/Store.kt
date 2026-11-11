@@ -71,15 +71,21 @@ class Store(ctx: Context) {
     fun addRecentChannel(key: String) { recentChannels = (listOf(key) + recentChannels.filter { it != key }).take(20) }
 
     var recent: List<Recent>
-        get() = try {
-            JSONArray(str("recent", "[]")).let { a ->
+        get() = readRecents("recent")
+        set(v) = writeRecents("recent", v)
+    /** Favoriete films en series (los van de kijkgeschiedenis; wissen raakt ze niet). */
+    var vodFavs: List<Recent>
+        get() = readRecents("vodFavs")
+        set(v) = writeRecents("vodFavs", v)
+    private fun readRecents(k: String): List<Recent> = try {
+            JSONArray(str(k, "[]")).let { a ->
                 (0 until a.length()).map { a.getJSONObject(it) }.map {
                     Recent(it.getString("kind"), it.getString("id"), it.optString("name"), it.optString("poster").ifEmpty { null },
                         it.optString("cat"), it.optString("url").ifEmpty { null })
                 }
             }
         } catch (_: Exception) { emptyList() }
-        set(v) = put("recent", JSONArray(v.map {
+    private fun writeRecents(k: String, v: List<Recent>) = put(k, JSONArray(v.map {
             JSONObject().put("kind", it.kind).put("id", it.id).put("name", it.name).put("poster", it.poster ?: "").put("cat", it.categoryId).put("url", it.url ?: "")
         }).toString())
     fun addRecent(r: Recent) { recent = (listOf(r) + recent.filter { !(it.kind == r.kind && it.id == r.id) }).take(40) }

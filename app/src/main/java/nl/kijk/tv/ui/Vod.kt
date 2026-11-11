@@ -58,6 +58,7 @@ import nl.kijk.tv.data.SubsQuery
 import nl.kijk.tv.data.VodCategory
 
 private const val CONTINUE = "\u0000verder"
+private const val FAVS = "\u0000favorieten"
 
 fun movieKey(m: Movie) = "m:" + m.id
 
@@ -87,18 +88,23 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
     var error by remember(series) { mutableStateOf<String?>(null) }
     val hiddenCats = if (series) vm.hiddenShowCats else vm.hiddenMovieCats
     val cont = remember(series, vm.dataVersion) { if (series) vm.continueShows() else vm.continueMovies() }
+    val favs = remember(series, vm.vodFavs) { if (series) vm.favShows() else vm.favMovies() }
 
     LaunchedEffect(source, series) {
         cats = try { if (series) vm.showCategories() else vm.movieCategories() } catch (e: Exception) { error = "Laden mislukt: ${e.message ?: e.javaClass.simpleName}"; emptyList() }
     }
     val visibleCats = remember(cats, hiddenCats, vm.unlocked, vm.lockOn) { cats?.filter { it.id !in hiddenCats } }
-    val all = remember(visibleCats, cont) { (if (cont.isNotEmpty()) listOf(VodCategory(CONTINUE, "▶ Verder kijken")) else emptyList()) + (visibleCats ?: emptyList()) }
+    val all = remember(visibleCats, cont, favs.isEmpty()) {
+        (if (cont.isNotEmpty()) listOf(VodCategory(CONTINUE, "▶ Verder kijken")) else emptyList()) +
+            (if (favs.isNotEmpty()) listOf(VodCategory(FAVS, "★ Favorieten")) else emptyList()) + (visibleCats ?: emptyList())
+    }
     LaunchedEffect(all) { if (all.isNotEmpty() && (catId == null || all.none { it.id == catId })) catId = all.first().id }
 
-    LaunchedEffect(catId, vm.unlocked, cont) {
+    LaunchedEffect(catId, vm.unlocked, cont, favs) {
         val id = catId ?: return@LaunchedEffect
         val cat = all.firstOrNull { it.id == id }
         if (id == CONTINUE) { items = cont; return@LaunchedEffect }
+        if (id == FAVS) { items = favs; return@LaunchedEffect }
         if (cat != null && vm.isLocked(cat.name) && !vm.unlocked) { items = emptyList(); return@LaunchedEffect }
         items = null
         delay(250) // niet laden bij elke categorie waar je langs scrollt
@@ -134,10 +140,13 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
                 ) {
                     items(list) { item ->
                         when (item) {
-                            is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction) {
+                            is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction,
+                                fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }) {
                                 vm.addRecentMovie(item); nav.push(Screen.MovieDetail(item))
                             }
-                            is Show -> PosterCard(item.name, item.poster, null) { vm.addRecentShow(item); nav.push(Screen.ShowDetail(item)) }
+                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }) {
+                                vm.addRecentShow(item); nav.push(Screen.ShowDetail(item))
+                            }
                         }
                     }
                 }
@@ -147,14 +156,17 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
 }
 
 @Composable
-fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
-        FocusCard(onClick = onClick, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
+        FocusCard(onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 if (poster != null) AsyncImage(poster, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
                 if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), height = 4.dp)
+                if (fav) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).background(Color(0xCC000000), RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+                    Label("★", size = Kijk.Body, color = Color(0xFFFFD60A))
+                }
             }
         }
         Label(title, Modifier.padding(top = 10.dp, start = 2.dp, end = 2.dp), size = Kijk.Caption,
@@ -209,6 +221,7 @@ fun MovieDetailScreen(vm: AppViewModel, nav: Nav, movie: Movie) {
                         PillButton("▶  Verder vanaf ${Format.clock(resume)}", Modifier.focusRequester(first)) { play(resume) }
                         PillButton("Vanaf het begin") { play(0L) }
                     } else PillButton("▶  Afspelen", Modifier.focusRequester(first)) { play(0L) }
+                    PillButton(if (vm.isFav(movie)) "★  Favoriet" else "☆  Favoriet", selected = vm.isFav(movie)) { vm.toggleFav(movie) }
                 }
             }
         }
@@ -263,7 +276,10 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
                                 // verder bij de laatst bekeken aflevering, of de volgende als die uit is
                                 val t0 = lastEp ?: eps.first()
                                 val t = if (vm.store.progress(t0.key)?.finished == true) eps.getOrNull(eps.indexOf(t0) + 1) ?: t0 else t0
-                                PillButton((if (lastEp != null) "▶  Verder: " else "▶  Afspelen: ") + "S${t.season} A${t.number}", Modifier.focusRequester(first)) { play(t) }
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    PillButton((if (lastEp != null) "▶  Verder: " else "▶  Afspelen: ") + "S${t.season} A${t.number}", Modifier.focusRequester(first)) { play(t) }
+                                    PillButton(if (vm.isFav(show)) "★  Favoriet" else "☆  Favoriet", selected = vm.isFav(show)) { vm.toggleFav(show) }
+                                }
                             }
                         }
                     }
