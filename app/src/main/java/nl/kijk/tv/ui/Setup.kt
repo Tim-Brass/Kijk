@@ -75,7 +75,15 @@ fun SetupScreen(vm: AppViewModel, onDone: () -> Unit) {
     var epg by rememberSaveable { mutableStateOf(vm.store.epgUrl) }
     var error by remember { mutableStateOf<String?>(null) }
     var url by remember { mutableStateOf(PhoneServer.url()) }
-    LaunchedEffect(Unit) { while (true) { delay(3000); url = PhoneServer.url() } }   // netwerk kan later pas klaar zijn
+    var test by remember { mutableStateOf("Controleren…") }
+    var hit by remember { mutableStateOf(PhoneServer.lastHit) }
+    LaunchedEffect(Unit) {   // netwerk kan later pas klaar zijn; elke 3 s opnieuw kijken
+        while (true) {
+            url = PhoneServer.url(); hit = PhoneServer.lastHit
+            test = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { PhoneServer.selfTest() }
+            delay(3000)
+        }
+    }
 
     Row(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 20.dp, vertical = Kijk.SafeV), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.width(330.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -91,6 +99,9 @@ fun SetupScreen(vm: AppViewModel, onDone: () -> Unit) {
                 Label("Code: ${PhoneServer.code}", size = Kijk.Title, weight = Kijk.Bold, color = Kijk.Accent)
                 Spacer(Modifier.height(6.dp))
                 Label("Vanuit de webversie op je laptop: Instellingen › Naar tv sturen, met dit adres en deze code.", size = Kijk.Caption, color = Kijk.Secondary, maxLines = 3)
+                Spacer(Modifier.height(10.dp))
+                Label(test, size = Kijk.Caption, color = if (test.startsWith("✓")) androidx.compose.ui.graphics.Color(0xFF30D158) else Kijk.Live, maxLines = 2)
+                Label(hit?.let { (t, w) -> "Laatst ontvangen ${Format.time(t)}: $w" } ?: "Nog niets ontvangen van een telefoon of laptop", size = Kijk.Caption, color = Kijk.Secondary, maxLines = 2)
             } else Label("Geen netwerkverbinding gevonden.", color = Kijk.Live)
         }
         Spacer(Modifier.width(40.dp))

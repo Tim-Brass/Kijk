@@ -22,6 +22,23 @@ import kotlin.random.Random
 object PhoneServer {
     @Volatile private var server: ServerSocket? = null
     @Volatile var port = 0; private set
+    /** Voor de controle op het tv-scherm: wanneer er voor het laatst iets binnenkwam, en van welk toestel. */
+    @Volatile var lastHit: Pair<Long, String>? = null; private set
+    @Volatile var startError: String? = null; private set
+
+    /** Test op de tv zelf: reageert de server op zijn eigen netwerkadres? */
+    fun selfTest(): String {
+        val i = ip() ?: return "✕ De tv heeft geen netwerkadres gevonden"
+        if (port == 0) return startError?.let { "✕ Server niet gestart: $it" } ?: "Server start…"
+        return try {
+            Socket().use { sock ->
+                sock.connect(java.net.InetSocketAddress(i, port), 3000); sock.soTimeout = 3000
+                sock.getOutputStream().write("GET /status HTTP/1.1\r\nHost: $i\r\nX-Kijk-Self: 1\r\n\r\n".toByteArray())
+                val r = sock.getInputStream().bufferedReader().readLine() ?: ""
+                if (r.contains("200")) "✓ Server werkt op $i:$port" else "✕ Server geeft vreemd antwoord: $r"
+            }
+        } catch (e: Exception) { "✕ Server reageert niet op $i:$port (${e.javaClass.simpleName})" }
+    }
     /** Koppelcode; blijft bewaard, zodat een geopende pagina op je telefoon ook na een herstart blijft werken. */
     @Volatile var code: String = "------"; private set
     private val main = Handler(Looper.getMainLooper())
@@ -49,7 +66,7 @@ object PhoneServer {
         thread(name = "kijk-phone", isDaemon = true) {
             val s = (8080..8090).firstNotNullOfOrNull { p -> try { ServerSocket(p).apply { reuseAddress = true } } catch (_: Exception) { null } }
             starting = false
-            if (s == null) return@thread
+            if (s == null) { startError = "poort 8080–8090 bezet"; return@thread }
             server = s; port = s.localPort
             while (!s.isClosed) {
                 val c = try { s.accept() } catch (_: Exception) { break }
@@ -79,6 +96,7 @@ object PhoneServer {
         val len = headers["content-length"]?.toIntOrNull() ?: 0
         val body = ByteArray(len.coerceAtMost(2_000_000)).also { var off = 0; while (off < it.size) { val n = inp.read(it, off, it.size - off); if (n < 0) break; off += n } }
         val path = target.substringBefore('?')
+        if (headers["x-kijk-self"] == null) lastHit = System.currentTimeMillis() to "${method} ${path} van ${c.inetAddress.hostAddress}"
         val query = target.substringAfter('?', "").split('&').filter { '=' in it }.associate { URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('='), "UTF-8") }
         val out = c.getOutputStream()
         fun send(status: String, type: String, data: ByteArray) {
