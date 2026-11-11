@@ -166,13 +166,13 @@ fun SearchTab(vm: AppViewModel, nav: Nav) {
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
                 if (r.channels.isNotEmpty()) {
                     item { Section("ZENDERS") }
-                    items(r.channels.take(12), key = { "c" + it.key }) { ch ->
+                    items(r.channels.take(12)) { ch ->
                         ChannelRow(vm, ch, onClick = { nav.push(Screen.Live(r.channels, r.channels.indexOf(ch))) }, onLongClick = { vm.toggleFavorite(ch) })
                     }
                 }
                 if (r.programmes.isNotEmpty()) {
                     item { Section("IN DE GIDS") }
-                    items(r.programmes, key = { (c, p) -> "p" + c.key + p.start }) { (ch, p) ->
+                    items(r.programmes) { (ch, p) ->
                         val live = p.isLive(vm.now); val back = vm.canCatchup(ch, p)
                         FocusCard(onClick = {
                             when {
@@ -199,7 +199,7 @@ fun SearchTab(vm: AppViewModel, nav: Nav) {
                     item { Section("FILMS") }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(8.dp)) {
-                            items(r.movies, key = { it.id }) { m -> PosterCard(m.name, m.poster, null, Modifier.width(118.dp)) { vm.addRecentMovie(m); nav.push(Screen.MovieDetail(m)) } }
+                            items(r.movies) { m -> PosterCard(m.name, m.poster, null, Modifier.width(118.dp)) { vm.addRecentMovie(m); nav.push(Screen.MovieDetail(m)) } }
                         }
                     }
                 }
@@ -207,7 +207,7 @@ fun SearchTab(vm: AppViewModel, nav: Nav) {
                     item { Section("SERIES") }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(8.dp)) {
-                            items(r.shows, key = { it.id }) { s -> PosterCard(s.name, s.poster, null, Modifier.width(118.dp)) { vm.addRecentShow(s); nav.push(Screen.ShowDetail(s)) } }
+                            items(r.shows) { s -> PosterCard(s.name, s.poster, null, Modifier.width(118.dp)) { vm.addRecentShow(s); nav.push(Screen.ShowDetail(s)) } }
                         }
                     }
                 }

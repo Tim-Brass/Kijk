@@ -376,13 +376,13 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
             if (panel == "audio") SidePanel { first ->
                 item(key = "h") { PanelHeader("Audio") }
                 if (audio.isEmpty()) item(key = "none") { Label("Geen audiosporen gevonden.", Modifier.padding(6.dp), color = Kijk.Secondary) }
-                items(audio, key = { "a" + it.label + it.index + refresh }) { o ->
+                items(audio) { o ->
                     OptionRow(o.label, o.selected, if (o == audio.first()) Modifier.focusRequester(first) else Modifier) { selectTrack(player, C.TRACK_TYPE_AUDIO, o); refresh++ }
                 }
             } else SidePanel { first ->
                 item(key = "h") { PanelHeader("Ondertitels") }
                 item(key = "off$refresh") { OptionRow("Uit", subsOff, Modifier.focusRequester(first)) { selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
-                items(subs, key = { "s" + it.label + it.index + refresh }) { o -> OptionRow(o.label, o.selected && !subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
+                items(subs) { o -> OptionRow(o.label, o.selected && !subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
                 if (!catchup) item(key = "os") {
                     OptionRow("🔎  Zoeken bij OpenSubtitles…", false) {
                         panel = null; searching = true

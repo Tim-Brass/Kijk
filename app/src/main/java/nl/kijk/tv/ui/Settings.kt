@@ -153,7 +153,7 @@ fun GroupsScreen(vm: AppViewModel, nav: Nav, kind: String) {
         }
         if (cats == null) { EmptyState("Laden…"); return@Column }
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-            items(shown, key = { it.id }) { c ->
+            items(shown) { c ->
                 val on = c.id !in hidden
                 FocusCard(onClick = { set(if (on) hidden + c.id else hidden - c.id) }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -186,7 +186,7 @@ fun EpgChannelsScreen(vm: AppViewModel, nav: Nav) {
             PillButton("Alleen zonder gids", selected = onlyMissing) { onlyMissing = !onlyMissing }
         }
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-            items(shown, key = { it.key }) { ch ->
+            items(shown) { ch ->
                 FocusCard(onClick = { nav.push(Screen.EpgLink(ch)) }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         ChannelLogo(ch.logo, ch.name, Modifier.size(52.dp, 32.dp))
@@ -221,7 +221,7 @@ fun EpgLinkScreen(vm: AppViewModel, nav: Nav, channel: Channel) {
             h == null -> EmptyState("Zoeken…")
             h.isEmpty() -> EmptyState("Niets gevonden", "Probeer een kortere naam, bijvoorbeeld zonder 'HD' of landcode.")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                items(h, key = { it.cid }) { hit ->
+                items(h) { hit ->
                     FocusCard(onClick = { vm.linkEpg(channel.name, hit.cid); nav.pop() }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 9.dp)) {
                             Row {

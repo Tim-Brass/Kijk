@@ -139,7 +139,7 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState) {
             vm.isLocked(hs.group) && !vm.unlocked -> EmptyState("🔒 Vergrendeld", "Druk op OK op de groep om je pincode in te voeren.")
             list.isEmpty() -> EmptyState("Geen zenders", if (hs.group == GROUP_FAV) "Houd OK ingedrukt op een zender om hem bij je favorieten te zetten." else "")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 10.dp)) {
-                itemsIndexed(list, key = { _, c -> c.key }) { i, ch ->
+                itemsIndexed(list) { i, ch ->
                     ChannelRow(vm, ch, onClick = { nav.push(Screen.Live(list, i)) }, onLongClick = { vm.toggleFavorite(ch) })
                 }
             }

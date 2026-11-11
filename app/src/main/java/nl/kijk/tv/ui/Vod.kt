@@ -113,7 +113,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean) {
         all.isEmpty() -> EmptyState(error ?: "Niets gevonden", if (hiddenCats.isNotEmpty()) "Misschien staan alle categorieën uit bij Instellingen." else "")
         else -> Row(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.width(230.dp), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(6.dp)) {
-                items(all, key = { it.id }) { cat ->
+                items(all) { cat ->
                     val locked = vm.isLocked(cat.name) && !vm.unlocked
                     FocusCard(
                         onClick = { if (locked) nav.askPin(vm) { vm.unlock(); catId = cat.id } else catId = cat.id },
@@ -278,7 +278,7 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
                     }
                 }
             }
-            items(eps.filter { it.season == season }, key = { it.key }) { ep -> EpisodeRow(vm, ep) { play(ep) } }
+            items(eps.filter { it.season == season }) { ep -> EpisodeRow(vm, ep) { play(ep) } }
         }
     }
 }

@@ -351,11 +351,11 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
                 item(key = "h-subs") { PanelHeader("Ondertitels") }
                 item(key = "sub-off$refresh") { OptionRow("Uit", subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
                 if (subs.isEmpty()) item(key = "sub-none") { Label("Deze zender zendt geen ondertitels mee.", Modifier.padding(6.dp), size = Kijk.Body, color = Kijk.Secondary, maxLines = 2) }
-                items(subs, key = { "s" + it.label + it.index + refresh }) { o -> OptionRow(o.label, o.selected && !subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
+                items(subs) { o -> OptionRow(o.label, o.selected && !subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
                 subStyleRows(vm)
                 if (audio.size > 1) {
                     item(key = "h-audio") { PanelHeader("Audio") }
-                    items(audio, key = { "a" + it.label + it.index + refresh }) { o -> OptionRow(o.label, o.selected) { selectTrack(player, C.TRACK_TYPE_AUDIO, o); refresh++ } }
+                    items(audio) { o -> OptionRow(o.label, o.selected) { selectTrack(player, C.TRACK_TYPE_AUDIO, o); refresh++ } }
                 }
             }
         }
