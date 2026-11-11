@@ -126,7 +126,12 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
                 }
                 val info = if (p == null) "${s.first.number} · ${s.first.name}" else listOfNotNull(
                     "${Format.dayLabel(p.start, vm.now)} ${Format.range(p.start, p.stop)}", shortName(s.first.name),
-                    when { p.isLive(vm.now) -> Format.minutesLeft(p.stop, vm.now); vm.canCatchup(s.first, p) -> "↺ OK om terug te kijken"; else -> null },
+                    when {
+                        p.isLive(vm.now) -> Format.minutesLeft(p.stop, vm.now)
+                        vm.canCatchup(s.first, p) -> "↺ OK om terug te kijken"
+                        p.start > vm.now -> if (vm.hasReminder(s.first, p)) "🔔 Herinnering staat aan · OK = uitzetten" else "OK = herinnering zetten"
+                        else -> null
+                    },
                 ).joinToString("  ·  ")
                 Label(info, size = Kijk.Caption, color = Kijk.Secondary)
                 p?.desc?.let { Label(it, size = Kijk.Caption, color = Color(0xFFD1D1D6), maxLines = 2) }
@@ -257,7 +262,8 @@ private fun GuideRow(
                 var hasFocus by remember { mutableStateOf(false) }
                 val shown = if (hasFocus && w < 260.dp) 260.dp else w
                 FocusCard(
-                    onClick = { when { live -> onPlayLive(); catchup -> onCatchup(p) } },
+                    onClick = { when { live -> onPlayLive(); catchup -> onCatchup(p); p.start > vm.now -> vm.toggleReminder(ch, p) } },
+                    onLongClick = { if (p.start > vm.now) vm.toggleReminder(ch, p) },
                     onFocus = { onFocus(p) },
                     modifier = Modifier.offset(x = x).zIndex(if (hasFocus) 1f else 0f).width(shown).fillMaxHeight()
                         .onFocusChanged { hasFocus = it.hasFocus }
@@ -270,6 +276,7 @@ private fun GuideRow(
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (catchup) Label("↺ ", size = Kijk.Caption, color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)
+                            if (vm.hasReminder(ch, p)) Label("🔔 ", size = Kijk.Caption)
                             Label(p.title, size = Kijk.Caption, weight = Kijk.Semibold, color = if (past && !catchup && !f) Kijk.Secondary else Color.Unspecified)
                         }
                         if (shown >= 70.dp) Label(Format.range(p.start, p.stop), size = 11.sp(), color = secondary(f))

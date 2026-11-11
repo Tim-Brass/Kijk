@@ -162,7 +162,8 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
                                 fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
                                 vm.addRecentMovie(item); nav.push(Screen.MovieDetail(item))
                             }
-                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
+                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item },
+                                badge = if (vm.isNew(item)) "Nieuw" else null) {
                                 vm.addRecentShow(item); nav.push(Screen.ShowDetail(item))
                             }
                         }
@@ -191,7 +192,7 @@ fun VodBackdrop(url: String?) {
 }
 
 @Composable
-fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, onClick: () -> Unit) {
+fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
         FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
@@ -199,6 +200,9 @@ fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modif
                 if (poster != null) AsyncImage(poster, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
                 if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), height = 4.dp)
+                if (badge != null) Box(Modifier.align(Alignment.TopStart).padding(6.dp).background(Kijk.Accent, RoundedCornerShape(6.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                    Label(badge, size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
+                }
                 if (fav) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).background(Color(0xCC000000), RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
                     Label("★", size = Kijk.Body, color = Color(0xFFFFD60A))
                 }
@@ -268,6 +272,7 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
     var details by remember { mutableStateOf<ShowDetails?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(show.id) {
+        vm.markSeen(show)
         details = try { vm.showDetails(show) } catch (e: Exception) { error = "Afleveringen laden mislukt: ${e.message ?: e.javaClass.simpleName}"; null }
     }
     val eps = details?.episodes.orEmpty()

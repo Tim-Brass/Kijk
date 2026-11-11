@@ -53,6 +53,7 @@ data class MovieInfo(
 data class Show(
     val id: String, val name: String, val poster: String?, val categoryId: String,
     val plot: String?, val rating: String?, val year: String?,
+    val updated: Long? = null,   // laatst gewijzigd volgens de server (nieuwe afleveringen)
 )
 
 data class Episode(

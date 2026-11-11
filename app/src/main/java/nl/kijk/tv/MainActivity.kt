@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -120,6 +122,7 @@ private fun KijkApp(vm: AppViewModel) {
     }
     // Instellingen ontvangen: van het instelscherm door naar Home.
     LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && nav.top is Screen.Setup) nav.replaceAll(Screen.Home) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(8_000); vm.checkUpdate() }
     LaunchedEffect(vm.notice) { if (vm.notice != null) { kotlinx.coroutines.delay(5000); vm.notice = null } }
 
     var crash by remember { mutableStateOf<String?>(null) }
@@ -161,6 +164,29 @@ private fun KijkApp(vm: AppViewModel) {
             androidx.compose.foundation.layout.Spacer(Modifier.padding(6.dp))
             nl.kijk.tv.ui.Label(c.lines().filter { it.isNotBlank() }.take(22).joinToString("\n"), size = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp),
                 color = Color(0xFFD1D1D6), maxLines = 24)
+        }
+    }
+    vm.dueReminder?.let { r ->
+        BackHandler { vm.dismissReminder() }
+        val fr = remember(r) { androidx.compose.ui.focus.FocusRequester() }
+        LaunchedEffect(r) { kotlinx.coroutines.delay(120); runCatching { fr.requestFocus() }; kotlinx.coroutines.delay(90_000); vm.dismissReminder() }
+        Box(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 40.dp)) {
+            nl.kijk.tv.ui.FocusCard(onClick = {
+                vm.dismissReminder()
+                val list = vm.channels.takeIf { l -> l.any { it.key == r.channelKey } } ?: vm.allChannels
+                val idx = list.indexOfFirst { it.key == r.channelKey }
+                if (idx >= 0) {
+                    if (nav.top is Screen.Live || nav.top is Screen.Vod) nav.pop()
+                    nav.push(Screen.Live(list, idx))
+                }
+            }, modifier = Modifier.width(420.dp).focusRequester(fr), focusedScale = 1.03f) {
+                androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                    nl.kijk.tv.ui.Label("🔔  Begint nu", size = nl.kijk.tv.ui.Kijk.Caption, weight = nl.kijk.tv.ui.Kijk.Semibold)
+                    nl.kijk.tv.ui.Label(r.title, size = nl.kijk.tv.ui.Kijk.Title, weight = nl.kijk.tv.ui.Kijk.Bold)
+                    nl.kijk.tv.ui.Label("${r.channelName} · ${Format.time(r.start)}", size = nl.kijk.tv.ui.Kijk.Body)
+                    nl.kijk.tv.ui.Label("OK = kijken · Terug = negeren", Modifier.padding(top = 4.dp), size = nl.kijk.tv.ui.Kijk.Caption)
+                }
+            }
         }
     }
     vm.notice?.let { n ->

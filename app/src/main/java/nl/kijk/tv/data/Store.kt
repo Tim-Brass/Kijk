@@ -6,6 +6,8 @@ import org.json.JSONObject
 import java.security.MessageDigest
 
 /** Een eerder bekeken film of serie, voor "Verder kijken". */
+data class Reminder(val channelKey: String, val channelName: String, val start: Long, val stop: Long, val title: String)
+
 data class Recent(val kind: String, val id: String, val name: String, val poster: String?, val categoryId: String, val url: String?)
 
 /**
@@ -93,6 +95,25 @@ class Store(ctx: Context) {
     /** Gekozen OpenSubtitles-ondertitel per film/aflevering: bestand + verschuiving in seconden. */
     fun subChoice(key: String): Pair<Long, Double>? = str("sc:$key").takeIf { it.isNotEmpty() }?.split('|')?.let { it[0].toLong() to (it.getOrNull(1)?.toDoubleOrNull() ?: 0.0) }
     fun setSubChoice(key: String, fileId: Long, offset: Double) = put("sc:$key", "$fileId|$offset")
+
+    /** Ondertitelvoorkeur voor een hele serie: "off", "track:<taal of naam>" of "os:<taal>". */
+    fun seriesSub(showId: String): String? = str("ss:$showId").ifEmpty { null }
+    fun setSeriesSub(showId: String, v: String) = put("ss:$showId", v)
+
+    /** Laatst geziene "bijgewerkt"-tijd van een serie (voor het label Nieuw). */
+    fun seenShow(showId: String): Long = sp.getLong("seen:$showId", 0L)
+    fun setSeenShow(showId: String, t: Long) { sp.edit().putLong("seen:$showId", t).apply() }
+
+    /** Herinneringen voor programma's. */
+    var reminders: List<Reminder>
+        get() = try {
+            JSONArray(str("reminders", "[]")).let { a -> (0 until a.length()).map { a.getJSONObject(it) }.map {
+                Reminder(it.getString("ch"), it.getString("chName"), it.getLong("start"), it.getLong("stop"), it.getString("title"))
+            } }
+        } catch (_: Exception) { emptyList() }
+        set(v) = put("reminders", JSONArray(v.map {
+            JSONObject().put("ch", it.channelKey).put("chName", it.channelName).put("start", it.start).put("stop", it.stop).put("title", it.title)
+        }).toString())
 
     fun clearHistory(kind: String) {
         val e = sp.edit()

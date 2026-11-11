@@ -118,6 +118,12 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
         }
 
         item { Section("OVER") }
+        item {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            SettingRow("Kijk bijwerken", vm.updateStatus ?: "Versie ${BuildConfig.VERSION_NAME} · OK om te controleren op een nieuwe versie") {
+                if (vm.update != null) vm.installUpdate(ctx) else vm.checkUpdate(manual = true)
+            }
+        }
         item { tick.hashCode(); SettingRow("Kijk", "Versie ${BuildConfig.VERSION_NAME} · ${vm.allChannels.size} zenders") { } }
     }
 }

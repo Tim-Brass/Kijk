@@ -81,6 +81,13 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
     // Terug: eerst naar de tabbalk, dan naar Live, dan vragen of je wilt afsluiten.
     val activity = LocalContext.current as? android.app.Activity
     var tabsFocused by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    // na een herinnering-melding de selectie terugzetten
+    var hadReminder by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.dueReminder) {
+        if (vm.dueReminder != null) hadReminder = true
+        else if (hadReminder) { hadReminder = false; delay(100); runCatching { tabFocus[hs.tab].requestFocus() } }
+    }
     BackHandler {
         when {
             !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
@@ -112,6 +119,9 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
                     }
                 }
                 Label(Format.time(vm.now), Modifier.align(Alignment.CenterEnd), size = Kijk.Headline, color = Kijk.Secondary)
+                vm.update?.let { u ->
+                    SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.align(Alignment.CenterStart), selected = true) { vm.installUpdate(ctx) }
+                }
             }
             Spacer(Modifier.height(8.dp))
             ProgressLine(vm.progress, vm.error ?: vm.status, vm.error != null)

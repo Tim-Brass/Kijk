@@ -174,7 +174,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
 
     fun go(newIndex: Int) {
         if (newIndex !in items.indices || newIndex == index) return
-        save(); countdown = null; ext = null; autoTried = false; index = newIndex
+        save(); countdown = null; ext = null; autoTried = false; userChose = false; index = newIndex
     }
 
     DisposableEffect(player) {
@@ -209,8 +209,28 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
         if (autoTried || userChose || ext != null || tracks.groups.isEmpty() || item.isCatchup) return@LaunchedEffect
         autoTried = true
         val lang = vm.subStyle.language
+        // eerder bij deze aflevering gekozen OpenSubtitles-bestand
+        if (vm.subs.configured) vm.store.subChoice(item.key)?.let { (id, off) -> useExt(id, off, if (lang == "en") "en" else "nl"); return@LaunchedEffect }
+        // keuze die je bij een andere aflevering van deze serie maakte
+        val pref = showId?.let { vm.store.seriesSub(it) }
+        if (pref != null) {
+            when {
+                pref == "off" -> selectTrack(player, C.TRACK_TYPE_TEXT, null)
+                pref.startsWith("track:") -> {
+                    val (pl, plabel) = pref.removePrefix("track:").split('|', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+                    val opts = trackOptions(tracks, C.TRACK_TYPE_TEXT)
+                    val o = opts.firstOrNull { it.label == plabel } ?: opts.firstOrNull { opt -> pl.isNotEmpty() && opt.group?.getTrackFormat(opt.index)?.language == pl }
+                    if (o != null) selectTrack(player, C.TRACK_TYPE_TEXT, o)
+                }
+                pref.startsWith("os:") && vm.subs.configured -> {
+                    val l = pref.removePrefix("os:")
+                    val res = try { withContext(Dispatchers.IO) { vm.subs.search(item.subs ?: SubsQuery(query = item.title), l) } } catch (_: Exception) { emptyList() }
+                    res.firstOrNull()?.let { useExt(it.fileId, 0.0, l); subMsg = "Ondertitels zoals bij de vorige aflevering" }
+                }
+            }
+            return@LaunchedEffect
+        }
         if (lang == "off" || !vm.subs.configured) return@LaunchedEffect
-        vm.store.subChoice(item.key)?.let { (id, off) -> useExt(id, off, if (lang == "en") "en" else "nl"); return@LaunchedEffect }
         if (!vm.store.autoSubs) return@LaunchedEffect
         val want = if (lang == "en") listOf("en", "eng") else listOf("nl", "nld", "dut")
         val own = tracks.groups.any { g -> g.type == C.TRACK_TYPE_TEXT && (0 until g.length).any { g.getTrackFormat(it).language?.lowercase() in want } }
@@ -256,7 +276,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     }
     LaunchedEffect(controls, tick, playing, scrub) { if (controls && playing && scrub == null) { delay(5000); controls = false; row = 0 } }
     LaunchedEffect(scrub, scrubTick) { val s = scrub ?: return@LaunchedEffect; delay(1400); seekTo(s); scrub = null; scrubRepeat = 0 }
-    LaunchedEffect(panel, searching) { if (panel == null && !searching) runCatching { focus.requestFocus() } }
+    LaunchedEffect(panel, searching, vm.dueReminder) { if (panel == null && !searching && vm.dueReminder == null) runCatching { focus.requestFocus() } }
 
     fun scrubBy(dir: Int, repeat: Int) {
         val step = when { repeat > 24 -> 300_000L; repeat > 12 -> 60_000L; repeat > 4 -> 30_000L; else -> 10_000L }
@@ -398,8 +418,15 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                 }
             } else SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader("Ondertitels") }
-                item(key = "off$refresh") { OptionRow("Uit", subsOff, Modifier.focusRequester(first)) { userChose = true; selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
-                items(subs) { o -> OptionRow(o.label, o.selected && !subsOff) { userChose = true; selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++ } }
+                item(key = "off$refresh") { OptionRow("Uit", subsOff, Modifier.focusRequester(first)) {
+                    userChose = true; selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++
+                    showId?.let { vm.store.setSeriesSub(it, "off") }
+                } }
+                items(subs) { o -> OptionRow(o.label, o.selected && !subsOff) {
+                    userChose = true; selectTrack(player, C.TRACK_TYPE_TEXT, o); refresh++
+                    val f = o.group?.getTrackFormat(o.index)
+                    showId?.let { id -> vm.store.setSeriesSub(id, if (f?.id?.startsWith("os:") == true) "os:${f.language ?: "nl"}" else "track:${f?.language ?: ""}|${o.label}") }
+                } }
                 if (!catchup) item(key = "os") {
                     OptionRow("🔎  Zoeken bij OpenSubtitles…", false) {
                         panel = null; searching = true
@@ -420,7 +447,12 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
         if (searching) {
             // Zoekscherm over de film heen; de film loopt zacht door op de achtergrond
             DisposableEffect(Unit) { val v = player.volume; player.volume = 0.25f; onDispose { player.volume = v } }
-            SubSearchScreen(vm, item, onClose = { searching = false }) { fileId -> useExt(fileId, 0.0, if (vm.subStyle.language == "en") "en" else "nl") }
+            SubSearchScreen(vm, item, onClose = { searching = false }) { fileId ->
+                val l = if (vm.subStyle.language == "en") "en" else "nl"
+                userChose = true
+                useExt(fileId, 0.0, l)
+                showId?.let { vm.store.setSeriesSub(it, "os:$l") }
+            }
         }
     }
 }

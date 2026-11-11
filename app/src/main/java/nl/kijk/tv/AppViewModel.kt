@@ -98,7 +98,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val offset get() = epgOffsetMinutes * MINUTE
 
     init {
-        viewModelScope.launch { while (true) { now = System.currentTimeMillis(); delay(15_000) } }
+        viewModelScope.launch { while (true) { now = System.currentTimeMillis(); checkReminders(); delay(15_000) } }
         viewModelScope.launch { while (true) { delay(60_000); refreshNowNext() } }
         viewModelScope.launch {
             while (true) {
@@ -285,14 +285,98 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun isFav(m: Movie) = vodFavs.any { it.kind == "movie" && it.id == m.id }
     fun isFav(s: Show) = vodFavs.any { it.kind == "show" && it.id == s.id }
     fun toggleFav(m: Movie) = toggleVod(Recent("movie", m.id, m.name, m.poster, m.categoryId, m.url))
-    fun toggleFav(s: Show) = toggleVod(Recent("show", s.id, s.name, s.poster, s.categoryId, null))
+    fun toggleFav(s: Show) { toggleVod(Recent("show", s.id, s.name, s.poster, s.categoryId, null)); if (isFav(s)) markSeen(s) }
+
+    private fun showUpdated(s: Show): Long? = s.updated ?: showIndex.firstOrNull { it.id == s.id }?.updated
+    /** Favoriete serie met een nieuwe aflevering sinds je hem voor het laatst opende. */
+    fun isNew(s: Show): Boolean {
+        if (!isFav(s)) return false
+        val u = showUpdated(s) ?: return false
+        val seen = store.seenShow(s.id)
+        return seen in 1 until u
+    }
+    fun markSeen(s: Show) { showUpdated(s)?.let { store.setSeenShow(s.id, it) } }
+    private fun baselineFavShows() {
+        vodFavs.filter { it.kind == "show" && store.seenShow(it.id) == 0L }.forEach { r -> showIndex.firstOrNull { it.id == r.id }?.updated?.let { store.setSeenShow(r.id, it) } }
+    }
+
+    // ---- herinneringen
+    var reminders by mutableStateOf(store.reminders); private set
+    var dueReminder by mutableStateOf<nl.kijk.tv.data.Reminder?>(null); private set
+    fun hasReminder(ch: Channel, p: Programme) = reminders.any { it.channelKey == ch.key && it.start == p.start }
+    fun toggleReminder(ch: Channel, p: Programme) {
+        reminders = if (hasReminder(ch, p)) reminders.filter { !(it.channelKey == ch.key && it.start == p.start) }
+        else reminders + nl.kijk.tv.data.Reminder(ch.key, ch.name, p.start, p.stop, p.title)
+        store.reminders = reminders
+        notice = if (hasReminder(ch, p)) "🔔 Herinnering gezet: ${p.title} om ${Format.time(p.start)}" else "Herinnering verwijderd"
+    }
+    fun dismissReminder() { dueReminder = null }
+    private fun checkReminders() {
+        val t = System.currentTimeMillis()
+        val due = reminders.firstOrNull { it.start - 30_000 <= t && t < it.stop }
+        val keep = reminders.filter { it.stop > t && it != due }
+        if (due != null && dueReminder == null) dueReminder = due
+        if (keep.size != reminders.size) { reminders = keep; store.reminders = keep }
+    }
+
+    // ---- bijwerken vanuit de app (GitHub-releases)
+    data class UpdateInfo(val build: Int, val url: String)
+    var update by mutableStateOf<UpdateInfo?>(null); private set
+    var updateStatus by mutableStateOf<String?>(null); private set
+    private var updating = false
+    fun checkUpdate(manual: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (manual) updateStatus = "Controleren…"
+            try {
+                val j = JSONObject(Net.text("https://api.github.com/repos/Tim-Brass/Kijk/releases/latest"))
+                val n = j.optString("tag_name").removePrefix("build-").toIntOrNull() ?: 0
+                val assets = j.optJSONArray("assets")
+                val url = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
+                    .firstOrNull { it.optString("name").endsWith(".apk") }?.optString("browser_download_url")
+                if (n > BuildConfig.VERSION_CODE && url != null) { update = UpdateInfo(n, url); updateStatus = "Versie 0.1.$n staat klaar · OK om bij te werken" }
+                else if (manual) updateStatus = "Je hebt de nieuwste versie (0.1.${BuildConfig.VERSION_CODE})"
+            } catch (e: Exception) { if (manual) updateStatus = "Controleren mislukt: ${e.message ?: e.javaClass.simpleName}" }
+        }
+    }
+    fun installUpdate(ctx: android.content.Context) {
+        val u = update ?: return checkUpdate(manual = true)
+        if (updating) return
+        val pm = ctx.packageManager
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !pm.canRequestPackageInstalls()) {
+            updateStatus = "Sta eerst toe dat Kijk apps mag installeren, kies daarna opnieuw Bijwerken"
+            notice = updateStatus
+            try {
+                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:" + ctx.packageName))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (_: Exception) { notice = "Zet bij de tv-instellingen 'Onbekende apps installeren' aan voor Kijk" }
+            return
+        }
+        updating = true
+        viewModelScope.launch {
+            try {
+                val f = withContext(Dispatchers.IO) {
+                    val dir = File(ctx.cacheDir, "update").apply { mkdirs() }
+                    val out = File(dir, "Kijk.apk")
+                    Net.open(u.url) { d, t -> updateStatus = if (t > 0) "Downloaden ${d * 100 / t}%" else "Downloaden…"; notice = updateStatus }
+                        .use { input -> out.outputStream().use { input.copyTo(it) } }
+                    out
+                }
+                updateStatus = "Installeren…"; notice = null
+                val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+                ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Exception) {
+                updateStatus = "Bijwerken mislukt: ${e.message ?: e.javaClass.simpleName}"; notice = "✕ $updateStatus"
+            } finally { updating = false }
+        }
+    }
     private fun toggleVod(r: Recent) {
         val has = vodFavs.any { it.kind == r.kind && it.id == r.id }
         vodFavs = if (has) vodFavs.filter { !(it.kind == r.kind && it.id == r.id) } else listOf(r) + vodFavs
         store.vodFavs = vodFavs
     }
     fun favMovies(): List<Movie> = vodFavs.filter { it.kind == "movie" }.map { Movie(it.id, it.name, it.poster, it.categoryId, it.url ?: "", null, null) }
-    fun favShows(): List<Show> = vodFavs.filter { it.kind == "show" }.map { Show(it.id, it.name, it.poster, it.categoryId, null, null, null) }
+    fun favShows(): List<Show> = vodFavs.filter { it.kind == "show" }.map { r -> Show(r.id, r.name, r.poster, r.categoryId, null, null, null, showIndex.firstOrNull { it.id == r.id }?.updated) }
 
     fun toggleFavorite(ch: Channel) {
         favorites = if (ch.key in favorites) favorites - ch.key else favorites + ch.key
@@ -378,16 +462,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (indexJob?.isActive == true || (vodIndexReady && !force)) return
         indexJob = viewModelScope.launch(Dispatchers.IO) {
             val f = indexFile
-            val tag = store.playlistUrl.hashCode().toString()
+            val tag = "v2:" + store.playlistUrl.hashCode()
             try {
                 val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
-                if (fresh && readIndex(f, tag)) { vodIndexReady = true; return@launch }
+                if (fresh && readIndex(f, tag)) { vodIndexReady = true; baselineFavShows(); return@launch }
                 vodIndexStatus = "Films ophalen voor zoeken…"
                 val m = src.movies(null)
                 vodIndexStatus = "Series ophalen voor zoeken…"
                 val sh = src.shows(null)
                 movieIndex = m; showIndex = sh.map { it.copy(plot = null) }
                 vodIndexReady = true; vodIndexStatus = null
+                baselineFavShows()
                 writeIndex(f, tag)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Throwable) {
@@ -403,7 +488,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         tmp.bufferedWriter().use { w ->
             w.write("#$tag\n")
             movieIndex.forEach { w.write("m\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t${clean(it.url)}\t${clean(it.year)}\n") }
-            showIndex.forEach { w.write("s\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t\t${clean(it.year)}\n") }
+            showIndex.forEach { w.write("s\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t\t${clean(it.year)}\t${it.updated ?: ""}\n") }
         }
         tmp.renameTo(f)
     }
@@ -417,7 +502,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (c.size < 7) continue
                 val poster = c[3].ifEmpty { null }; val year = c[6].ifEmpty { null }
                 if (c[0] == "m") m += Movie(c[1], c[2], poster, c[4], c[5], null, year)
-                else sh += Show(c[1], c[2], poster, c[4], null, null, year)
+                else sh += Show(c[1], c[2], poster, c[4], null, null, year, c.getOrNull(7)?.toLongOrNull())
             }
         }
         if (ok) { movieIndex = m; showIndex = sh }

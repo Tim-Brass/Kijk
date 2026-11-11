@@ -271,7 +271,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         if (error != null && retries < 5) { delay(3_000); retries++; player.prepare(); player.playWhenReady = true }
     }
     LaunchedEffect(showInfo, infoTick) { if (showInfo) { delay(if (browse != null) 10_000 else 6_000); showInfo = false; browse = null } }
-    LaunchedEffect(showOptions) { if (!showOptions) runCatching { focus.requestFocus() } }
+    LaunchedEffect(showOptions, vm.dueReminder) { if (!showOptions && vm.dueReminder == null) runCatching { focus.requestFocus() } }
     LaunchedEffect(digits) {
         if (digits.isEmpty()) return@LaunchedEffect
         delay(if (digits.length >= 4) 300 else 1500)
