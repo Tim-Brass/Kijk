@@ -99,6 +99,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     var buffering by remember { mutableStateOf(true) }
     var ended by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var retries by remember { mutableIntStateOf(0) }
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var controls by remember { mutableStateOf(true) }
     var tick by remember { mutableIntStateOf(0) }
@@ -131,7 +132,9 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     fun load(startMs: Long) {
         val cur = currentItem
         val cp = cur.catchupProgramme
-        val url = if (cur.isCatchup && cp != null) vm.catchupUrl(cur.catchupChannel!!, cp.start + startMs, cp.stop) else cur.url
+        // terugkijken gaat per hele minuut: begin op de minuut zodat de tijdlijn klopt
+        val catchStart = if (cur.isCatchup && cp != null) (cp.start + startMs).let { it - Math.floorMod(it, 60_000L) } else 0L
+        val url = if (cur.isCatchup && cp != null) vm.catchupUrl(cur.catchupChannel!!, catchStart, cp.stop) else cur.url
         val e = ext
         val mi = mediaItem(url) {
             if (e != null) setSubtitleConfigurations(listOf(
@@ -140,7 +143,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
             ))
         }
         error = null; ended = false
-        if (cur.isCatchup) { baseOffset = startMs; player.setMediaItem(mi) } else player.setMediaItem(mi, startMs)
+        if (cur.isCatchup && cp != null) { baseOffset = (catchStart - cp.start).coerceAtLeast(0L); player.setMediaItem(mi) } else player.setMediaItem(mi, startMs)
         player.prepare(); player.playWhenReady = true
     }
 
@@ -183,7 +186,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                 ended = state == Player.STATE_ENDED
                 if (state == Player.STATE_READY) error = null
             }
-            override fun onPlayerError(e: PlaybackException) { error = "Afspelen mislukt (${e.errorCodeName})" }
+            override fun onPlayerError(e: PlaybackException) { error = "Verbinding verbroken (${e.errorCodeName})" }
         }
         player.addListener(l)
         onDispose { save(); player.removeListener(l); player.release() }
@@ -231,9 +234,20 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
             delay(500)
         }
     }
+    // Verbinding weg (servers sluiten terugkijk-streams vaak na een paar minuten): op dezelfde plek verder.
+    LaunchedEffect(error) {
+        if (error == null) return@LaunchedEffect
+        if (retries >= 8) { error = "Afspelen mislukt. Druk op Terug en probeer het opnieuw."; return@LaunchedEffect }
+        delay(1200); retries++
+        load(position.coerceAtLeast(0L))
+    }
+    LaunchedEffect(playing) { if (playing) { delay(60_000); retries = 0 } }   // een minuut goed = teller opnieuw
+
     // Einde: markeer als bekeken en ga na 8 seconden door naar de volgende aflevering.
     LaunchedEffect(ended) {
         if (!ended) return@LaunchedEffect
+        // terugkijken dat stopt vóór het einde van het programma: de server brak af, gewoon verder
+        if (catchup && progLen > 0 && position < progLen - 90_000L && retries < 8) { retries++; load(position); return@LaunchedEffect }
         val d = player.duration
         if (d > 0 && !catchup) vm.store.saveProgress(currentItem.key, d, d)
         if (!hasNext) { nav.pop(); return@LaunchedEffect }
@@ -312,7 +326,7 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
     ) {
         VideoSurface(player, vm.subStyle, controls)
 
-        if ((buffering && !playing) || error != null) StatusBubble(error ?: "Laden…", Modifier.align(Alignment.Center))
+        if ((buffering && !playing) || error != null) StatusBubble(error?.let { if (retries < 8) "Verbinding verbroken, opnieuw verbinden…" else it } ?: "Laden…", Modifier.align(Alignment.Center))
         else if (!playing && countdown == null && !ended && scrub == null) {
             Box(Modifier.align(Alignment.Center).size(96.dp).background(Color(0x99000000), CircleShape), contentAlignment = Alignment.Center) {
                 Label("❚❚", size = 34.sp, weight = Kijk.Bold, color = Color.White)
