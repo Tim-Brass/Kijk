@@ -181,6 +181,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 allChannels = chans
                 allGroups = chans.map { it.group }.distinct()
                 val newVod: VodSource? = xt ?: pl.vod.takeIf { it.isNotEmpty() }?.let { M3uVodSource(it) }
+                if (newVod?.javaClass != vod?.javaClass || downloaded) { indexJob?.cancel(); vodIndexReady = false }
                 vod = newVod; vodCache.clear(); archCache.clear()
                 applyHidden()
                 progress = LoadProgress("Zenders aan de gids koppelen")
@@ -188,6 +189,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 dataVersion++
                 progress = null
                 refreshNowNext()
+                ensureVodIndex(force = downloaded && indexFile.exists() && System.currentTimeMillis() - indexFile.lastModified() > DAY)
                 if (forceEpg || epgDue(startup)) refreshEpgLocked()
             }
         }
@@ -360,15 +362,83 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .filter { (c, p) -> p.stop > at || canCatchup(c, p, at) }
             .sortedWith(compareBy({ (_, p) -> if (p.isLive(at)) 0 else if (p.start > at) 1 else 2 }, { (_, p) -> kotlin.math.abs(p.start - at) }))
             .take(60)
+        return SearchResult(chans, progs, emptyList(), emptyList())
+    }
+
+    // ---- zoekindex voor films en series: één keer per dag ophalen en op de tv bewaren, zodat zoeken direct gaat
+    var vodIndexReady by mutableStateOf(false); private set
+    var vodIndexStatus by mutableStateOf<String?>(null); private set
+    private var movieIndex: List<Movie> = emptyList()
+    private var showIndex: List<Show> = emptyList()
+    private var indexJob: kotlinx.coroutines.Job? = null
+    private val indexFile get() = File(getApplication<Application>().filesDir, "vod_index.tsv")
+
+    fun ensureVodIndex(force: Boolean = false) {
+        val src = vod ?: return
+        if (indexJob?.isActive == true || (vodIndexReady && !force)) return
+        indexJob = viewModelScope.launch(Dispatchers.IO) {
+            val f = indexFile
+            val tag = store.playlistUrl.hashCode().toString()
+            try {
+                val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
+                if (fresh && readIndex(f, tag)) { vodIndexReady = true; return@launch }
+                vodIndexStatus = "Films ophalen voor zoeken…"
+                val m = src.movies(null)
+                vodIndexStatus = "Series ophalen voor zoeken…"
+                val sh = src.shows(null)
+                movieIndex = m; showIndex = sh.map { it.copy(plot = null) }
+                vodIndexReady = true; vodIndexStatus = null
+                writeIndex(f, tag)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Throwable) {
+                if (f.exists() && readIndex(f, tag)) vodIndexReady = true   // oude index is beter dan niets
+                vodIndexStatus = if (vodIndexReady) null else "Films en series zoeken lukt nu niet (${e.javaClass.simpleName})"
+            }
+        }
+    }
+
+    private fun clean(t: String?) = (t ?: "").replace('\t', ' ').replace('\n', ' ')
+    private fun writeIndex(f: File, tag: String) {
+        val tmp = File(f.path + ".tmp")
+        tmp.bufferedWriter().use { w ->
+            w.write("#$tag\n")
+            movieIndex.forEach { w.write("m\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t${clean(it.url)}\t${clean(it.year)}\n") }
+            showIndex.forEach { w.write("s\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t\t${clean(it.year)}\n") }
+        }
+        tmp.renameTo(f)
+    }
+    private fun readIndex(f: File, tag: String): Boolean = try {
+        val m = ArrayList<Movie>(); val sh = ArrayList<Show>()
+        var ok = false
+        f.bufferedReader().useLines { lines ->
+            for (line in lines) {
+                if (line.startsWith("#")) { ok = line.drop(1) == tag; if (!ok) break; continue }
+                val c = line.split('\t')
+                if (c.size < 7) continue
+                val poster = c[3].ifEmpty { null }; val year = c[6].ifEmpty { null }
+                if (c[0] == "m") m += Movie(c[1], c[2], poster, c[4], c[5], null, year)
+                else sh += Show(c[1], c[2], poster, c[4], null, null, year)
+            }
+        }
+        if (ok) { movieIndex = m; showIndex = sh }
+        ok
+    } catch (_: Exception) { false }
+
+    /** Films en series zoeken in de index; null = index nog niet klaar. */
+    suspend fun searchVod(q0: String): Pair<List<Movie>, List<Show>>? {
+        if (!vodIndexReady) { ensureVodIndex(); return null }
+        val q = q0.trim().lowercase()
+        if (q.length < 2) return emptyList<Movie>() to emptyList()
+        fun rank(n: String) = n.lowercase().let { if (it.startsWith(q)) 0 else if (" $q" in it) 1 else 2 }
         val mCats = (try { movieCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
         val sCats = (try { showCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
-        val movies = (try { cached("m:*") { it.movies(null) } } catch (_: Throwable) { null } ?: emptyList())
-            .filter { q in it.name.lowercase() && it.categoryId !in hiddenMovieCats && (unlocked || (!isLocked(mCats[it.categoryId]) && !isLocked(it.name))) }
-            .sortedBy { rank(it.name) }.take(60)
-        val shows = (try { cached("s:*") { it.shows(null) } } catch (_: Throwable) { null } ?: emptyList())
-            .filter { q in it.name.lowercase() && it.categoryId !in hiddenShowCats && (unlocked || (!isLocked(sCats[it.categoryId]) && !isLocked(it.name))) }
-            .sortedBy { rank(it.name) }.take(60)
-        return SearchResult(chans, progs, movies, shows)
+        return withContext(Dispatchers.Default) {
+            val movies = movieIndex.filter { q in it.name.lowercase() && it.categoryId !in hiddenMovieCats && (unlocked || (!isLocked(mCats[it.categoryId]) && !isLocked(it.name))) }
+                .sortedBy { rank(it.name) }.take(60)
+            val shows = showIndex.filter { q in it.name.lowercase() && it.categoryId !in hiddenShowCats && (unlocked || (!isLocked(sCats[it.categoryId]) && !isLocked(it.name))) }
+                .sortedBy { rank(it.name) }.take(60)
+            movies to shows
+        }
     }
 
     // ---------------------------------------------------------------- bron en import

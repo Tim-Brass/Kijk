@@ -150,19 +150,39 @@ fun SearchTab(vm: AppViewModel, nav: Nav) {
     var q by rememberSaveable { mutableStateOf("") }
     var res by remember { mutableStateOf<nl.kijk.tv.SearchResult?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var vodRes by remember { mutableStateOf<Pair<List<nl.kijk.tv.data.Movie>, List<nl.kijk.tv.data.Show>>?>(null) }
+    LaunchedEffect(Unit) { vm.ensureVodIndex() }
     LaunchedEffect(q, vm.dataVersion) {
         if (q.trim().length < 2) { res = null; return@LaunchedEffect }
-        delay(400); busy = true
-        res = try { vm.search(q) } catch (_: Exception) { null }
+        busy = true
+        delay(350)
+        res = try { vm.search(q) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         busy = false
     }
+    LaunchedEffect(q, vm.vodIndexReady) {
+        vodRes = null
+        if (q.trim().length < 2) return@LaunchedEffect
+        delay(350)
+        vodRes = try { vm.searchVod(q) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+    }
+    var dots by remember { mutableStateOf(0) }
+    LaunchedEffect(busy, vm.vodIndexReady) { while (busy || !vm.vodIndexReady) { delay(400); dots = (dots + 1) % 4 } }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Field("", q, { q = it }, placeholder = "Zoek zenders, programma's, films en series…", modifier = Modifier.width(560.dp), last = true)
-        val r = res
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Field("", q, { q = it }, placeholder = "Zoek zenders, programma's, films en series…", modifier = Modifier.width(560.dp), last = true)
+            Spacer(Modifier.width(16.dp))
+            val st = when {
+                busy -> "Zoeken" + ".".repeat(dots)
+                q.trim().length >= 2 && vm.vod != null && !vm.vodIndexReady -> (vm.vodIndexStatus ?: "Films en series voorbereiden").trimEnd('…') + ".".repeat(dots)
+                else -> ""
+            }
+            Label(st, size = Kijk.Body, color = Kijk.Accent)
+        }
+        val r = res?.let { it.copy(movies = vodRes?.first ?: emptyList(), shows = vodRes?.second ?: emptyList()) }
         when {
             q.trim().length < 2 -> EmptyState("Zoeken", "Typ minstens twee letters. Programma's worden gezocht in de gids van een week terug tot twee dagen vooruit.")
-            r == null -> EmptyState(if (busy) "Zoeken…" else "")
-            r.channels.isEmpty() && r.programmes.isEmpty() && r.movies.isEmpty() && r.shows.isEmpty() -> EmptyState("Niets gevonden voor \"${q.trim()}\"")
+            r == null -> EmptyState(if (busy) "Zoeken…" else "", "Bij de eerste keer zoeken haalt Kijk de lijst met films en series op; dat kan even duren.")
+            r.channels.isEmpty() && r.programmes.isEmpty() && r.movies.isEmpty() && r.shows.isEmpty() && (vodRes != null || vm.vod == null) -> EmptyState("Niets gevonden voor \"${q.trim()}\"")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
                 if (r.channels.isNotEmpty()) {
                     item { Section("ZENDERS") }
