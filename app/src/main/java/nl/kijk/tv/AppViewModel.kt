@@ -365,13 +365,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Instellingen van de telefoon of de webversie overnemen. */
+    /** Melding bovenin beeld (bijv. "instellingen ontvangen"); verdwijnt vanzelf. */
+    var notice by mutableStateOf<String?>(null)
+    /** Telt elke ontvangen set instellingen, zodat het scherm kan reageren. */
+    var imports by mutableStateOf(0); private set
+
     fun importSettings(json: JSONObject) {
         val oldUrl = store.playlistUrl
-        store.import(json)
+        try { store.import(json) } catch (e: Exception) { notice = "✕ Instellingen ontvangen, maar niet te lezen: ${e.message}"; return }
+        val what = listOfNotNull(
+            "playlist".takeIf { json.has("playlist_url") }, "gids-link".takeIf { json.has("epg_url") && json.optString("epg_url").isNotBlank() },
+            "favorieten".takeIf { json.has("favs") }, "OpenSubtitles".takeIf { json.has("os_key") || json.has("os_user") },
+        )
+        notice = "✓ Instellingen ontvangen" + if (what.isNotEmpty()) ": " + what.joinToString(", ") else ""
+        imports++
         favorites = store.favorites; hidden = store.hiddenGroups; hiddenMovieCats = store.hiddenMovieCats; hiddenShowCats = store.hiddenShowCats
         subStyle = store.subStyle; epgOffsetMinutes = store.epgOffsetMinutes; lockOn = store.lockOn; unlocked = false
-        if (store.playlistUrl != oldUrl || allChannels.isEmpty()) saveSource(store.playlistUrl, store.epgUrl)
-        else { applyHidden(); viewModelScope.launch { epgMatch = withContext(Dispatchers.IO) { epg.match(allChannels, store.epgLinks) }; dataVersion++ } }
+        if (store.playlistUrl.isNotBlank() && (store.playlistUrl != oldUrl || allChannels.isEmpty())) saveSource(store.playlistUrl, store.epgUrl)
+        else if (allChannels.isNotEmpty()) { applyHidden(); viewModelScope.launch { epgMatch = withContext(Dispatchers.IO) { epg.match(allChannels, store.epgLinks) }; dataVersion++ } }
     }
 
     fun clearHistory(kind: String) { store.clearHistory(kind); recentChannels = store.recentChannels; dataVersion++ }

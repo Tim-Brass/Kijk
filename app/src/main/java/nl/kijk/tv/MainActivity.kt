@@ -4,7 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -87,11 +97,16 @@ private fun KijkApp(vm: AppViewModel) {
 
     // Instellen via de telefoon: de ingebouwde webserver draait zolang de app open is.
     DisposableEffect(Unit) {
-        PhoneServer.start(ctx) { json -> vm.importSettings(json); if (nav.top is Screen.Setup) nav.replaceAll(Screen.Home) }
-        onDispose { PhoneServer.stop() }
+        val receiver: (org.json.JSONObject) -> Unit = { json -> vm.importSettings(json) }
+        PhoneServer.start(ctx, receiver)
+        onDispose { PhoneServer.stop(receiver) }
     }
+    // Instellingen ontvangen: van het instelscherm door naar Home.
+    LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && nav.top is Screen.Setup) nav.replaceAll(Screen.Home) }
+    LaunchedEffect(vm.notice) { if (vm.notice != null) { kotlinx.coroutines.delay(5000); vm.notice = null } }
 
     val screen = nav.top
+    Box(Modifier.fillMaxSize()) {
     saveable.SaveableStateProvider(screen.id) {
         when (screen) {
             Screen.Setup -> {
@@ -111,5 +126,11 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
             is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }
         }
+    }
+    vm.notice?.let { n ->
+        Box(Modifier.align(Alignment.TopCenter).padding(top = 24.dp).background(Color(0xF21C1C22), RoundedCornerShape(14.dp)).padding(horizontal = 24.dp, vertical = 12.dp)) {
+            nl.kijk.tv.ui.Label(n, size = nl.kijk.tv.ui.Kijk.Headline, weight = nl.kijk.tv.ui.Kijk.Semibold, color = if (n.startsWith("✕")) nl.kijk.tv.ui.Kijk.Live else Color.White)
+        }
+    }
     }
 }

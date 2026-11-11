@@ -24,6 +24,8 @@ object PhoneServer {
     @Volatile var port = 0; private set
     val code: String = "%06d".format(Random.nextInt(0, 1_000_000))
     private val main = Handler(Looper.getMainLooper())
+    /** Altijd de nieuwste ontvanger: na het opnieuw opbouwen van het scherm mag de oude niet meer gebruikt worden. */
+    @Volatile private var listener: ((JSONObject) -> Unit)? = null
 
     fun ip(): String? = try {
         NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
@@ -35,21 +37,28 @@ object PhoneServer {
     fun url(): String? { val i = ip() ?: return null; if (port == 0) return null; return "http://$i:$port/?code=$code" }
     fun address(): String? { val i = ip() ?: return null; if (port == 0) return null; return "$i:$port" }
 
+    @Volatile private var starting = false
+
     fun start(ctx: Context, onImport: (JSONObject) -> Unit) {
-        if (server != null) return
+        listener = onImport
+        if (server != null || starting) return
+        starting = true
         thread(name = "kijk-phone", isDaemon = true) {
-            val s = (8080..8090).firstNotNullOfOrNull { p -> try { ServerSocket(p) } catch (_: Exception) { null } } ?: return@thread
+            val s = (8080..8090).firstNotNullOfOrNull { p -> try { ServerSocket(p).apply { reuseAddress = true } } catch (_: Exception) { null } }
+            starting = false
+            if (s == null) return@thread
             server = s; port = s.localPort
             while (!s.isClosed) {
                 val c = try { s.accept() } catch (_: Exception) { break }
-                thread(isDaemon = true) { try { handle(c, onImport) } catch (_: Exception) { } finally { try { c.close() } catch (_: Exception) { } } }
+                thread(isDaemon = true) { try { handle(c) } catch (_: Exception) { } finally { try { c.close() } catch (_: Exception) { } } }
             }
         }
     }
 
-    fun stop() { try { server?.close() } catch (_: Exception) { }; server = null; port = 0 }
+    /** De server blijft draaien zolang de app leeft; alleen de ontvanger wordt losgekoppeld. */
+    fun stop(onImport: (JSONObject) -> Unit) { if (listener === onImport) listener = null }
 
-    private fun handle(c: Socket, onImport: (JSONObject) -> Unit) {
+    private fun handle(c: Socket) {
         c.soTimeout = 15_000
         val inp = BufferedInputStream(c.getInputStream())
         val head = ByteArrayOutputStream()
@@ -84,7 +93,8 @@ object PhoneServer {
                 val o = try { JSONObject(String(body, Charsets.UTF_8)) } catch (_: Exception) { return json("400 Bad Request", JSONObject().put("error", "Ongeldige gegevens")) }
                 if (o.optString("code") != code) return json("403 Forbidden", JSONObject().put("error", "Onjuiste code. Kijk op de tv: Instellingen › Instellen via telefoon."))
                 o.remove("code")
-                main.post { onImport(o) }
+                val l = listener ?: return json("503 Service Unavailable", JSONObject().put("error", "Kijk staat niet open op de tv. Open de app en probeer het opnieuw."))
+                main.post { try { l(o) } catch (_: Exception) { } }
                 json("200 OK", JSONObject().put("ok", true))
             }
             else -> send("404 Not Found", "text/plain", "Niet gevonden".toByteArray())
