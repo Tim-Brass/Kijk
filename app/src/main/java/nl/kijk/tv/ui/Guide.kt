@@ -32,6 +32,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.key
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -84,6 +88,14 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
     }
     val state = rememberLazyListState()
     val maxBack = remember(list) { (list.maxOfOrNull { it.archiveDays } ?: 0).coerceAtLeast(1) * DAY }
+    /** Tijdvenster zo zetten dat tijdstip t goed in beeld is. */
+    fun show(t: Long): Boolean {
+        if (t >= winStart && t < winStart + WINDOW - 15 * MINUTE) return true
+        val n = if (t < winStart) halfHour(t) else halfHour(t) - STEP
+        val now = System.currentTimeMillis()
+        if (n < halfHour(now - maxBack) || n > now + 7 * DAY) return false
+        winStart = n; return true
+    }
     fun shift(by: Long): Boolean {
         val now = System.currentTimeMillis()
         val n = winStart + by
@@ -144,7 +156,7 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
                         itemsIndexed(list) { i, ch ->
                             GuideRow(vm, ch, winStart, perMin,
                                 onFocus = { sel = ch to it },
-                                onEdge = { dir -> shift(dir * STEP) },
+                                onShift = { dir -> shift(dir * STEP) }, onShow = { t -> show(t) },
                                 onPlayLive = { nav.push(Screen.Live(list, i)) },
                                 onCatchup = { p -> nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null)) },
                             )
@@ -164,8 +176,12 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
 @Composable
 private fun GuideRow(
     vm: AppViewModel, ch: Channel, winStart: Long, perMin: Dp,
-    onFocus: (Programme?) -> Unit, onEdge: (Int) -> Boolean, onPlayLive: () -> Unit, onCatchup: (Programme) -> Unit,
+    onFocus: (Programme?) -> Unit, onShift: (Int) -> Boolean, onShow: (Long) -> Boolean, onPlayLive: () -> Unit, onCatchup: (Programme) -> Unit,
 ) {
+    // Links/rechts regelen we zelf: naar het vorige/volgende programma, en zo nodig schuift de gids mee.
+    // (Automatisch zoeken van Android sprong soms uit de gids naar de tabbalk.)
+    val reqs = remember { HashMap<Long, FocusRequester>() }
+    var want by remember { mutableStateOf<Long?>(null) }
     val bucket = winStart - Math.floorMod(winStart, BUCKET)
     val progs by produceState<List<Programme>?>(null, ch.key, bucket, vm.dataVersion, vm.epgOffsetMinutes) {
         value = try { vm.programmes(ch, bucket - HOUR, bucket + BUCKET + WINDOW + HOUR) } catch (_: Exception) { emptyList() }
@@ -188,14 +204,43 @@ private fun GuideRow(
         }
         Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f).fillMaxHeight()) {
-            val inWin = progs?.filter { it.stop > winStart && it.start < winEnd } ?: emptyList()
+            val all = progs ?: emptyList()
+            val inWin = all.filter { it.stop > winStart && it.start < winEnd }
+            LaunchedEffect(want, inWin) {
+                val target = want ?: return@LaunchedEffect
+                repeat(20) {
+                    val rq = reqs[target]
+                    if (rq != null && runCatching { rq.requestFocus() }.isSuccess) { want = null; return@LaunchedEffect }
+                    delay(25)
+                }
+                want = null
+            }
+            fun move(p: Programme, e: androidx.compose.ui.input.key.KeyEvent): Boolean {
+                if (e.type != KeyEventType.KeyDown) return false
+                return when (e.key) {
+                    Key.DirectionRight -> {
+                        val next = all.firstOrNull { it.start > p.start && it.start >= p.stop - MINUTE }
+                        if (next != null && onShow(next.start)) want = next.start else onShift(1)
+                        true
+                    }
+                    Key.DirectionLeft -> {
+                        val prev = all.lastOrNull { it.start < p.start && it.stop <= p.start + MINUTE }
+                        when {
+                            prev != null && onShow(maxOf(prev.start, prev.stop - STEP)) -> { want = prev.start; true }
+                            p.start <= winStart -> { onShift(-1); true }
+                            else -> false   // naar de zender links
+                        }
+                    }
+                    else -> false
+                }
+            }
             if (progs != null && inWin.isEmpty()) {
                 FocusCard(onClick = onPlayLive, onFocus = { onFocus(null) }, modifier = Modifier.fillMaxSize()
-                    .onPreviewKeyEvent { e -> edgeKey(e, true, true, onEdge) }, focusedScale = 1f) { f ->
+                    .onPreviewKeyEvent { e -> e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight && onShift(1).let { true } }, focusedScale = 1f) { f ->
                     Label(if (vm.hasEpg(ch)) "Geen programma-informatie" else "Geen gidsinformatie", Modifier.align(Alignment.CenterStart).padding(horizontal = 12.dp), size = Kijk.Caption, color = secondary(f))
                 }
             }
-            inWin.forEachIndexed { idx, p ->
+            inWin.forEach { p -> key(p.start) {
                 val a = maxOf(p.start, winStart); val b = minOf(p.stop, winEnd)
                 val x = perMin * ((a - winStart) / MINUTE).toFloat()
                 val w = (perMin * ((b - a) / MINUTE).toFloat() - 4.dp).coerceAtLeast(6.dp)
@@ -210,7 +255,8 @@ private fun GuideRow(
                     onFocus = { onFocus(p) },
                     modifier = Modifier.offset(x = x).zIndex(if (hasFocus) 1f else 0f).width(shown).fillMaxHeight()
                         .onFocusChanged { hasFocus = it.hasFocus }
-                        .onPreviewKeyEvent { e -> edgeKey(e, idx == 0 && p.start <= winStart, idx == inWin.lastIndex && p.stop >= winEnd, onEdge) },
+                        .focusRequester(reqs.getOrPut(p.start) { FocusRequester() })
+                        .onPreviewKeyEvent { e -> move(p, e) },
                     selected = live, shape = RoundedCornerShape(8.dp), focusedScale = 1f,
                 ) { f ->
                     // al uitgezonden deel van een lopend programma kleurt mee
@@ -224,19 +270,9 @@ private fun GuideRow(
                         if (live) ProgressBar(p.progress(vm.now), Modifier.fillMaxWidth().padding(top = 3.dp), f, 2.dp)
                     }
                 }
-            }
+            } }
         }
     }
 }
 
 private fun Int.sp() = androidx.compose.ui.unit.TextUnit(this.toFloat(), androidx.compose.ui.unit.TextUnitType.Sp)
-
-/** Links op het eerste of rechts op het laatste vakje schuift het tijdvenster. */
-private fun edgeKey(e: androidx.compose.ui.input.key.KeyEvent, atStart: Boolean, atEnd: Boolean, onEdge: (Int) -> Boolean): Boolean {
-    if (e.type != KeyEventType.KeyDown) return false
-    return when (e.key) {
-        Key.DirectionLeft -> atStart && onEdge(-1)
-        Key.DirectionRight -> atEnd && onEdge(1)
-        else -> false
-    }
-}
