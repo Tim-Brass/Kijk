@@ -1,0 +1,115 @@
+package nl.kijk.tv
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
+import nl.kijk.tv.data.Channel
+import nl.kijk.tv.data.Movie
+import nl.kijk.tv.data.Playable
+import nl.kijk.tv.data.Show
+import nl.kijk.tv.phone.PhoneServer
+import nl.kijk.tv.ui.ConfirmScreen
+import nl.kijk.tv.ui.EpgChannelsScreen
+import nl.kijk.tv.ui.EpgLinkScreen
+import nl.kijk.tv.ui.GroupsScreen
+import nl.kijk.tv.ui.HomeScreen
+import nl.kijk.tv.ui.KijkTheme
+import nl.kijk.tv.ui.LivePlayer
+import nl.kijk.tv.ui.MovieDetailScreen
+import nl.kijk.tv.ui.OsConfigScreen
+import nl.kijk.tv.ui.PinScreen
+import nl.kijk.tv.ui.SetupScreen
+import nl.kijk.tv.ui.ShowDetailScreen
+import nl.kijk.tv.ui.SubSearchScreen
+import nl.kijk.tv.ui.VodPlayer
+
+/** Logo's van IPTV-aanbieders zijn vaak SVG; die kan Coil met deze decoder tonen. */
+class KijkApplication : android.app.Application(), coil.ImageLoaderFactory {
+    override fun newImageLoader(): coil.ImageLoader =
+        coil.ImageLoader.Builder(this).components { add(coil.decode.SvgDecoder.Factory()) }.crossfade(true).build()
+}
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { KijkTheme { KijkApp(viewModel()) } }
+    }
+}
+
+/** Alle schermen. Een nieuw scherm komt bovenop de stapel; Terug haalt het eraf. */
+sealed interface Screen {
+    val id: String
+    data object Setup : Screen { override val id = "setup" }
+    data object Home : Screen { override val id = "home" }
+    data class Live(val list: List<Channel>, val index: Int) : Screen { override val id = "live" }
+    data class MovieDetail(val movie: Movie) : Screen { override val id = "movie:${movie.id}" }
+    data class ShowDetail(val show: Show) : Screen { override val id = "show:${show.id}" }
+    data class Vod(val items: List<Playable>, val index: Int, val start: Long, val showId: String?) : Screen { override val id = "vod" }
+    data class Groups(val kind: String) : Screen { override val id = "groups:$kind" }
+    data object EpgChannels : Screen { override val id = "epgchans" }
+    data class EpgLink(val channel: Channel) : Screen { override val id = "epglink:${channel.key}" }
+    data object OsConfig : Screen { override val id = "osconfig" }
+    data class SubSearch(val item: Playable, val onPick: (Long) -> Unit) : Screen { override val id = "subsearch" }
+    data class Pin(val title: String, val sub: String, val check: (String) -> Boolean, val onResult: (String?) -> Unit) : Screen { override val id = "pin:$title" }
+    data class Confirm(val title: String, val text: String, val yes: String, val onResult: (Boolean) -> Unit) : Screen { override val id = "confirm" }
+}
+
+class Nav(start: Screen) {
+    val stack = mutableStateListOf(start)
+    val top get() = stack.last()
+    fun push(s: Screen) { stack.add(s) }
+    fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
+    fun replaceAll(s: Screen) { stack.clear(); stack.add(s) }
+
+    /** Pincode vragen; [then] wordt uitgevoerd als de code klopt. */
+    fun askPin(vm: AppViewModel, title: String = "Pincode", sub: String = "Deze inhoud is vergrendeld. Voer je pincode in.", then: () -> Unit) {
+        push(Screen.Pin(title, sub, { vm.store.pinOk(it) }) { code -> pop(); if (code != null) then() })
+    }
+
+    fun confirm(title: String, text: String, yes: String = "Wissen", then: () -> Unit) {
+        push(Screen.Confirm(title, text, yes) { ok -> pop(); if (ok) then() })
+    }
+}
+
+@Composable
+private fun KijkApp(vm: AppViewModel) {
+    val nav = remember { Nav(if (vm.configured) Screen.Home else Screen.Setup) }
+    val saveable = rememberSaveableStateHolder()
+    val ctx = LocalContext.current
+
+    // Instellen via de telefoon: de ingebouwde webserver draait zolang de app open is.
+    DisposableEffect(Unit) {
+        PhoneServer.start(ctx) { json -> vm.importSettings(json); if (nav.top is Screen.Setup) nav.replaceAll(Screen.Home) }
+        onDispose { PhoneServer.stop() }
+    }
+
+    val screen = nav.top
+    saveable.SaveableStateProvider(screen.id) {
+        when (screen) {
+            Screen.Setup -> {
+                if (vm.configured) BackHandler { nav.replaceAll(Screen.Home) }
+                SetupScreen(vm, onDone = { nav.replaceAll(Screen.Home) })
+            }
+            Screen.Home -> HomeScreen(vm, nav)
+            is Screen.Live -> LivePlayer(vm, nav, screen.list, screen.index)
+            is Screen.MovieDetail -> { BackHandler { nav.pop() }; MovieDetailScreen(vm, nav, screen.movie) }
+            is Screen.ShowDetail -> { BackHandler { nav.pop() }; ShowDetailScreen(vm, nav, screen.show) }
+            is Screen.Vod -> VodPlayer(vm, nav, screen.items, screen.index, screen.start, screen.showId)
+            is Screen.Groups -> GroupsScreen(vm, nav, screen.kind)
+            Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
+            is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
+            Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
+            is Screen.SubSearch -> { BackHandler { nav.pop() }; SubSearchScreen(vm, nav, screen.item, screen.onPick) }
+            is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
+            is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }
+        }
+    }
+}

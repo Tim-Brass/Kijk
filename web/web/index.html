@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kijk</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<style id="cuestyle"></style>
+</head>
+<body>
+<div id="stage"><div id="tv"></div></div>
+<div id="help"><b>Kijk</b> · webversie<br>Pijltjes = afstandsbediening · Enter = OK<br>Esc = Terug · F of OK ingedrukt houden = favoriet<br>H = deze uitleg weer tonen</div>
+<div id="remote" class="min">
+ <button id="rtoggle" class="wide" title="Afstandsbediening tonen/verbergen">Afstandsbediening</button>
+ <span></span><button data-k="up">▲</button><span></span>
+ <button data-k="left">◀</button><button data-k="ok" style="background:#0A84FF">OK</button><button data-k="right">▶</button>
+ <button data-k="fav" title="Favoriet">★</button><button data-k="down">▼</button><button data-k="back" title="Terug">↩</button>
+</div>
+<script src="lib/hls.min.js"></script>
+<script src="lib/mpegts.js"></script>
+<script src="app.js"></script>
+<script src="guide.js"></script>
+<script src="extra.js"></script>
+</body>
+</html>

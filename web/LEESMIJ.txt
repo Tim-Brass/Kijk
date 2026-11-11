@@ -1,0 +1,53 @@
+KIJK – webversie
+================
+
+Zelfde ontwerp en bediening als de Android TV-app, maar dan in je browser op je laptop,
+met je echte playlist, gids, films en series.
+
+STARTEN
+1. Zorg dat Python 3 geïnstalleerd is (python.org; vink bij Windows "Add Python to PATH" aan).
+   Extra pakketten zijn niet nodig.
+2. Dubbelklik op "Start Kijk (Windows).bat" (of "Start Kijk (Mac).command" op een Mac).
+   Of typ in een terminal:  python kijk_server.py
+3. Je browser opent vanzelf op http://localhost:8765 (gebruik Chrome of Edge).
+4. Vul de eerste keer je M3U-link of Xtream-login in.
+Stoppen: sluit het zwarte venster of druk daarin op Ctrl+C.
+
+BEDIENING
+  Pijltjestoetsen   bewegen (zoals de afstandsbediening)
+  Enter             OK   (ingedrukt houden of F = favoriet)
+  Esc               terug
+  In beeld (live):  ▲▼ zappen · ◀ vorige zender · ▶ ondertitels & audio · Enter info
+  Films/series:     ◀ ▶ 10 s spoelen · Enter pauze · ▲ ondertitels & audio
+  Infobalk (OK):    ▲▼ andere zenders bekijken zonder te wisselen · ◀▶ programma's · OK = overschakelen
+  Cijfers:          zendernummer intypen = direct naar die zender (ook in de gids)
+  G                 naar de gids
+  Gids:             ▲▼ zender · ◀▶ vorig/volgend programma · OK kijken of terugkijken (↺)
+                    N = terug naar nu
+  Terugkijken:      ◀ ▶ 1 minuut verspringen · Enter pauze
+  H                 uitleg tonen/verbergen
+
+GEEN GELUID BIJ SOMMIGE ZENDERS? INSTALLEER FFMPEG
+Veel zenders sturen Dolby-geluid (AC3) mee. Dat kan een browser niet afspelen: beeld wel,
+geluid niet. Met het gratis programma ffmpeg zet Kijk dat geluid automatisch om.
+  Windows: open "Terminal" of "Opdrachtprompt" en typ:   winget install Gyan.FFmpeg
+           Sluit daarna het Kijk-venster en start Kijk opnieuw.
+           (Lukt winget niet: download "ffmpeg-release-essentials.zip" van gyan.dev,
+           pak uit en zet ffmpeg.exe uit de map bin naast kijk_server.py.)
+  Mac:     brew install ffmpeg
+Bij het starten meldt het zwarte venster "ffmpeg gevonden". Kijk merkt zelf welke zenders
+geen geluid hebben, schakelt die over op ffmpeg en onthoudt dat. De eerste keer duurt het
+bij zo'n zender een paar seconden langer voordat het geluid komt.
+
+HOE HET WERKT
+Een browser mag IPTV-servers niet rechtstreeks benaderen. kijk_server.py draait daarom op je
+eigen computer, haalt playlist, gids en streams op en geeft ze door aan de browser. Het luistert
+alleen op je eigen computer (localhost), niet op je netwerk.
+Je instellingen en de gids staan in de map "data". Favorieten en kijkvoortgang bewaart je browser.
+
+VERSCHILLEN MET DE ANDROID-APP
+- DVB-ondertitels (de bitmap-ondertitels uit tv-uitzendingen) kan een browser niet tonen.
+  Ondertitels in HLS-streams (WebVTT) en CC/teletekst-captions werken wel.
+- Dolby-geluid (AC3/E-AC3): bij live zenders opgelost met ffmpeg (zie boven); bij films nog niet.
+- MKV-films spelen niet altijd; MP4 wel.
+De Android-app gebruikt de systeemspeler van de tv en heeft deze beperkingen niet.
