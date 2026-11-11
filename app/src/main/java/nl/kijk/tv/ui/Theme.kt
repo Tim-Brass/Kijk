@@ -53,6 +53,7 @@ fun KijkTheme(content: @Composable () -> Unit) {
             onSurface = Color.White,
             onBackground = Color.White,
         ),
-        content = content,
+        // Tekst buiten een kaart was anders zwart (onleesbaar op de donkere achtergrond)
+        content = { androidx.compose.runtime.CompositionLocalProvider(androidx.tv.material3.LocalContentColor provides Color.White, content = content) },
     )
 }

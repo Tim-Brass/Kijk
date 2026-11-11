@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.zIndex
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -103,7 +105,7 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
                 val p = s.second
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (p != null && p.isLive(vm.now)) { LiveBadge(); Spacer(Modifier.width(8.dp)) }
-                    Label(p?.title ?: shortName(s.first.name), size = Kijk.Title, weight = Kijk.Bold)
+                    Label(p?.title ?: shortName(s.first.name), size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
                 }
                 val info = if (p == null) "${s.first.number} · ${s.first.name}" else listOfNotNull(
                     "${Format.dayLabel(p.start, vm.now)} ${Format.range(p.start, p.stop)}", shortName(s.first.name),
@@ -200,10 +202,14 @@ private fun GuideRow(
                 val live = p.isLive(vm.now)
                 val catchup = vm.canCatchup(ch, p)
                 val past = p.stop <= vm.now
+                // Smalle vakjes worden breder zolang ze geselecteerd zijn, zodat de titel leesbaar is.
+                var hasFocus by remember { mutableStateOf(false) }
+                val shown = if (hasFocus && w < 260.dp) 260.dp else w
                 FocusCard(
                     onClick = { when { live -> onPlayLive(); catchup -> onCatchup(p) } },
                     onFocus = { onFocus(p) },
-                    modifier = Modifier.offset(x = x).width(w).fillMaxHeight()
+                    modifier = Modifier.offset(x = x).zIndex(if (hasFocus) 1f else 0f).width(shown).fillMaxHeight()
+                        .onFocusChanged { hasFocus = it.hasFocus }
                         .onPreviewKeyEvent { e -> edgeKey(e, idx == 0 && p.start <= winStart, idx == inWin.lastIndex && p.stop >= winEnd, onEdge) },
                     selected = live, shape = RoundedCornerShape(8.dp), focusedScale = 1f,
                 ) { f ->
@@ -212,7 +218,7 @@ private fun GuideRow(
                             if (catchup) Label("↺ ", size = Kijk.Caption, color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)
                             Label(p.title, size = Kijk.Caption, weight = Kijk.Semibold, color = if (past && !catchup && !f) Kijk.Secondary else Color.Unspecified)
                         }
-                        Label(Format.range(p.start, p.stop), size = 11.sp(), color = secondary(f))
+                        if (shown >= 70.dp) Label(Format.range(p.start, p.stop), size = 11.sp(), color = secondary(f))
                         if (live) ProgressBar(p.progress(vm.now), Modifier.fillMaxWidth().padding(top = 3.dp), f, 2.dp)
                     }
                 }
