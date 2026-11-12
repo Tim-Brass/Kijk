@@ -101,7 +101,8 @@ private fun StepRow(s: Step) {
             }
         }
         val note = s.note
-        if (note != null && s.state != 0) Label(note, Modifier.padding(start = 26.dp, top = 4.dp), size = Kijk.Caption, color = Kijk.Secondary, maxLines = 1)
+        // regel altijd innemen (ook leeg), zodat het logo en de rest niet verspringen als een stap klaar is
+        Label(if (note != null && s.state != 0) note else " ", Modifier.padding(start = 26.dp, top = 4.dp), size = Kijk.Caption, color = Kijk.Secondary, maxLines = 1)
     }
 }
 
