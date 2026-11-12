@@ -416,8 +416,10 @@ private fun InfoOverlay(vm: AppViewModel, ch: Channel, browsing: Boolean, canRes
     val current = nn.firstOrNull()?.takeIf { it.isLive(vm.now) }
     val next = if (current != null) nn.getOrNull(1) else nn.firstOrNull()
     Box(
-        Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000))))
-            .padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = Kijk.SafeV, top = 60.dp),
+        // verloop begint hoger en is achter de tekst al half donker: leesbaar, ook op een licht beeld
+        Modifier.fillMaxWidth().background(Brush.verticalGradient(
+            0f to Color.Transparent, 0.28f to Color(0x8C000000), 0.55f to Color(0xC7000000), 1f to Color(0xEB000000),
+        )).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = Kijk.SafeV, top = 110.dp),
     ) {
         Column {
             if (browsing) Label("▲▼ andere zenders · OK = overschakelen · Terug = annuleren", Modifier.padding(bottom = 6.dp), size = Kijk.Caption, color = Kijk.Accent)
