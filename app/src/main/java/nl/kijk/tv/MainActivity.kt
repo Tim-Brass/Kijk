@@ -133,7 +133,7 @@ private fun KijkApp(vm: AppViewModel) {
         if (f.exists()) { crash = runCatching { f.readText() }.getOrNull(); f.delete() }
     }
 
-    if (!vm.startupDone) { nl.kijk.tv.ui.SplashScreen(vm); return }
+    if (!vm.startupDone && crash == null) { nl.kijk.tv.ui.SplashScreen(vm); return }
 
     val screen = nav.top
     Box(Modifier.fillMaxSize()) {

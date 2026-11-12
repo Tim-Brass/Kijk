@@ -195,19 +195,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var loadedUrl = store.playlistUrl
     private val offset get() = epgOffsetMinutes * MINUTE
 
-    init {
-        viewModelScope.launch { while (true) { now = System.currentTimeMillis(); checkReminders(); delay(15_000) } }
-        viewModelScope.launch { while (true) { delay(60_000); refreshNowNext() } }
-        viewModelScope.launch {
-            while (true) {
-                delay(30 * 60_000L)
-                if (!configured) continue
-                if (playlistDue(false)) load() else if (epgDue(false)) refreshEpg()
-            }
-        }
-        if (configured) load(startup = true)
-        startSync()
-    }
 
     // ---------------------------------------------------------------- vernieuwen
     private fun day(t: Long) = if (t == 0L) "" else SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(t))
@@ -684,5 +671,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         val ADULT = Regex("""(adult|xxx|18\s*\+|\+\s*18|porn|erotic|erotiek|volwassen)""", RegexOption.IGNORE_CASE)
+    }
+
+    // Pas hier, ná alle velden: Kotlin initialiseert in volgorde, en de lussen hieronder gebruiken velden die
+    // verderop in de klasse staan (anders crasht de app bij het opstarten).
+    init {
+        viewModelScope.launch { while (true) { now = System.currentTimeMillis(); checkReminders(); delay(15_000) } }
+        viewModelScope.launch { while (true) { delay(60_000); refreshNowNext() } }
+        viewModelScope.launch {
+            while (true) {
+                delay(30 * 60_000L)
+                if (!configured) continue
+                if (playlistDue(false)) load() else if (epgDue(false)) refreshEpg()
+            }
+        }
+        if (configured) load(startup = true)
+        startSync()
     }
 }
