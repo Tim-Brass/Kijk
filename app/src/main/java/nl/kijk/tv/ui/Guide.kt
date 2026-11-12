@@ -142,6 +142,7 @@ fun GuideGrid(
                     when {
                         p.isLive(vm.now) -> Format.minutesLeft(p.stop, vm.now)
                         vm.canCatchup(s.first, p) -> "↺ OK om terug te kijken"
+                        p.start > vm.now && onPlay != null -> "OK = naar deze zender · OK lang = herinnering" + if (vm.hasReminder(s.first, p)) " (staat aan 🔔)" else ""
                         p.start > vm.now -> if (vm.hasReminder(s.first, p)) "🔔 Herinnering staat aan · OK = uitzetten" else "OK = herinnering zetten"
                         else -> null
                     },
@@ -183,7 +184,7 @@ fun GuideGrid(
                                 onFocus = { sel = ch to it },
                                 onShift = { dir -> shift(dir * STEP) }, onShow = { t -> show(t) },
                                 onPlayLive = { if (onPlay != null) onPlay(list, i) else nav.push(Screen.Live(list, i)) },
-                                autoFocus = autoKey == ch.key, onAutoFocused = { autoKey = null },
+                                autoFocus = autoKey == ch.key, onAutoFocused = { autoKey = null }, overlay = onPlay != null,
                                 onCatchup = { p -> nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null)) },
                             )
                         }
@@ -204,6 +205,7 @@ private fun GuideRow(
     vm: AppViewModel, ch: Channel, winStart: Long, perMin: Dp,
     onFocus: (Programme?) -> Unit, onShift: (Int) -> Boolean, onShow: (Long) -> Boolean, onPlayLive: () -> Unit, onCatchup: (Programme) -> Unit,
     autoFocus: Boolean = false, onAutoFocused: () -> Unit = {},
+    overlay: Boolean = false,   // gids over de zender: OK op een programma = naar die zender
 ) {
     // Links/rechts regelen we zelf: naar het vorige/volgende programma, en zo nodig schuift de gids mee.
     // (Automatisch zoeken van Android sprong soms uit de gids naar de tabbalk.)
@@ -287,7 +289,7 @@ private fun GuideRow(
                 var hasFocus by remember { mutableStateOf(false) }
                 val shown = if (hasFocus && w < 260.dp) 260.dp else w
                 FocusCard(
-                    onClick = { when { live -> onPlayLive(); catchup -> onCatchup(p); p.start > vm.now -> vm.toggleReminder(ch, p) } },
+                    onClick = { when { live -> onPlayLive(); catchup -> onCatchup(p); overlay -> onPlayLive(); p.start > vm.now -> vm.toggleReminder(ch, p) } },
                     onLongClick = { if (p.start > vm.now) vm.toggleReminder(ch, p) },
                     onFocus = { onFocus(p) },
                     modifier = Modifier.offset(x = x).zIndex(if (hasFocus) 1f else 0f).width(shown).fillMaxHeight()

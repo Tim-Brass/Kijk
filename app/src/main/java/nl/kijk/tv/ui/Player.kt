@@ -272,6 +272,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         error = null; retries = 0; tracks = Tracks.EMPTY
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverrides().build()
         applyPreferences(player, vm.subStyle)
+        player.stop()   // oude stream eerst echt sluiten: je aanbieder staat maar één verbinding toe
         player.setMediaItem(mediaItem(channel.url)); player.prepare(); player.playWhenReady = true
         showInfo = true; browse = null; infoTick++
     }
