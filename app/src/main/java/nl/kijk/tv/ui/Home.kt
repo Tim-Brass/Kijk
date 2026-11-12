@@ -115,8 +115,9 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             },
     ) {
         if (overlay == null && (hs.tab == 2 || hs.tab == 3)) VodBackdrop(hs.backdrop)
-        Column(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
-            Box(Modifier.fillMaxWidth().baseline()) {
+        Column(Modifier.fillMaxSize()) {
+            // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
+            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
                         val m = Modifier.focusRequester(tabFocus[i])
@@ -144,6 +145,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
             }
+            Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = Kijk.SafeV)) {
             Spacer(Modifier.height(8.dp))
             ProgressLine(vm.progress, vm.error ?: vm.status, vm.error != null)
             Spacer(Modifier.height(6.dp))
@@ -158,6 +160,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         else -> SettingsTab(vm, nav)
                     }
                 }
+            }
             }
         }
         NumberOverlay(digits, vm, Modifier.align(Alignment.TopEnd).padding(top = 70.dp, end = Kijk.SafeH))
