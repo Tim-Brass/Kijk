@@ -339,7 +339,9 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             .focusable(),
     ) {
         VideoSurface(player, vm.subStyle, showInfo)
-        if (buffering || error != null) StatusBubble(error?.let { if (retries < 5) "$it Opnieuw proberen…" else it } ?: "Laden…", Modifier.align(Alignment.Center))
+        // groot logo bij het wisselen van zender, zakt daarna weg naar de infobalk
+        if (!showGuide) ZapBadge(channel, Modifier.align(Alignment.Center).glow(rememberDominantColor(channel.logo, true), 0.7f, 0.25f))
+        if (error != null || buffering) StatusBubble(error?.let { if (retries < 5) "$it Opnieuw proberen…" else it } ?: "Laden…", Modifier.align(Alignment.TopCenter).padding(top = Kijk.SafeV))
         NumberOverlay(digits, vm, Modifier.align(Alignment.TopEnd).padding(top = Kijk.SafeV, end = Kijk.SafeH))
 
         AnimatedVisibility(showInfo, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {

@@ -64,7 +64,7 @@ fun SplashScreen(vm: AppViewModel) {
         contentAlignment = Alignment.Center,
     ) {
         Column(Modifier.width(560.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(painterResource(R.drawable.banner), contentDescription = "Kijk", modifier = Modifier.size(240.dp, 135.dp).clip(RoundedCornerShape(22.dp)))
+            AnimatedLogo(Modifier.width(300.dp))
             Spacer(Modifier.height(36.dp))
             vm.steps.forEach { s -> StepRow(s); Spacer(Modifier.height(14.dp)) }
             Spacer(Modifier.height(10.dp))

@@ -29,6 +29,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -115,14 +119,26 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         if (overlay == null && (hs.tab == 2 || hs.tab == 3)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
             Box(Modifier.fillMaxWidth()) {
-                Row(Modifier.align(Alignment.Center).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // blauw vlak dat soepel naar de gekozen tab schuift
+                val tabPos = remember { androidx.compose.runtime.mutableStateMapOf<Int, Triple<Float, Float, Float>>() }
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                Box(Modifier.align(Alignment.Center)) {
+                    tabPos[hs.tab]?.let { (tx, tw, th) ->
+                        val x by androidx.compose.animation.core.animateFloatAsState(tx, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 500f), label = "tx")
+                        val w by androidx.compose.animation.core.animateFloatAsState(tw, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 500f), label = "tw")
+                        Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(x.toInt(), 0) }.size(with(density) { w.toDp() }, with(density) { th.toDp() })
+                            .background(Kijk.FillSelected, RoundedCornerShape(50)))
+                    }
+                Row(Modifier.onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TABS.forEachIndexed { i, title ->
                         FocusCard(
                             onClick = { pick(i) }, onFocus = { pick(i) },
-                            selected = hs.tab == i, modifier = Modifier.focusRequester(tabFocus[i]),
+                            selected = false, modifier = Modifier.focusRequester(tabFocus[i])
+                                .onGloballyPositioned { c -> tabPos[i] = Triple(c.positionInParent().x, c.size.width.toFloat(), c.size.height.toFloat()) },
                             shape = RoundedCornerShape(50), focusedScale = 1.06f,
                         ) { Label(title, Modifier.padding(horizontal = 18.dp, vertical = 7.dp), size = Kijk.Headline, weight = Kijk.Semibold) }
                     }
+                }
                 }
                 Label(Format.time(vm.now), Modifier.align(Alignment.CenterEnd), size = Kijk.Headline, color = Kijk.Secondary)
                 vm.update?.let { u ->
