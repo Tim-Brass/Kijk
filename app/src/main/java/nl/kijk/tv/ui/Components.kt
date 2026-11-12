@@ -143,10 +143,6 @@ fun LiveBadge(modifier: Modifier = Modifier) {
             .background(Kijk.Live)
             .padding(horizontal = 6.dp, vertical = 1.dp),
     ) {
-        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-            PulseDot()
-            androidx.compose.foundation.layout.Spacer(Modifier.size(4.dp))
-            Label("NU", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
-        }
+        Label("NU", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
     }
 }

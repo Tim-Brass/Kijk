@@ -32,7 +32,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -195,11 +194,8 @@ fun VodBackdrop(url: String?) {
 @Composable
 fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val tint = rememberDominantColor(poster, focused)
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
-        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus,
-            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).glow(tint, if (focused) 1f else 0f).lift(focused).sheen(focused),
-            shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
+        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 if (poster != null) AsyncImage(poster, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
@@ -221,12 +217,7 @@ fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modif
 
 @Composable
 private fun Backdrop(url: String?) {
-    // heel langzaam inzoomen en verschuiven (Ken Burns)
-    val kb = androidx.compose.animation.core.rememberInfiniteTransition(label = "kb")
-    val z by kb.animateFloat(1f, 1.14f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(24_000, easing = androidx.compose.animation.core.LinearEasing),
-        androidx.compose.animation.core.RepeatMode.Reverse), label = "z")
-    if (url != null) AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.35f)
-        .graphicsLayer { scaleX = z; scaleY = z; translationX = (z - 1f) * size.width * 0.25f })
+    if (url != null) AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.35f))
     Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Kijk.Background, Kijk.Background.copy(alpha = 0.85f), Color.Transparent))))
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Kijk.Background), startY = 500f)))
 }
