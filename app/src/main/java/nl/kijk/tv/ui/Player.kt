@@ -238,6 +238,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     var infoTick by remember { mutableIntStateOf(0) }
     var browse by remember { mutableStateOf<Int?>(null) }     // index in de lijst waar je in de infobalk naar kijkt
     var showOptions by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(false) }   // gids als laag over de zender
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var buffering by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -279,7 +280,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         if (error != null && retries < 5) { delay(3_000); retries++; player.prepare(); player.playWhenReady = true }
     }
     LaunchedEffect(showInfo, infoTick) { if (showInfo) { delay(if (browse != null) 10_000 else 6_000); showInfo = false; browse = null } }
-    LaunchedEffect(showOptions, vm.dueReminder) { if (!showOptions && vm.dueReminder == null) runCatching { focus.requestFocus() } }
+    LaunchedEffect(showOptions, showGuide, vm.dueReminder) { if (!showOptions && !showGuide && vm.dueReminder == null) runCatching { focus.requestFocus() } }
     LaunchedEffect(digits) {
         if (digits.isEmpty()) return@LaunchedEffect
         delay(if (digits.length >= 4) 300 else 1500)
@@ -298,6 +299,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
 
     BackHandler {
         when {
+            showGuide -> showGuide = false
             showOptions -> showOptions = false
             browse != null -> { browse = null; infoTick++ }
             showInfo -> showInfo = false
@@ -308,7 +310,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     Box(
         Modifier.fillMaxSize().background(Color.Black).focusRequester(focus)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown || showOptions) return@onKeyEvent false
+                if (e.type != KeyEventType.KeyDown || showOptions || showGuide) return@onKeyEvent false
                 digitOf(e)?.let { digits = (digits + it).take(5); return@onKeyEvent true }
                 val b = browse
                 when (e.key) {
@@ -328,7 +330,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
                         val p = prevKey?.let { k -> list.indexOfFirst { it.key == k } } ?: -1
                         if (p >= 0) switchTo(p); true
                     }
-                    Key.Guide, Key.G -> { vm.store.lastTab = 1; nav.pop(); true }
+                    Key.Guide, Key.G -> { showGuide = true; showInfo = false; browse = null; true }
                     Key.MediaRewind, Key.MediaPrevious -> { restart(); true }
                     else -> false
                 }
@@ -343,6 +345,16 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             val shown = browse?.let { list.getOrNull(it) } ?: channel
             InfoOverlay(vm, shown, browsing = browse != null, canRestart = current()?.let { vm.canRestart(channel, it) } == true && browse == null)
         }
+        if (showGuide) {
+            // halfdoorzichtige gids over de zender; het beeld loopt door
+            Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
+                val ghs = remember { HomeState(1) }
+                GuideGrid(vm, nav, ghs, focusChannel = channel) { l, i ->
+                    showGuide = false
+                    if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
+                }
+            }
+        }
         AnimatedVisibility(showOptions, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(), modifier = Modifier.align(Alignment.CenterEnd)) {
             val subs = trackOptions(tracks, C.TRACK_TYPE_TEXT)
             val audio = trackOptions(tracks, C.TRACK_TYPE_AUDIO)
@@ -350,15 +362,14 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             var refresh by remember { mutableIntStateOf(0) }
             SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader(shortName(channel.name)) }
+                item(key = "guide") { OptionRow("📋  Gids", false, Modifier.focusRequester(first)) { showOptions = false; showGuide = true } }
                 val cur = current()
                 if (cur != null && vm.canRestart(channel, cur)) item(key = "restart") {
-                    OptionRow("↺ Begin opnieuw: ${cur.title}", false, Modifier.focusRequester(first)) { showOptions = false; restart() }
+                    OptionRow("↺ Begin opnieuw: ${cur.title}", false) { showOptions = false; restart() }
                 }
                 item(key = "fav") {
-                    OptionRow(if (channel.key in vm.favorites) "★ Uit favorieten halen" else "☆ Aan favorieten toevoegen", false,
-                        if (cur == null || !vm.canRestart(channel, cur)) Modifier.focusRequester(first) else Modifier) { vm.toggleFavorite(channel) }
+                    OptionRow(if (channel.key in vm.favorites) "★ Uit favorieten halen" else "☆ Aan favorieten toevoegen", false) { vm.toggleFavorite(channel) }
                 }
-                item(key = "guide") { OptionRow("Naar de gids", false) { vm.store.lastTab = 1; nav.pop() } }
                 item(key = "h-subs") { PanelHeader("Ondertitels") }
                 item(key = "sub-off$refresh") { OptionRow("Uit", subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
                 if (subs.isEmpty()) item(key = "sub-none") { Label("Deze zender zendt geen ondertitels mee.", Modifier.padding(6.dp), size = Kijk.Body, color = Kijk.Secondary, maxLines = 2) }
@@ -416,7 +427,7 @@ private fun InfoOverlay(vm: AppViewModel, ch: Channel, browsing: Boolean, canRes
             Spacer(Modifier.height(10.dp))
             Row {
                 Label(next?.let { "Straks ${Format.time(it.start)} · ${it.title}" } ?: "", Modifier.weight(1f), size = Kijk.Body, color = Kijk.Secondary)
-                if (!browsing) Label("▲▼ bladeren   ◀ vorige   ▶ opties" + (if (canRestart) "   ⏪ opnieuw beginnen" else ""), size = Kijk.Caption, color = Kijk.Secondary)
+                if (!browsing) Label("▲▼ bladeren   ◀ vorige   ▶ gids en opties" + (if (canRestart) "   ⏪ opnieuw beginnen" else ""), size = Kijk.Caption, color = Kijk.Secondary)
             }
         }
     }

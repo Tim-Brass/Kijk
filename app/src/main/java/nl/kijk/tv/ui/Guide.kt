@@ -82,7 +82,11 @@ fun genreColor(g: String?): Color? = when (g) {
  * Links/rechts aan de rand schuift het tijdvenster per half uur; terugkijken gaat via OK op een afgelopen programma.
  */
 @Composable
-fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
+fun GuideGrid(
+    vm: AppViewModel, nav: Nav, hs: HomeState,
+    focusChannel: Channel? = null,                       // gids over een zender heen: daar beginnen
+    onPlay: ((List<Channel>, Int) -> Unit)? = null,      // zender kiezen zonder de speler te verlaten
+) {
     var favOnly by remember { mutableStateOf(vm.store.guideFav) }
     var archOnly by remember { mutableStateOf(vm.store.guideArch) }
     var winStart by remember { mutableLongStateOf(halfHour(System.currentTimeMillis())) }
@@ -92,6 +96,14 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
         base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) }
     }
     val state = rememberLazyListState()
+    val nowFocus = remember { FocusRequester() }
+    var autoKey by remember { mutableStateOf(focusChannel?.key) }
+    LaunchedEffect(list) {
+        if (focusChannel == null) return@LaunchedEffect
+        val i = list.indexOfFirst { it.key == focusChannel.key }
+        if (i >= 0) state.scrollToItem((i - 2).coerceAtLeast(0))
+        else { autoKey = null; delay(150); runCatching { nowFocus.requestFocus() } }
+    }
     val maxBack = remember(list) { (list.maxOfOrNull { it.archiveDays } ?: 0).coerceAtLeast(1) * DAY }
     /** Tijdvenster zo zetten dat tijdstip t goed in beeld is. */
     fun show(t: Long): Boolean {
@@ -139,7 +151,7 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
         }
         // ---- werkbalk
         Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            SmallPill("Nu") { winStart = halfHour(System.currentTimeMillis()) }
+            SmallPill("Nu", Modifier.focusRequester(nowFocus)) { winStart = halfHour(System.currentTimeMillis()) }
             SmallPill("◀ Eerder") { shift(-WINDOW) }
             SmallPill("Later ▶") { shift(WINDOW) }
             SmallPill("★ Alleen favorieten", selected = favOnly) { favOnly = !favOnly; vm.store.guideFav = favOnly }
@@ -168,7 +180,8 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
                             GuideRow(vm, ch, winStart, perMin,
                                 onFocus = { sel = ch to it },
                                 onShift = { dir -> shift(dir * STEP) }, onShow = { t -> show(t) },
-                                onPlayLive = { nav.push(Screen.Live(list, i)) },
+                                onPlayLive = { if (onPlay != null) onPlay(list, i) else nav.push(Screen.Live(list, i)) },
+                                autoFocus = autoKey == ch.key, onAutoFocused = { autoKey = null },
                                 onCatchup = { p -> nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null)) },
                             )
                         }
@@ -188,6 +201,7 @@ fun GuideGrid(vm: AppViewModel, nav: Nav, hs: HomeState) {
 private fun GuideRow(
     vm: AppViewModel, ch: Channel, winStart: Long, perMin: Dp,
     onFocus: (Programme?) -> Unit, onShift: (Int) -> Boolean, onShow: (Long) -> Boolean, onPlayLive: () -> Unit, onCatchup: (Programme) -> Unit,
+    autoFocus: Boolean = false, onAutoFocused: () -> Unit = {},
 ) {
     // Links/rechts regelen we zelf: naar het vorige/volgende programma, en zo nodig schuift de gids mee.
     // (Automatisch zoeken van Android sprong soms uit de gids naar de tabbalk.)
@@ -198,8 +212,17 @@ private fun GuideRow(
         value = try { vm.programmes(ch, bucket - HOUR, bucket + BUCKET + WINDOW + HOUR) } catch (_: Exception) { emptyList() }
     }
     val winEnd = winStart + WINDOW
+    val chanFocus = remember { FocusRequester() }
+    // gids geopend vanuit een zender: selectie op het programma dat nu loopt
+    LaunchedEffect(autoFocus, progs) {
+        val ps = progs ?: return@LaunchedEffect
+        if (!autoFocus) return@LaunchedEffect
+        val live = ps.firstOrNull { it.isLive(System.currentTimeMillis()) && it.stop > winStart && it.start < winEnd }
+        if (live != null) want = live.start else { delay(80); runCatching { chanFocus.requestFocus() } }
+        onAutoFocused()
+    }
     Row(Modifier.fillMaxWidth().height(ROW_H)) {
-        FocusCard(onClick = onPlayLive, onLongClick = { vm.toggleFavorite(ch) }, onFocus = { onFocus(null) }, modifier = Modifier.width(CHAN_W).fillMaxHeight(), focusedScale = 1.02f) { f ->
+        FocusCard(onClick = onPlayLive, onLongClick = { vm.toggleFavorite(ch) }, onFocus = { onFocus(null) }, modifier = Modifier.width(CHAN_W).fillMaxHeight().focusRequester(chanFocus), focusedScale = 1.02f) { f ->
             Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Label(ch.number.toString(), Modifier.width(36.dp), size = Kijk.Caption, color = secondary(f))
                 ChannelLogo(ch.logo, ch.name, Modifier.size(width = 52.dp, height = 34.dp))
