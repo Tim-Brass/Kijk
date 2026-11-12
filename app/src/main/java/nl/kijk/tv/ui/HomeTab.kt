@@ -138,7 +138,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
             }
             if (favs.isNotEmpty()) item {
                 HomeRow("Nu op je favorieten") {
-                    items(favs, key = { it.key }) { ch ->
+                    items(favs) { ch ->
                         FavChannelCard(vm, ch) {
                             val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
                             if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
