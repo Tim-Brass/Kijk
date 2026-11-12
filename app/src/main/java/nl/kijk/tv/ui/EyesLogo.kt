@@ -32,14 +32,17 @@ import nl.kijk.tv.R
  * Alleen de Canvas tekent opnieuw; geen hercompositie van de rest.
  */
 @Composable
-fun EyesLogo(done: Boolean, modifier: Modifier = Modifier, idle: Boolean = false, still: Boolean = false) {
+fun EyesLogo(done: Boolean, modifier: Modifier = Modifier, idle: Boolean = false, still: Boolean = false, marks: Boolean = false) {
+    val morph = remember { Animatable(0f) }   // 0 oogjes … 1 blauwe stip + afspeelknop (alleen met `marks`)
     val look = remember { Animatable(0.35f) }  // -1 links … 1 rechts
     val blinkL = remember { Animatable(1f) }   // 1 open … 0 dicht
     val blinkR = remember { Animatable(1f) }
     suspend fun blink() { launchBoth({ blinkL.animateTo(0.06f, tween(70)) }, { blinkR.animateTo(0.06f, tween(70)) }); launchBoth({ blinkL.animateTo(1f, tween(110)) }, { blinkR.animateTo(1f, tween(110)) }) }
     LaunchedEffect(done, idle, still) {
         blinkL.snapTo(1f); blinkR.snapTo(1f)
+        if (!(done && marks)) morph.snapTo(0f)
         when {
+            done && marks -> { look.animateTo(0f, tween(150)); morph.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
             still -> look.snapTo(0.35f)
             done -> {   // knipoog
                 look.animateTo(0.2f, tween(150))
@@ -68,16 +71,24 @@ fun EyesLogo(done: Boolean, modifier: Modifier = Modifier, idle: Boolean = false
         Image(painterResource(R.drawable.wordmark_kijk), contentDescription = "Kijk", modifier = Modifier.fillMaxSize())
         Canvas(Modifier.fillMaxSize()) {
             val rx = size.width * WM_EYE_RX; val ry = size.height * WM_EYE_RY; val cy = size.height * WM_EYE_Y
-            listOf(size.width * WM_EYE1_X to blinkL.value, size.width * WM_EYE2_X to blinkR.value).forEach { (cx, b) ->
+            val m = morph.value; val a = 1f - m
+            if (a > 0f) listOf(size.width * WM_EYE1_X to blinkL.value, size.width * WM_EYE2_X to blinkR.value).forEach { (cx, b) ->
                 val h = ry * 2 * b
-                drawOval(Color.White, topLeft = Offset(cx - rx, cy - h / 2), size = Size(rx * 2, h))
+                drawOval(Color.White, topLeft = Offset(cx - rx, cy - h / 2), size = Size(rx * 2, h), alpha = a)
                 if (b > 0.35f) {
                     val pr = rx * 0.5f; val ph = pr * 2 * b
                     val px = cx + look.value * rx * 0.42f; val py = cy + ry * 0.1f * b
-                    drawOval(Color(0xFF0B0B0F), topLeft = Offset(px - pr, py - ph / 2), size = Size(pr * 2, ph))
+                    drawOval(Color(0xFF0B0B0F), topLeft = Offset(px - pr, py - ph / 2), size = Size(pr * 2, ph), alpha = a)
                     val hr = pr * 0.32f
-                    drawCircle(Color.White.copy(alpha = 0.9f), hr, Offset(px + pr * 0.15f, py - pr * 0.45f * b))
+                    drawCircle(Color.White.copy(alpha = 0.9f * a), hr, Offset(px + pr * 0.15f, py - pr * 0.45f * b))
                 }
+            }
+            if (m > 0f) {   // blauwe stip op de i, afspeelknop op de j
+                val blue = Color(0xFF0A84FF)
+                drawCircle(blue, rx * (0.6f + 0.35f * m), Offset(size.width * WM_EYE1_X, cy), alpha = m)
+                val t = rx * (0.6f + 0.4f * m); val cx = size.width * WM_EYE2_X
+                val p = androidx.compose.ui.graphics.Path().apply { moveTo(cx - t * 0.75f, cy - t); lineTo(cx - t * 0.75f, cy + t); lineTo(cx + t, cy); close() }
+                drawPath(p, blue, alpha = m)
             }
         }
     }
