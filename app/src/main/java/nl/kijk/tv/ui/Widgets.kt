@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
@@ -163,4 +165,116 @@ fun NumberOverlay(digits: String, vm: AppViewModel, modifier: Modifier = Modifie
         Label(digits, size = Kijk.LargeTitle, weight = Kijk.Bold, color = Color.White)
         Label(ch?.name ?: "…", size = Kijk.Caption, color = Color(0xFFD1D1D6))
     }
+}
+
+/**
+ * Menu-item in lijnstijl: grijze tekst; actief = wit met blauwe lijn; focus = wit, iets groter, witte lijn.
+ * Geen achtergrondvlak, dus net zo licht als de oude pillen.
+ */
+@Composable
+fun LineItem(
+    modifier: Modifier = Modifier,
+    active: Boolean = false,
+    onFocus: (() -> Unit)? = null,
+    onClick: () -> Unit,
+    content: @Composable (color: Color) -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val line = when { active -> Kijk.Accent; focused -> Color.White; else -> Color.Transparent }
+    val lineH = if (active) 3.dp else 2.dp
+    androidx.tv.material3.Surface(
+        onClick = onClick,
+        modifier = modifier.onFocusChanged {
+            if (it.isFocused != focused) { focused = it.isFocused; if (it.isFocused) onFocus?.invoke() }
+        },
+        shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(0.dp)),
+        scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+        colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent, contentColor = Color.White,
+            focusedContainerColor = Color.Transparent, focusedContentColor = Color.White,
+            pressedContainerColor = Color.Transparent, pressedContentColor = Color.White,
+        ),
+    ) {
+        Box(
+            Modifier
+                .drawBehind { if (line != Color.Transparent) { val h = lineH.toPx(); drawRect(line, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h)) } }
+                .padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 9.dp),
+        ) { content(if (focused || active) Color.White else Kijk.Secondary) }
+    }
+}
+
+@Composable
+fun LineText(text: String, modifier: Modifier = Modifier, active: Boolean = false, size: androidx.compose.ui.unit.TextUnit = Kijk.Headline, onFocus: (() -> Unit)? = null, onClick: () -> Unit) {
+    LineItem(modifier, active, onFocus, onClick) { c -> Label(text, size = size, weight = Kijk.Semibold, color = c) }
+}
+
+/** Aan/uit-knop in lijnstijl: vinkje-rondje voor de tekst. */
+@Composable
+fun LineToggle(text: String, checked: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    LineItem(modifier, false, null, onClick) { c ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.Canvas(Modifier.size(15.dp)) {
+                val r = size.minDimension / 2
+                if (checked) {
+                    drawCircle(Kijk.Accent, r)
+                    val p = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(size.width * 0.28f, size.height * 0.52f)
+                        lineTo(size.width * 0.44f, size.height * 0.68f)
+                        lineTo(size.width * 0.73f, size.height * 0.36f)
+                    }
+                    drawPath(p, Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                } else {
+                    val w = 1.5.dp.toPx()
+                    drawCircle(c, r - w / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(width = w))
+                }
+            }
+            Spacer(Modifier.width(7.dp))
+            Label(text, size = Kijk.Caption, weight = Kijk.Semibold, color = if (checked) Color.White else c)
+        }
+    }
+}
+
+enum class LineIconKind { Search, Settings, Exit }
+
+/** Eenvoudige lijn-iconen (zoals Tabler), getekend op een Canvas: geen extra bibliotheek nodig. */
+@Composable
+fun LineIcon(kind: LineIconKind, color: Color, modifier: Modifier = Modifier.size(22.dp)) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val s = size.minDimension / 24f       // tekenen op een 24×24 raster
+        val st = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f * s, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+        fun o(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(x * s, y * s)
+        fun path(block: androidx.compose.ui.graphics.Path.() -> Unit) = drawPath(androidx.compose.ui.graphics.Path().apply(block), color, style = st)
+        when (kind) {
+            LineIconKind.Search -> {
+                drawCircle(color, 7f * s, o(10f, 10f), style = st)
+                drawLine(color, o(15.2f, 15.2f), o(21f, 21f), 2f * s, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            LineIconKind.Settings -> {
+                // tandwiel: 8 tanden rond een ring
+                val c = o(12f, 12f)
+                for (i in 0 until 8) {
+                    val a = Math.toRadians(i * 45.0)
+                    val cx = kotlin.math.cos(a).toFloat(); val sy = kotlin.math.sin(a).toFloat()
+                    drawLine(color, androidx.compose.ui.geometry.Offset(c.x + cx * 7f * s, c.y + sy * 7f * s), androidx.compose.ui.geometry.Offset(c.x + cx * 9.6f * s, c.y + sy * 9.6f * s), 2.6f * s, androidx.compose.ui.graphics.StrokeCap.Round)
+                }
+                drawCircle(color, 7f * s, c, style = st)
+                drawCircle(color, 2.6f * s, c, style = st)
+            }
+            LineIconKind.Exit -> {
+                // deur met pijl naar buiten (ti-door-exit)
+                path { moveTo(13f * s, 12f * s); lineTo(13f * s, 12.01f * s) }
+                path { moveTo(3f * s, 21f * s); lineTo(21f * s, 21f * s) }
+                path { moveTo(5f * s, 21f * s); lineTo(5f * s, 5f * s); quadraticTo(5f * s, 3f * s, 7f * s, 3f * s); lineTo(14f * s, 3f * s) }
+                path { moveTo(19f * s, 13f * s); lineTo(19f * s, 21f * s) }
+                path { moveTo(14f * s, 7f * s); lineTo(21f * s, 7f * s) }
+                path { moveTo(18f * s, 4f * s); lineTo(21f * s, 7f * s); lineTo(18f * s, 10f * s) }
+            }
+        }
+    }
+}
+
+/** Dunne grijze lijn onder een balk. */
+fun Modifier.baseline(): Modifier = drawBehind {
+    val h = 1.dp.toPx()
+    drawRect(Color(0xFF2A2A31), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
 }

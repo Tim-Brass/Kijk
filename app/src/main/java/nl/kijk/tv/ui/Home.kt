@@ -116,28 +116,30 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     ) {
         if (overlay == null && (hs.tab == 2 || hs.tab == 3)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
-            Box(Modifier.fillMaxWidth()) {
-                Row(Modifier.align(Alignment.Center).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxWidth().baseline()) {
+                Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
-                        FocusCard(
-                            onClick = { pick(i) }, onFocus = { pick(i) },
-                            selected = hs.tab == i, modifier = Modifier.focusRequester(tabFocus[i]),
-                            shape = RoundedCornerShape(50), focusedScale = 1.06f,
-                        ) { Label(title, Modifier.padding(horizontal = 18.dp, vertical = 7.dp), size = Kijk.Headline, weight = Kijk.Semibold) }
-                    }
-                }
-                Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
-                    Label(Format.time(vm.now), size = Kijk.Headline, color = Kijk.Secondary)
-                    Spacer(Modifier.width(12.dp))
-                    // afsluiten
-                    SmallPill("⏻") {
-                        nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
-                            quitApp(activity)
+                        val m = Modifier.focusRequester(tabFocus[i])
+                        // wisselen pas bij OK, niet bij alleen erlangs bewegen
+                        when (i) {
+                            4 -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Search, c) }
+                            5 -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Settings, c) }
+                            else -> LineText(title, m, active = hs.tab == i) { pick(i) }
                         }
                     }
                 }
+                Row(Modifier.align(Alignment.BottomEnd), verticalAlignment = Alignment.CenterVertically) {
+                    Label(Format.time(vm.now), Modifier.padding(bottom = 9.dp), size = Kijk.Headline, color = Kijk.Secondary)
+                    Spacer(Modifier.width(10.dp))
+                    // afsluiten
+                    LineItem(onClick = {
+                        nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
+                            quitApp(activity)
+                        }
+                    }) { c -> LineIcon(LineIconKind.Exit, c) }
+                }
                 vm.update?.let { u ->
-                    SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.align(Alignment.CenterStart), selected = true) { vm.installUpdate(ctx) }
+                    SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.align(Alignment.CenterStart).padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
                 }
             }
             Spacer(Modifier.height(8.dp))

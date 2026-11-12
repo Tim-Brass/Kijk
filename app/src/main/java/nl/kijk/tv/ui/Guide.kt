@@ -153,16 +153,15 @@ fun GuideGrid(
             } else Label("Kies een programma met de pijltjestoetsen", Modifier.align(Alignment.CenterStart), color = Kijk.Secondary)
         }
         // ---- werkbalk
-        Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            onMenu?.let { m -> SmallPill("⌂ Menu") { m() } }
-            SmallPill("Nu", Modifier.focusRequester(nowFocus)) { winStart = halfHour(System.currentTimeMillis()) }
-            SmallPill("◀ Eerder") { shift(-WINDOW) }
-            SmallPill("Later ▶") { shift(WINDOW) }
-            SmallPill("★ Alleen favorieten", selected = favOnly) { favOnly = !favOnly; vm.store.guideFav = favOnly }
-            SmallPill("↺ Alleen terugkijken", selected = archOnly) { archOnly = !archOnly; vm.store.guideArch = archOnly }
-            Spacer(Modifier.width(8.dp))
-            Label("${groupLabel(hs.group)} · ${Format.dayLabel(winStart, vm.now)}", size = Kijk.Caption, color = Kijk.Secondary)
-
+        Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp).baseline(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
+            onMenu?.let { m -> LineText("⌂ Menu", size = Kijk.Caption) { m() } }
+            LineText("Nu", Modifier.focusRequester(nowFocus), size = Kijk.Caption) { winStart = halfHour(System.currentTimeMillis()) }
+            LineText("◀ Eerder", size = Kijk.Caption) { shift(-WINDOW) }
+            LineText("Later ▶", size = Kijk.Caption) { shift(WINDOW) }
+            Label("${groupLabel(hs.group)} · ${Format.dayLabel(winStart, vm.now)}", Modifier.padding(start = 8.dp, bottom = 13.dp), size = Kijk.Caption, color = Kijk.Secondary)
+            Spacer(Modifier.weight(1f))
+            LineToggle("Alleen favorieten", favOnly) { favOnly = !favOnly; vm.store.guideFav = favOnly }
+            LineToggle("Alleen terugkijken", archOnly) { archOnly = !archOnly; vm.store.guideArch = archOnly }
         }
         if (list.isEmpty()) {
             EmptyState("Geen zenders", if (favOnly) "Je hebt (in deze groep) nog geen favorieten." else if (archOnly) "Geen zenders met terugkijken in deze groep." else "Kies een andere groep onder Live.")
