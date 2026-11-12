@@ -238,7 +238,8 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     var infoTick by remember { mutableIntStateOf(0) }
     var browse by remember { mutableStateOf<Int?>(null) }     // index in de lijst waar je in de infobalk naar kijkt
     var showOptions by remember { mutableStateOf(false) }
-    var showGuide by remember { mutableStateOf(false) }   // gids als laag over de zender
+    var showGuide by remember { mutableStateOf(false) }   // ▶: alleen de gids, halfdoorzichtig over de zender
+    var showMenu by remember { mutableStateOf(false) }    // Terug: hoofdmenu over de zender (zender loopt door)
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var buffering by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -281,7 +282,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         if (error != null && retries < 5) { delay(3_000); retries++; player.prepare(); player.playWhenReady = true }
     }
     LaunchedEffect(showInfo, infoTick) { if (showInfo) { delay(if (browse != null) 10_000 else 6_000); showInfo = false; browse = null } }
-    LaunchedEffect(showOptions, showGuide, vm.dueReminder) { if (!showOptions && !showGuide && vm.dueReminder == null) runCatching { focus.requestFocus() } }
+    LaunchedEffect(showOptions, showGuide, showMenu, vm.dueReminder) { if (!showOptions && !showGuide && !showMenu && vm.dueReminder == null) runCatching { focus.requestFocus() } }
     LaunchedEffect(digits) {
         if (digits.isEmpty()) return@LaunchedEffect
         delay(if (digits.length >= 4) 300 else 1500)
@@ -300,18 +301,19 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
 
     BackHandler {
         when {
-            showGuide -> showGuide = false
+            showMenu -> showMenu = false
+            showGuide -> { showGuide = false; showMenu = true }     // Terug in de gids: naar het hoofdmenu
             showOptions -> showOptions = false
             browse != null -> { browse = null; infoTick++ }
             // Terug tijdens het kijken: de gids over de zender (naar het menu via de knop in de gids)
-            else -> { showInfo = false; showGuide = true }
+            else -> { showInfo = false; showMenu = true }            // Terug tijdens het kijken: hoofdmenu over de zender
         }
     }
 
     Box(
         Modifier.fillMaxSize().background(Color.Black).focusRequester(focus)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown || showOptions || showGuide) return@onKeyEvent false
+                if (e.type != KeyEventType.KeyDown || showOptions || showGuide || showMenu) return@onKeyEvent false
                 digitOf(e)?.let { digits = (digits + it).take(5); return@onKeyEvent true }
                 val b = browse
                 when (e.key) {
@@ -323,15 +325,16 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
                     Key.ChannelUp, Key.PageUp -> { switchTo(index + 1); true }
                     Key.ChannelDown, Key.PageDown -> { switchTo(index - 1); true }
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                        if (b != null) { switchTo(b); browse = null } else { showInfo = !showInfo }
+                        // OK: infobalk tonen; met de infobalk in beeld opent OK de opties (ondertitels, audio, …)
+                        if (b != null) { switchTo(b); browse = null } else if (showInfo) { showOptions = true; showInfo = false } else showInfo = true
                         infoTick++; true
                     }
-                    Key.DirectionRight, Key.Menu, Key.Captions -> { showOptions = true; showInfo = false; browse = null; true }
+                    Key.DirectionRight, Key.Guide, Key.G -> { showGuide = true; showInfo = false; browse = null; true }
+                    Key.Menu, Key.Captions -> { showOptions = true; showInfo = false; browse = null; true }
                     Key.DirectionLeft -> {
                         val p = prevKey?.let { k -> list.indexOfFirst { it.key == k } } ?: -1
                         if (p >= 0) switchTo(p); true
                     }
-                    Key.Guide, Key.G -> { showGuide = true; showInfo = false; browse = null; true }
                     Key.MediaRewind, Key.MediaPrevious -> { restart(); true }
                     else -> false
                 }
@@ -346,13 +349,20 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             val shown = browse?.let { list.getOrNull(it) } ?: channel
             InfoOverlay(vm, shown, browsing = browse != null, canRestart = current()?.let { vm.canRestart(channel, it) } == true && browse == null)
         }
+        val switchFromOverlay: (List<Channel>, Int) -> Unit = { l, i ->
+            showGuide = false; showMenu = false
+            if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
+        }
         if (showGuide) {
-            // halfdoorzichtige gids over de zender; het beeld loopt door
-            // het hele menu (met de gids open) halfdoorzichtig over de zender
-            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = { l, i ->
-                showGuide = false
-                if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
-            }, onClose = { showGuide = false }))
+            // ▶: alleen de gids, halfdoorzichtig over de zender; het beeld loopt door
+            Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
+                val ghs = remember { HomeState(1) }
+                GuideGrid(vm, nav, ghs, focusChannel = channel, onPlay = switchFromOverlay)
+            }
+        }
+        if (showMenu) {
+            // Terug: het hoofdmenu halfdoorzichtig over de zender, selectie op de tabbalk
+            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = switchFromOverlay, onClose = { showMenu = false }))
         }
         AnimatedVisibility(showOptions, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(), modifier = Modifier.align(Alignment.CenterEnd)) {
             val subs = trackOptions(tracks, C.TRACK_TYPE_TEXT)
@@ -361,7 +371,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             var refresh by remember { mutableIntStateOf(0) }
             SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader(shortName(channel.name)) }
-                item(key = "guide") { OptionRow("📋  Gids en menu", false, Modifier.focusRequester(first)) { showOptions = false; showGuide = true } }
+                item(key = "guide") { OptionRow("📋  Gids", false, Modifier.focusRequester(first)) { showOptions = false; showGuide = true } }
                 val cur = current()
                 if (cur != null && vm.canRestart(channel, cur)) item(key = "restart") {
                     OptionRow("↺ Begin opnieuw: ${cur.title}", false) { showOptions = false; restart() }
@@ -426,7 +436,7 @@ private fun InfoOverlay(vm: AppViewModel, ch: Channel, browsing: Boolean, canRes
             Spacer(Modifier.height(10.dp))
             Row {
                 Label(next?.let { "Straks ${Format.time(it.start)} · ${it.title}" } ?: "", Modifier.weight(1f), size = Kijk.Body, color = Kijk.Secondary)
-                if (!browsing) Label("▲▼ bladeren   ◀ vorige   ▶ opties   Terug = gids en menu" + (if (canRestart) "   ⏪ opnieuw beginnen" else ""), size = Kijk.Caption, color = Kijk.Secondary)
+                if (!browsing) Label("OK opties   ▲▼ bladeren   ◀ vorige   ▶ gids   Terug menu" + (if (canRestart) "   ⏪ opnieuw beginnen" else ""), size = Kijk.Caption, color = Kijk.Secondary)
             }
         }
     }
