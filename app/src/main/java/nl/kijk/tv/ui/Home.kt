@@ -100,8 +100,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             overlay != null -> overlay.onClose()
             !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
             hs.tab != 0 -> { hs.tab = 0; vm.store.lastTab = 0; runCatching { tabFocus[0].requestFocus() } }
-            else -> nav.confirm("Kijk afsluiten?", "Kijk blijft op de achtergrond klaarstaan, zodat hij de volgende keer meteen weer start.", yes = "Afsluiten") {
-                activity?.moveTaskToBack(true)
+            else -> nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
+                quitApp(activity)
             }
         }
     }
@@ -131,8 +131,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     Spacer(Modifier.width(12.dp))
                     // afsluiten
                     SmallPill("⏻") {
-                        nav.confirm("Kijk afsluiten?", "Kijk blijft op de achtergrond klaarstaan, zodat hij de volgende keer meteen weer start.", yes = "Afsluiten") {
-                            nav.replaceAll(Screen.Home); activity?.moveTaskToBack(true)
+                        nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
+                            quitApp(activity)
                         }
                     }
                 }
@@ -226,4 +226,11 @@ fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: 
             }
         }
     }
+}
+
+/** Kijk echt afsluiten: scherm dicht, uit de recente apps, en het proces stoppen (geen stream of server meer op de achtergrond). */
+fun quitApp(activity: android.app.Activity?) {
+    activity ?: return
+    activity.finishAndRemoveTask()
+    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
 }
