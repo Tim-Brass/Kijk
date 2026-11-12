@@ -50,7 +50,14 @@ import nl.kijk.tv.Nav
 import nl.kijk.tv.Screen
 import nl.kijk.tv.data.Channel
 
-private val TABS = listOf("Live", "Gids", "Films", "Series", "Zoeken", "Instellingen")
+private val TABS = listOf("Thuis", "Live", "Gids", "Films", "Series", "Zoeken", "Instellingen")
+const val TAB_HOME = 0
+const val TAB_LIVE = 1
+const val TAB_GUIDE = 2
+const val TAB_FILMS = 3
+const val TAB_SERIES = 4
+const val TAB_SEARCH = 5
+const val TAB_SETTINGS = 6
 
 /** Gedeelde keuze van de zendergroep (Live en Gids gebruiken dezelfde). */
 class HomeState(tab: Int) {
@@ -69,7 +76,7 @@ class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit
 
 @Composable
 fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
-    val hs = remember { HomeState(vm.store.lastTab.coerceIn(0, TABS.lastIndex)) }
+    val hs = remember { HomeState(TAB_HOME) }   // Kijk opent altijd op Thuis
     val tabFocus = remember { List(TABS.size) { FocusRequester() } }
     var digits by remember { mutableStateOf("") }
     // over een zender: de gids pakt zelf de selectie (op de huidige zender)
@@ -83,7 +90,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         val idx = vm.channels.indexOfFirst { it.number.toString() == digits }
         digits = ""
         if (idx < 0) return@LaunchedEffect
-        if (hs.tab == 1) hs.jump = vm.channels[idx] else if (overlay != null) overlay.onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
+        if (hs.tab == TAB_GUIDE) hs.jump = vm.channels[idx] else if (overlay != null) overlay.onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
     }
     // Terug: eerst naar de tabbalk, dan naar Live, dan vragen of je wilt afsluiten.
     val activity = LocalContext.current as? android.app.Activity
@@ -99,7 +106,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         when {
             overlay != null -> overlay.onClose()
             !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
-            hs.tab != 0 -> { hs.tab = 0; vm.store.lastTab = 0; runCatching { tabFocus[0].requestFocus() } }
+            hs.tab != TAB_HOME -> { hs.tab = TAB_HOME; runCatching { tabFocus[TAB_HOME].requestFocus() } }
             else -> nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
                 quitApp(activity)
             }
@@ -109,12 +116,12 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     Box(
         Modifier.fillMaxSize().background(if (overlay != null) Color(0xD90B0B0F) else Kijk.Background)
             .onPreviewKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown || hs.tab >= 4) return@onPreviewKeyEvent false  // in zoeken/instellingen zijn cijfers tekst
+                if (e.type != KeyEventType.KeyDown || hs.tab >= TAB_SEARCH) return@onPreviewKeyEvent false  // in zoeken/instellingen zijn cijfers tekst
                 val d = digitOf(e) ?: return@onPreviewKeyEvent false
                 digits = (digits + d).take(5); true
             },
     ) {
-        if (overlay == null && (hs.tab == 2 || hs.tab == 3)) VodBackdrop(hs.backdrop)
+        if (overlay == null && (hs.tab == TAB_HOME || hs.tab == TAB_FILMS || hs.tab == TAB_SERIES)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
             Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
@@ -123,8 +130,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         val m = Modifier.focusRequester(tabFocus[i])
                         // wisselen pas bij OK, niet bij alleen erlangs bewegen
                         when (i) {
-                            4 -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Search, c) }
-                            5 -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Settings, c) }
+                            TAB_SEARCH -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Search, c) }
+                            TAB_SETTINGS -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Settings, c) }
                             else -> LineText(title, m, active = hs.tab == i) { pick(i) }
                         }
                     }
@@ -135,8 +142,10 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
                         Spacer(Modifier.width(14.dp))
                     }
-                    Label(Format.time(vm.now), Modifier.padding(bottom = 9.dp), size = Kijk.Headline, color = Kijk.Secondary)
-                    Spacer(Modifier.width(10.dp))
+                    if (hs.tab != TAB_HOME) {   // op Thuis staat de tijd al groot
+                        Label(Format.time(vm.now), Modifier.padding(bottom = 9.dp), size = Kijk.Headline, color = Kijk.Secondary)
+                        Spacer(Modifier.width(10.dp))
+                    }
                     // afsluiten
                     LineItem(onClick = {
                         nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
@@ -152,11 +161,12 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             Box(Modifier.weight(1f)) {
                 FadeIn(hs.tab) {
                     when (hs.tab) {
-                        0 -> LiveTab(vm, nav, hs, overlay?.onPlay)
-                        1 -> GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay)
-                        2 -> VodTab(vm, nav, series = false, hs = hs)
-                        3 -> VodTab(vm, nav, series = true, hs = hs)
-                        4 -> SearchTab(vm, nav)
+                        TAB_HOME -> HomeTab(vm, nav, hs, overlay?.onPlay)
+                        TAB_LIVE -> LiveTab(vm, nav, hs, overlay?.onPlay)
+                        TAB_GUIDE -> GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay)
+                        TAB_FILMS -> VodTab(vm, nav, series = false, hs = hs)
+                        TAB_SERIES -> VodTab(vm, nav, series = true, hs = hs)
+                        TAB_SEARCH -> SearchTab(vm, nav)
                         else -> SettingsTab(vm, nav)
                     }
                 }

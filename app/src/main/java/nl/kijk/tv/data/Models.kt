@@ -43,6 +43,7 @@ data class Movie(
     val url: String,
     val rating: String?,
     val year: String?,
+    val added: Long? = null,   // toegevoegd aan de server (ms), voor "Nieuw binnen"
 )
 
 data class MovieInfo(

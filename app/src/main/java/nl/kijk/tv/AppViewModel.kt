@@ -37,6 +37,9 @@ import nl.kijk.tv.data.SubStyle
 import nl.kijk.tv.data.VodCategory
 import nl.kijk.tv.data.VodSource
 import nl.kijk.tv.data.Xtream
+import nl.kijk.tv.data.HomeInfo
+import nl.kijk.tv.data.News
+import nl.kijk.tv.data.Weather
 import org.json.JSONObject
 import nl.kijk.tv.phone.PhoneServer
 import java.io.File
@@ -572,7 +575,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (indexJob?.isActive == true || (vodIndexReady && !force)) return
         indexJob = viewModelScope.launch(Dispatchers.IO) {
             val f = indexFile
-            val tag = "v2:" + store.playlistUrl.hashCode()
+            val tag = "v3:" + store.playlistUrl.hashCode()
             try {
                 val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
                 if (fresh && readIndex(f, tag)) { vodIndexReady = true; baselineFavShows(); return@launch }
@@ -599,7 +602,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val tmp = File(f.path + ".tmp")
         tmp.bufferedWriter().use { w ->
             w.write("#$tag\n")
-            movieIndex.forEach { w.write("m\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t${clean(it.url)}\t${clean(it.year)}\n") }
+            movieIndex.forEach { w.write("m\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t${clean(it.url)}\t${clean(it.year)}\t${it.added ?: ""}\n") }
             showIndex.forEach { w.write("s\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t\t${clean(it.year)}\t${it.updated ?: ""}\n") }
         }
         tmp.renameTo(f)
@@ -613,13 +616,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val c = line.split('\t')
                 if (c.size < 7) continue
                 val poster = c[3].ifEmpty { null }; val year = c[6].ifEmpty { null }
-                if (c[0] == "m") m += Movie(c[1], c[2], poster, c[4], c[5], null, year)
+                if (c[0] == "m") m += Movie(c[1], c[2], poster, c[4], c[5], null, year, c.getOrNull(7)?.toLongOrNull())
                 else sh += Show(c[1], c[2], poster, c[4], null, null, year, c.getOrNull(7)?.toLongOrNull())
             }
         }
         if (ok) { movieIndex = m; showIndex = sh }
         ok
     } catch (_: Exception) { false }
+
+    /** "Nieuw binnen" op Thuis: laatst toegevoegde films en series (zonder verborgen/vergrendelde). */
+    suspend fun newestVod(limit: Int = 18): List<Any> {
+        if (!vodIndexReady) return emptyList()
+        val mCats = (try { movieCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
+        val sCats = (try { showCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
+        return withContext(Dispatchers.Default) {
+            val ms = movieIndex.filter { it.categoryId !in hiddenMovieCats && (unlocked || (!isLocked(mCats[it.categoryId]) && !isLocked(it.name))) }
+            val ss = showIndex.filter { it.categoryId !in hiddenShowCats && (unlocked || (!isLocked(sCats[it.categoryId]) && !isLocked(it.name))) }
+            // zonder datum (M3U): de laatste regels van de lijst zijn meestal het nieuwst
+            val mTop: List<Pair<Long, Any>> = if (ms.any { it.added != null }) ms.sortedByDescending { it.added ?: 0 }.take(limit).map { (it.added ?: 0L) to it }
+                else ms.takeLast(limit).reversed().mapIndexed { i, m -> (Long.MAX_VALUE - i * 2) to m }
+            val sTop: List<Pair<Long, Any>> = if (ss.any { it.updated != null }) ss.sortedByDescending { it.updated ?: 0 }.take(limit).map { (it.updated ?: 0L) to it }
+                else ss.takeLast(limit).reversed().mapIndexed { i, x -> (Long.MAX_VALUE - i * 2 - 1) to x }
+            (mTop + sTop).sortedByDescending { it.first }.take(limit).map { it.second }
+        }
+    }
+
+    // ---------------------------------------------------------------- Thuis: weer en nieuws
+    var weather by mutableStateOf<Weather?>(null); private set
+    var news by mutableStateOf<News?>(null); private set
+    private var homeJob: Job? = null
+    /** Weer en nieuws ophalen; hooguit eens per half uur. */
+    fun refreshHome() {
+        if (homeJob?.isActive == true) return
+        val w = weather; val n = news
+        val stale = 30 * MINUTE
+        val t = System.currentTimeMillis()
+        if (w != null && n != null && t - w.fetched < stale && t - n.fetched < stale) return
+        homeJob = viewModelScope.launch(Dispatchers.IO) {
+            if (w == null || t - w.fetched >= stale) runCatching { weather = HomeInfo.weather() }
+            if (n == null || t - n.fetched >= stale) runCatching { news = HomeInfo.news() }
+        }
+    }
 
     /** Films en series zoeken in de index; null = index nog niet klaar. */
     suspend fun searchVod(q0: String): Pair<List<Movie>, List<Show>>? {

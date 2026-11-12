@@ -373,7 +373,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         if (showGuide) {
             // ▶: alleen de gids, halfdoorzichtig over de zender; het beeld loopt door
             Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
-                val ghs = remember { HomeState(1) }
+                val ghs = remember { HomeState(TAB_GUIDE) }
                 GuideGrid(vm, nav, ghs, focusChannel = channel, onPlay = switchFromOverlay)
             }
         }

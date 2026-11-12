@@ -22,7 +22,7 @@ private fun JSONObject.str(name: String): String? = optString(name, "").takeIf {
 private fun JSONObject.firstOf(vararg names: String): String? = names.firstNotNullOfOrNull { str(it) }
 
 /** Xtream Codes-API: categorieën, posters, beschrijvingen, seizoenen, terugkijken. */
-private val MOVIE_KEYS = setOf("stream_id", "container_extension", "name", "stream_icon", "category_id", "rating", "year")
+private val MOVIE_KEYS = setOf("stream_id", "container_extension", "name", "stream_icon", "category_id", "rating", "year", "added")
 private val SHOW_KEYS = setOf("series_id", "name", "cover", "category_id", "plot", "rating", "releaseDate", "release_date", "last_modified")
 private val LIVE_KEYS = setOf("stream_id", "tv_archive", "tv_archive_duration")
 
@@ -86,7 +86,8 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
             val id = o.s("stream_id") ?: return@stream
             val ext = o.s("container_extension") ?: "mp4"
             out += Movie(id, o.s("name") ?: "Film", o.s("stream_icon"), cat ?: o.s("category_id") ?: "",
-                "$host/movie/${enc(user)}/${enc(pass)}/$id.$ext", o.s("rating")?.takeIf { it != "0" }, o.s("year"))
+                "$host/movie/${enc(user)}/${enc(pass)}/$id.$ext", o.s("rating")?.takeIf { it != "0" }, o.s("year"),
+                o.s("added")?.toLongOrNull()?.let { it * 1000 })
         }
         return out
     }
