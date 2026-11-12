@@ -74,7 +74,9 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     var digits by remember { mutableStateOf("") }
     // over een zender: de gids pakt zelf de selectie (op de huidige zender)
     LaunchedEffect(Unit) { if (overlay == null) runCatching { tabFocus[hs.tab].requestFocus() } }
-    fun pick(i: Int) { hs.tab = i; if (overlay == null) vm.store.lastTab = i }
+    // menu over een zender: alleen bij het openen pakt de gids de selectie; daarna blijft die op de tabbalk
+    var guideGrabsFocus by remember { mutableStateOf(overlay != null) }
+    fun pick(i: Int) { hs.tab = i; guideGrabsFocus = false; if (overlay == null) vm.store.lastTab = i }
     LaunchedEffect(digits) {
         if (digits.isEmpty()) return@LaunchedEffect
         delay(if (digits.length >= 4) 300 else 1500)
@@ -136,7 +138,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 FadeIn(hs.tab) {
                     when (hs.tab) {
                         0 -> LiveTab(vm, nav, hs, overlay?.onPlay)
-                        1 -> GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, onPlay = overlay?.onPlay)
+                        1 -> GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay)
                         2 -> VodTab(vm, nav, series = false, hs = hs)
                         3 -> VodTab(vm, nav, series = true, hs = hs)
                         4 -> SearchTab(vm, nav)

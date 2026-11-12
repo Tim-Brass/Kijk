@@ -84,7 +84,8 @@ fun genreColor(g: String?): Color? = when (g) {
 @Composable
 fun GuideGrid(
     vm: AppViewModel, nav: Nav, hs: HomeState,
-    focusChannel: Channel? = null,                       // gids over een zender heen: daar beginnen
+    focusChannel: Channel? = null,                       // gids over een zender: daarheen scrollen
+    autoFocus: Boolean = true,                           // ... en de selectie er meteen op zetten
     onPlay: ((List<Channel>, Int) -> Unit)? = null,      // zender kiezen zonder de speler te verlaten
     onMenu: (() -> Unit)? = null,                        // gids over de zender: knop terug naar het menu
 ) {
@@ -98,12 +99,12 @@ fun GuideGrid(
     }
     val state = rememberLazyListState()
     val nowFocus = remember { FocusRequester() }
-    var autoKey by remember { mutableStateOf(focusChannel?.key) }
+    var autoKey by remember { mutableStateOf(if (autoFocus) focusChannel?.key else null) }
     LaunchedEffect(list) {
         if (focusChannel == null) return@LaunchedEffect
         val i = list.indexOfFirst { it.key == focusChannel.key }
         if (i >= 0) state.scrollToItem((i - 2).coerceAtLeast(0))
-        else { autoKey = null; delay(150); runCatching { nowFocus.requestFocus() } }
+        else if (autoFocus) { autoKey = null; delay(150); runCatching { nowFocus.requestFocus() } }
     }
     val maxBack = remember(list) { (list.maxOfOrNull { it.archiveDays } ?: 0).coerceAtLeast(1) * DAY }
     /** Tijdvenster zo zetten dat tijdstip t goed in beeld is. */
