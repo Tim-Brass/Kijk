@@ -177,6 +177,12 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
         save(); countdown = null; ext = null; autoTried = false; userChose = false; index = newIndex
     }
 
+    // app naar de achtergrond: pauzeren en voortgang bewaren
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, player) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, ev -> if (ev == androidx.lifecycle.Lifecycle.Event.ON_STOP) { save(); player.pause() } }
+        lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
+    }
     DisposableEffect(player) {
         val l = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }

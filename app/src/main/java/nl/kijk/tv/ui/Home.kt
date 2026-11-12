@@ -126,7 +126,16 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         ) { Label(title, Modifier.padding(horizontal = 18.dp, vertical = 7.dp), size = Kijk.Headline, weight = Kijk.Semibold) }
                     }
                 }
-                Label(Format.time(vm.now), Modifier.align(Alignment.CenterEnd), size = Kijk.Headline, color = Kijk.Secondary)
+                Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                    Label(Format.time(vm.now), size = Kijk.Headline, color = Kijk.Secondary)
+                    Spacer(Modifier.width(12.dp))
+                    // afsluiten
+                    SmallPill("⏻") {
+                        nav.confirm("Kijk afsluiten?", "Kijk blijft op de achtergrond klaarstaan, zodat hij de volgende keer meteen weer start.", yes = "Afsluiten") {
+                            nav.replaceAll(Screen.Home); activity?.moveTaskToBack(true)
+                        }
+                    }
+                }
                 vm.update?.let { u ->
                     SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.align(Alignment.CenterStart), selected = true) { vm.installUpdate(ctx) }
                 }

@@ -247,6 +247,18 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     var digits by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
 
+    // app naar de achtergrond (Home-knop, afsluiten): stream stoppen; terug: weer starten
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, player) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            when (ev) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> player.stop()
+                androidx.lifecycle.Lifecycle.Event.ON_START -> if (player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) { player.prepare(); player.playWhenReady = true }
+                else -> {}
+            }
+        }
+        lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
+    }
     DisposableEffect(player) {
         val l = object : Player.Listener {
             override fun onTracksChanged(t: Tracks) { tracks = t }

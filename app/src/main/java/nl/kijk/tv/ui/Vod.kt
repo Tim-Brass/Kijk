@@ -89,6 +89,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
     val hiddenCats = if (series) vm.hiddenShowCats else vm.hiddenMovieCats
     // achtergrondfoto: pas ophalen als je even op een poster blijft staan
     var focusItem by remember(series) { mutableStateOf<Any?>(null) }
+    var gridFocused by remember(series) { mutableStateOf(false) }
     androidx.compose.runtime.DisposableEffect(series) { onDispose { hs?.backdrop = null } }
     LaunchedEffect(focusItem) {
         val it = focusItem ?: return@LaunchedEffect
@@ -112,6 +113,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
     }
     LaunchedEffect(all) { if (all.isNotEmpty() && (catId == null || all.none { it.id == catId })) catId = all.first().id }
 
+    LaunchedEffect(catId) { focusItem = null; hs?.backdrop = null }   // andere categorie: oude titel en achtergrond weg
     LaunchedEffect(catId, vm.unlocked, cont, favs) {
         val id = catId ?: return@LaunchedEffect
         error = null
@@ -149,11 +151,11 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
                 list == null -> EmptyState("Laden…")
                 list.isEmpty() -> EmptyState(error ?: "Deze categorie is leeg")
                 else -> Column(Modifier.fillMaxSize()) {
-                    val fi = focusItem
+                    val fi = focusItem.takeIf { gridFocused }   // titel alleen als je echt op een poster staat
                     val head = when (fi) { is Movie -> listOfNotNull(fi.name, fi.year).joinToString("  ·  "); is Show -> listOfNotNull(fi.name, fi.year).joinToString("  ·  "); else -> "" }
                     Label(head, Modifier.padding(start = 12.dp, bottom = 2.dp).height(26.dp), size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
                     LazyVerticalGrid(
-                    columns = GridCells.Adaptive(118.dp), modifier = Modifier.fillMaxSize(),
+                    columns = GridCells.Adaptive(118.dp), modifier = Modifier.fillMaxSize().onFocusChanged { gridFocused = it.hasFocus },
                     horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(20.dp), contentPadding = PaddingValues(12.dp),
                 ) {
                     items(list) { item ->
