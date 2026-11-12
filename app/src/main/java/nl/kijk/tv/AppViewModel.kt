@@ -127,7 +127,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun startSync() {
         PhoneServer.syncHandler = { path, o, from ->
             sync.handle(path, o, from, PhoneServer.port,
-                onChanged = { ch -> mainHandler.post { reloadFromStore(ch); peersVersion++ } },
+                onChanged = { ch -> mainHandler.post { reloadFromStore(ch); if ("playlistUrl" in ch && configured) imports++; peersVersion++ } },
                 onStop = { name -> onMain { stopForPeer(name) } })
         }
         viewModelScope.launch(Dispatchers.IO) {
@@ -155,13 +155,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun claimPlayback(): List<Pair<String, Long>> =
         if (!sync.paired) emptyList() else withContext(Dispatchers.IO) { try { sync.claim() } catch (_: Exception) { emptyList() } }
 
-    fun pairWith(address: String, code: String) {
+    fun pairWith(address: String, code: String, takeOver: Boolean = true) {
         syncStatus = "Koppelen…"
         viewModelScope.launch {
             try {
-                val (name, changed) = withContext(Dispatchers.IO) { sync.pair(address.trim().let { if (':' in it) it else "$it:8080" }, code.trim()) }
+                val (name, changed) = withContext(Dispatchers.IO) { sync.pair(address.trim().let { if (':' in it) it else "$it:8080" }, code.trim(), takeOver) }
                 syncStatus = "Gekoppeld met $name"
-                notice = "✓ Gekoppeld met $name: instellingen overgenomen"
+                notice = if (takeOver) "✓ Gekoppeld met $name: instellingen overgenomen" else "✓ Gekoppeld met $name: instellingen daarheen gestuurd"
                 reloadFromStore(changed + "playlistUrl")
                 imports++
                 peersVersion++

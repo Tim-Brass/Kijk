@@ -402,7 +402,7 @@ fun SyncPairScreen(vm: AppViewModel, nav: Nav) {
     Row(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 20.dp, vertical = Kijk.SafeV)) {
         Column(Modifier.weight(1f)) {
             Label("Koppelen met een andere tv", size = Kijk.LargeTitle, weight = Kijk.Bold)
-            Label("Doe dit op het nieuwe apparaat. Het neemt dan alle instellingen, favorieten en kijkvoortgang over van de andere tv. Daarna blijven ze vanzelf gelijk.",
+            Label("Kies hiernaast welke kant zijn instellingen houdt: deze tv neemt alles over van de andere, of stuurt alles daarheen. Daarna blijven ze vanzelf gelijk.",
                 size = Kijk.Body, color = Kijk.Secondary, maxLines = 3)
             Spacer(Modifier.height(14.dp))
             Section("GEVONDEN IN JE NETWERK")
@@ -426,7 +426,11 @@ fun SyncPairScreen(vm: AppViewModel, nav: Nav) {
             Field("Adres van de andere tv", address, { address = it }, "192.168.1.239:8080", KeyboardType.Uri)
             Field("Code op de andere tv", code, { code = it.filter { c -> c.isDigit() }.take(6) }, "Instellingen › Instellen via telefoon", KeyboardType.Number, last = true)
             Spacer(Modifier.height(8.dp))
-            PillButton("Koppelen") { if (address.isNotBlank() && code.length == 6) vm.pairWith(address, code) }
+            Label("Welke instellingen wil je houden?", size = Kijk.Body, weight = Kijk.Semibold)
+            Spacer(Modifier.height(6.dp))
+            PillButton("Overnemen van die tv") { if (address.isNotBlank() && code.length == 6) vm.pairWith(address, code, takeOver = true) }
+            Spacer(Modifier.height(8.dp))
+            PillButton("Instellingen van déze tv daarheen sturen") { if (address.isNotBlank() && code.length == 6) vm.pairWith(address, code, takeOver = false) }
             Spacer(Modifier.height(10.dp))
             Label(vm.syncStatus ?: "De code staat op de andere tv bij Instellingen › Instellen via telefoon of laptop.", size = Kijk.Body,
                 color = if (vm.syncStatus?.startsWith("Koppelen mislukt") == true) Kijk.Live else Kijk.Secondary, maxLines = 3)

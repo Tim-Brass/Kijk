@@ -193,13 +193,18 @@ class Sync(private val ctx: Context) {
     /** Openbaar antwoord zonder sleutel: alleen wie we zijn. */
     fun helloResponse() = JSONObject().put("ok", true).put("device", deviceId).put("name", deviceName)
 
-    /** Koppelen vanaf het nieuwe apparaat: neemt alle instellingen van het andere apparaat over. */
-    fun pair(address: String, code: String): Pair<String, Set<String>> {
+    /**
+     * Koppelen. takeOver = true: dit apparaat neemt alle instellingen van het andere over.
+     * takeOver = false: dit apparaat stuurt zijn instellingen naar het andere, dat ze overneemt.
+     */
+    fun pair(address: String, code: String, takeOver: Boolean = true): Pair<String, Set<String>> {
         val myGroup = group.ifEmpty { UUID.randomUUID().toString().replace("-", "") }
-        val r = post(address, "/sync/pair", hello().put("group", myGroup).put("code", code), 15_000)
+        val req = hello().put("group", myGroup).put("code", code)
+        if (!takeOver) { scan(); req.put("push", entriesJson()) }
+        val r = post(address, "/sync/pair", req, 15_000)
         group = r.optString("group").ifEmpty { myGroup }
         rememberPeer(r.optString("device"), r.optString("name"), address, synced = true)
-        val changed = merge(r.optJSONObject("entries") ?: JSONObject(), force = true)
+        val changed = if (takeOver) merge(r.optJSONObject("entries") ?: JSONObject(), force = true) else emptySet()
         return r.optString("name") to changed
     }
 
@@ -254,8 +259,11 @@ class Sync(private val ctx: Context) {
         return when (path) {
             "/sync/pair" -> {
                 if (o.optString("code") != nl.kijk.tv.phone.PhoneServer.code) return JSONObject().put("_status", 403).put("error", "Onjuiste code")
-                if (group.isEmpty()) group = o.optString("group")
+                // het andere apparaat stuurt zijn instellingen mee: dan nemen wíj alles over en gaan we in zijn groep
+                val push = o.optJSONObject("push")
+                if (push != null || group.isEmpty()) group = o.optString("group")
                 rememberPeer(them, name, addr, synced = true)
+                if (push != null) { val ch = merge(push, force = true); if (ch.isNotEmpty()) onChanged(ch + "playlistUrl") }
                 scan()
                 hello().put("ok", true).put("entries", entriesJson())
             }
