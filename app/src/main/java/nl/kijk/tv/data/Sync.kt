@@ -40,6 +40,7 @@ class Sync(private val ctx: Context) {
     val peers = ConcurrentHashMap<String, Peer>()
     /** Gevonden in het netwerk (nog niet per se gekoppeld): servicenaam -> apparaat. */
     data class Found(val id: String, val name: String, val address: String)
+    fun found(): List<Found> = discovered.values.groupBy { it.id.ifEmpty { it.address } }.map { it.value.first() }.sortedBy { it.name }
     val discovered = ConcurrentHashMap<String, Found>()
 
     init {
@@ -275,6 +276,37 @@ class Sync(private val ctx: Context) {
         }
     }
 
+    // ------------------------------------------------------------------ zoeken in het eigen netwerk (reserve)
+
+    /**
+     * Niet elke router geeft de zoekberichten (mDNS) door. Daarom ook zelf het eigen netwerk afgaan:
+     * alle adressen x.x.x.1–254 op poort 8080–8082 kort aanroepen. Duurt een paar seconden.
+     */
+    fun scanSubnet() {
+        val me = nl.kijk.tv.phone.PhoneServer.ip() ?: return
+        val prefix = me.substringBeforeLast('.')
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(48)
+        for (i in 1..254) {
+            val host = "$prefix.$i"
+            if (host == me) continue
+            pool.execute {
+                for (port in 8080..8082) try {
+                    val sock = java.net.Socket()
+                    sock.connect(java.net.InetSocketAddress(host, port), 350); sock.close()
+                    val r = post("$host:$port", "/sync/hello", JSONObject(), 1500)
+                    val id = r.optString("device")
+                    if (id.isNotEmpty() && id != deviceId) {
+                        discovered["scan:$host:$port"] = Found(id, r.optString("name").ifEmpty { "Kijk ($host)" }, "$host:$port")
+                        peers[id]?.let { p -> if (p.address != "$host:$port") { peers[id] = p.copy(address = "$host:$port"); savePeers() } }
+                    }
+                    break
+                } catch (_: Exception) { }
+            }
+        }
+        pool.shutdown()
+        pool.awaitTermination(20, java.util.concurrent.TimeUnit.SECONDS)
+    }
+
     // ------------------------------------------------------------------ vinden in het netwerk (mDNS)
 
     private var nsd: NsdManager? = null
@@ -335,5 +367,5 @@ class Sync(private val ctx: Context) {
         } catch (_: Exception) { synchronized(resolveQueue) { resolving = false } }
     }
 
-    companion object { const val TYPE = "_kijk._tcp." }
+    companion object { const val TYPE = "_kijk._tcp" }   // zonder punt aan het eind: anders mislukt aanmelden op sommige toestellen
 }

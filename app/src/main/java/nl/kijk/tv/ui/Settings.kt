@@ -393,7 +393,12 @@ fun SyncPairScreen(vm: AppViewModel, nav: Nav) {
     LaunchedEffect(Unit) { while (true) { delay(1500); tick++ } }   // gevonden apparaten verversen
     var address by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
-    val found = remember(tick) { vm.sync.discovered.values.sortedBy { it.name } }
+    val found = remember(tick) { vm.sync.found() }
+    var scanning by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {   // ook zelf het netwerk afzoeken, voor routers die mDNS niet doorgeven
+        withContext(Dispatchers.IO) { vm.sync.scanSubnet() }
+        scanning = false
+    }
     Row(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 20.dp, vertical = Kijk.SafeV)) {
         Column(Modifier.weight(1f)) {
             Label("Koppelen met een andere tv", size = Kijk.LargeTitle, weight = Kijk.Bold)
@@ -401,7 +406,9 @@ fun SyncPairScreen(vm: AppViewModel, nav: Nav) {
                 size = Kijk.Body, color = Kijk.Secondary, maxLines = 3)
             Spacer(Modifier.height(14.dp))
             Section("GEVONDEN IN JE NETWERK")
-            if (found.isEmpty()) Label("Zoeken… Staat Kijk open op de andere tv? Je kunt ook hiernaast het adres invullen.", Modifier.padding(6.dp), size = Kijk.Body, color = Kijk.Secondary, maxLines = 2)
+            if (found.isEmpty()) Label(if (scanning) "Zoeken in je netwerk…" else "Niets gevonden. Staat Kijk open op de andere tv, in hetzelfde wifi-netwerk? Je kunt ook hiernaast het adres invullen.",
+                Modifier.padding(6.dp), size = Kijk.Body, color = Kijk.Secondary, maxLines = 2)
+            else if (scanning) Label("Nog meer zoeken…", Modifier.padding(6.dp), size = Kijk.Caption, color = Kijk.Secondary)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
                 items(found) { f ->
                     FocusCard(onClick = { address = f.address }, selected = address == f.address, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { foc ->
