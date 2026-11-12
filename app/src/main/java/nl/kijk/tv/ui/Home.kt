@@ -64,7 +64,6 @@ fun groupLabel(g: String) = when (g) {
     GROUP_ALL -> "Alle zenders"; GROUP_FAV -> "★ Favorieten"; GROUP_ARCH -> "↺ Terugkijken"; GROUP_RECENT -> "🕘 Laatst bekeken"; else -> g
 }
 
-@Composable
 /** Het menu als laag over een zender: Terug sluit hem, een zender kiezen wisselt in de speler. */
 class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit, val onClose: () -> Unit)
 
