@@ -12,6 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -29,11 +34,27 @@ import nl.kijk.tv.R
  * Alleen op het laadscherm; elders in de app geen animaties.
  */
 @Composable
-fun EyesLogo(done: Boolean, modifier: Modifier = Modifier) {
+fun EyesLogo(done: Boolean, modifier: Modifier = Modifier, idle: Boolean = false, still: Boolean = false) {
     val look = remember { Animatable(0f) }    // -1 links … 1 rechts
     val blink = remember { Animatable(1f) }   // 1 open … 0 dicht
     val morph = remember { Animatable(0f) }   // 0 oogjes … 1 logo
-    LaunchedEffect(done) {
+    LaunchedEffect(done, idle, still) {
+        if (still) { look.snapTo(0f); blink.snapTo(1f); morph.snapTo(0f); return@LaunchedEffect }
+        if (idle) {   // menu: rustig, af en toe even kijken en knipperen
+            morph.snapTo(0f)
+            launch {
+                while (isActive) {
+                    delay(4000 + (0..4000).random().toLong())
+                    look.animateTo(if ((0..1).random() == 0) -1f else 1f, tween(260, easing = FastOutSlowInEasing))
+                    delay(900); look.animateTo(0f, tween(260, easing = FastOutSlowInEasing))
+                }
+            }
+            while (isActive) {
+                delay(2500 + (0..3000).random().toLong())
+                repeat(if ((0..4).random() == 0) 2 else 1) { blink.animateTo(0.06f, tween(70)); blink.animateTo(1f, tween(110)); delay(90) }
+            }
+            return@LaunchedEffect
+        }
         if (done) { look.animateTo(0f, tween(150)); blink.snapTo(1f); morph.animateTo(1f, tween(450, easing = FastOutSlowInEasing)); return@LaunchedEffect }
         morph.snapTo(0f)
         launch {   // rondkijken
@@ -71,5 +92,13 @@ fun EyesLogo(done: Boolean, modifier: Modifier = Modifier) {
                 drawPath(p, Brush.verticalGradient(listOf(Color(0xFF28A0DC), Color(0xFF3C46AA)), startY = cy - t, endY = cy + t), alpha = m)
             }
         }
+    }
+}
+
+/** Klein logo voor in het menu: alleen het woordbeeld (ingesneden), oogjes knipperen af en toe. */
+@Composable
+fun MenuLogo(still: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier.size(width = 66.dp, height = 44.dp).clipToBounds(), contentAlignment = Alignment.Center) {
+        EyesLogo(done = false, idle = true, still = still, modifier = Modifier.requiredWidth(138.dp))
     }
 }

@@ -128,7 +128,12 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         }
                     }
                 }
+                MenuLogo(still = overlay != null, modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 4.dp))
                 Row(Modifier.align(Alignment.BottomEnd), verticalAlignment = Alignment.CenterVertically) {
+                    vm.update?.let { u ->
+                        SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
+                        Spacer(Modifier.width(14.dp))
+                    }
                     Label(Format.time(vm.now), Modifier.padding(bottom = 9.dp), size = Kijk.Headline, color = Kijk.Secondary)
                     Spacer(Modifier.width(10.dp))
                     // afsluiten
@@ -137,9 +142,6 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                             quitApp(activity)
                         }
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
-                }
-                vm.update?.let { u ->
-                    SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.align(Alignment.CenterStart).padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
                 }
             }
             Spacer(Modifier.height(8.dp))
