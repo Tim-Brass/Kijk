@@ -313,7 +313,17 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     Box(
         Modifier.fillMaxSize().background(Color.Black).focusRequester(focus)
             .onKeyEvent { e ->
-                if (e.type != KeyEventType.KeyDown || showOptions || showGuide || showMenu) return@onKeyEvent false
+                if (showOptions || showGuide || showMenu) return@onKeyEvent false
+                // OK pas bij loslaten uitvoeren: anders "klikt" het loslaten meteen de eerste optie in het geopende paneel aan
+                if (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter) {
+                    if (e.type == KeyEventType.KeyUp) {
+                        val bb = browse
+                        if (bb != null) { switchTo(bb); browse = null } else if (showInfo) { showOptions = true; showInfo = false } else showInfo = true
+                        infoTick++
+                    }
+                    return@onKeyEvent true
+                }
+                if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 digitOf(e)?.let { digits = (digits + it).take(5); return@onKeyEvent true }
                 val b = browse
                 when (e.key) {
@@ -324,11 +334,6 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
                     }
                     Key.ChannelUp, Key.PageUp -> { switchTo(index + 1); true }
                     Key.ChannelDown, Key.PageDown -> { switchTo(index - 1); true }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                        // OK: infobalk tonen; met de infobalk in beeld opent OK de opties (ondertitels, audio, …)
-                        if (b != null) { switchTo(b); browse = null } else if (showInfo) { showOptions = true; showInfo = false } else showInfo = true
-                        infoTick++; true
-                    }
                     Key.DirectionRight, Key.Guide, Key.G -> { showGuide = true; showInfo = false; browse = null; true }
                     Key.Menu, Key.Captions -> { showOptions = true; showInfo = false; browse = null; true }
                     Key.DirectionLeft -> {
