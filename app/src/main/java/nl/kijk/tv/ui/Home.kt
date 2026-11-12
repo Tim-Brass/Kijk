@@ -65,18 +65,24 @@ fun groupLabel(g: String) = when (g) {
 }
 
 @Composable
-fun HomeScreen(vm: AppViewModel, nav: Nav) {
-    val hs = remember { HomeState(vm.store.lastTab.coerceIn(0, TABS.lastIndex)) }
+/** Het menu als laag over een zender: Terug sluit hem, een zender kiezen wisselt in de speler. */
+class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit, val onClose: () -> Unit)
+
+@Composable
+fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
+    val hs = remember { HomeState(if (overlay != null) 1 else vm.store.lastTab.coerceIn(0, TABS.lastIndex)) }
     val tabFocus = remember { List(TABS.size) { FocusRequester() } }
     var digits by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { runCatching { tabFocus[hs.tab].requestFocus() } }
+    // over een zender: de gids pakt zelf de selectie (op de huidige zender)
+    LaunchedEffect(Unit) { if (overlay == null) runCatching { tabFocus[hs.tab].requestFocus() } }
+    fun pick(i: Int) { hs.tab = i; if (overlay == null) vm.store.lastTab = i }
     LaunchedEffect(digits) {
         if (digits.isEmpty()) return@LaunchedEffect
         delay(if (digits.length >= 4) 300 else 1500)
         val idx = vm.channels.indexOfFirst { it.number.toString() == digits }
         digits = ""
         if (idx < 0) return@LaunchedEffect
-        if (hs.tab == 1) hs.jump = vm.channels[idx] else nav.push(Screen.Live(vm.channels, idx))
+        if (hs.tab == 1) hs.jump = vm.channels[idx] else if (overlay != null) overlay.onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
     }
     // Terug: eerst naar de tabbalk, dan naar Live, dan vragen of je wilt afsluiten.
     val activity = LocalContext.current as? android.app.Activity
@@ -90,6 +96,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
     }
     BackHandler {
         when {
+            overlay != null -> overlay.onClose()
             !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
             hs.tab != 0 -> { hs.tab = 0; vm.store.lastTab = 0; runCatching { tabFocus[0].requestFocus() } }
             else -> nav.confirm("Kijk afsluiten?", "Kijk blijft op de achtergrond klaarstaan, zodat hij de volgende keer meteen weer start.", yes = "Afsluiten") {
@@ -99,20 +106,20 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
     }
 
     Box(
-        Modifier.fillMaxSize().background(Kijk.Background)
+        Modifier.fillMaxSize().background(if (overlay != null) Color(0xD90B0B0F) else Kijk.Background)
             .onPreviewKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown || hs.tab >= 4) return@onPreviewKeyEvent false  // in zoeken/instellingen zijn cijfers tekst
                 val d = digitOf(e) ?: return@onPreviewKeyEvent false
                 digits = (digits + d).take(5); true
             },
     ) {
-        if (hs.tab == 2 || hs.tab == 3) VodBackdrop(hs.backdrop)
+        if (overlay == null && (hs.tab == 2 || hs.tab == 3)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
             Box(Modifier.fillMaxWidth()) {
                 Row(Modifier.align(Alignment.Center).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TABS.forEachIndexed { i, title ->
                         FocusCard(
-                            onClick = { hs.tab = i; vm.store.lastTab = i }, onFocus = { hs.tab = i; vm.store.lastTab = i },
+                            onClick = { pick(i) }, onFocus = { pick(i) },
                             selected = hs.tab == i, modifier = Modifier.focusRequester(tabFocus[i]),
                             shape = RoundedCornerShape(50), focusedScale = 1.06f,
                         ) { Label(title, Modifier.padding(horizontal = 18.dp, vertical = 7.dp), size = Kijk.Headline, weight = Kijk.Semibold) }
@@ -129,8 +136,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
             Box(Modifier.weight(1f)) {
                 FadeIn(hs.tab) {
                     when (hs.tab) {
-                        0 -> LiveTab(vm, nav, hs)
-                        1 -> GuideGrid(vm, nav, hs)
+                        0 -> LiveTab(vm, nav, hs, overlay?.onPlay)
+                        1 -> GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, onPlay = overlay?.onPlay)
                         2 -> VodTab(vm, nav, series = false, hs = hs)
                         3 -> VodTab(vm, nav, series = true, hs = hs)
                         4 -> SearchTab(vm, nav)
@@ -144,7 +151,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav) {
 }
 
 @Composable
-private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState) {
+private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, Int) -> Unit)? = null) {
     if (vm.channels.isEmpty()) { EmptyState(if (vm.progress != null) "Zenders laden…" else "Nog geen zenders", vm.error ?: "Controleer je playlist bij Instellingen."); return }
     val special = listOfNotNull(GROUP_ALL, GROUP_FAV.takeIf { vm.favorites.isNotEmpty() }, GROUP_RECENT.takeIf { vm.recentChannels.isNotEmpty() },
         GROUP_ARCH.takeIf { vm.channels.any { it.archiveDays > 0 } })
@@ -167,7 +174,7 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState) {
             list.isEmpty() -> EmptyState("Geen zenders", if (hs.group == GROUP_FAV) "Houd OK ingedrukt op een zender om hem bij je favorieten te zetten." else "")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 10.dp)) {
                 itemsIndexed(list) { i, ch ->
-                    ChannelRow(vm, ch, onClick = { nav.push(Screen.Live(list, i)) }, onLongClick = { vm.toggleFavorite(ch) })
+                    ChannelRow(vm, ch, onClick = { if (onPlay != null) onPlay(list, i) else nav.push(Screen.Live(list, i)) }, onLongClick = { vm.toggleFavorite(ch) })
                 }
             }
         }

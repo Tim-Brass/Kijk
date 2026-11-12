@@ -348,13 +348,11 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         }
         if (showGuide) {
             // halfdoorzichtige gids over de zender; het beeld loopt door
-            Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
-                val ghs = remember { HomeState(1) }
-                GuideGrid(vm, nav, ghs, focusChannel = channel, onMenu = { nav.pop() }, onPlay = { l, i ->
-                    showGuide = false
-                    if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
-                })
-            }
+            // het hele menu (met de gids open) halfdoorzichtig over de zender
+            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = { l, i ->
+                showGuide = false
+                if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
+            }, onClose = { showGuide = false }))
         }
         AnimatedVisibility(showOptions, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(), modifier = Modifier.align(Alignment.CenterEnd)) {
             val subs = trackOptions(tracks, C.TRACK_TYPE_TEXT)
@@ -363,8 +361,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             var refresh by remember { mutableIntStateOf(0) }
             SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader(shortName(channel.name)) }
-                item(key = "guide") { OptionRow("📋  Gids", false, Modifier.focusRequester(first)) { showOptions = false; showGuide = true } }
-                item(key = "menu") { OptionRow("⌂  Naar het menu", false) { nav.pop() } }
+                item(key = "guide") { OptionRow("📋  Gids en menu", false, Modifier.focusRequester(first)) { showOptions = false; showGuide = true } }
                 val cur = current()
                 if (cur != null && vm.canRestart(channel, cur)) item(key = "restart") {
                     OptionRow("↺ Begin opnieuw: ${cur.title}", false) { showOptions = false; restart() }
@@ -429,7 +426,7 @@ private fun InfoOverlay(vm: AppViewModel, ch: Channel, browsing: Boolean, canRes
             Spacer(Modifier.height(10.dp))
             Row {
                 Label(next?.let { "Straks ${Format.time(it.start)} · ${it.title}" } ?: "", Modifier.weight(1f), size = Kijk.Body, color = Kijk.Secondary)
-                if (!browsing) Label("▲▼ bladeren   ◀ vorige   ▶ gids en opties" + (if (canRestart) "   ⏪ opnieuw beginnen" else ""), size = Kijk.Caption, color = Kijk.Secondary)
+                if (!browsing) Label("▲▼ bladeren   ◀ vorige   ▶ opties   Terug = gids en menu" + (if (canRestart) "   ⏪ opnieuw beginnen" else ""), size = Kijk.Caption, color = Kijk.Secondary)
             }
         }
     }
