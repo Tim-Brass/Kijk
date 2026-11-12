@@ -294,7 +294,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         indexJob?.join()
                         step(4) { it.copy(state = if (vodIndexReady) 2 else 4, note = if (vodIndexReady) "${movieIndex.size} films · ${showIndex.size} series" else vodIndexStatus) }
                     }
-                    delay(400)
+                    delay(900)   // even tijd voor het logo om "klaar" te laten zien
                     startupDone = true
                 }
             }
