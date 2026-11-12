@@ -15,6 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.DisposableEffect
@@ -136,7 +140,19 @@ private fun KijkApp(vm: AppViewModel) {
     if (!vm.startupDone && crash == null) { nl.kijk.tv.ui.SplashScreen(vm); return }
 
     val screen = nav.top
-    Box(Modifier.fillMaxSize()) {
+    // Herinnering: OK opent altijd de zender, waar de selectie ook staat
+    fun openReminder(r: nl.kijk.tv.data.Reminder) {
+        vm.dismissReminder()
+        val list = vm.channels.takeIf { l -> l.any { it.key == r.channelKey } } ?: vm.allChannels
+        val idx = list.indexOfFirst { it.key == r.channelKey }
+        if (idx < 0) { vm.notice = "Zender niet gevonden: ${r.channelName}"; return }
+        if (nav.top is Screen.Live || nav.top is Screen.Vod) nav.pop()
+        nav.push(Screen.Live(list, idx))
+    }
+    Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+        val r = vm.dueReminder
+        if (r != null && e.type == KeyEventType.KeyDown && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) { openReminder(r); true } else false
+    }) {
     saveable.SaveableStateProvider(screen.id) {
       nl.kijk.tv.ui.FadeIn(screen, enabled = screen !is Screen.Live && screen !is Screen.Vod) {
         when (screen) {
@@ -176,15 +192,7 @@ private fun KijkApp(vm: AppViewModel) {
         val fr = remember(r) { androidx.compose.ui.focus.FocusRequester() }
         LaunchedEffect(r) { kotlinx.coroutines.delay(120); runCatching { fr.requestFocus() }; kotlinx.coroutines.delay(90_000); vm.dismissReminder() }
         Box(Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 40.dp)) {
-            nl.kijk.tv.ui.FocusCard(onClick = {
-                vm.dismissReminder()
-                val list = vm.channels.takeIf { l -> l.any { it.key == r.channelKey } } ?: vm.allChannels
-                val idx = list.indexOfFirst { it.key == r.channelKey }
-                if (idx >= 0) {
-                    if (nav.top is Screen.Live || nav.top is Screen.Vod) nav.pop()
-                    nav.push(Screen.Live(list, idx))
-                }
-            }, modifier = Modifier.width(420.dp).focusRequester(fr), focusedScale = 1.03f) {
+            nl.kijk.tv.ui.FocusCard(onClick = { openReminder(r) }, modifier = Modifier.width(420.dp).focusRequester(fr), focusedScale = 1.03f) {
                 androidx.compose.foundation.layout.Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
                     nl.kijk.tv.ui.Label("🔔  Begint nu", size = nl.kijk.tv.ui.Kijk.Caption, weight = nl.kijk.tv.ui.Kijk.Semibold)
                     nl.kijk.tv.ui.Label(r.title, size = nl.kijk.tv.ui.Kijk.Title, weight = nl.kijk.tv.ui.Kijk.Bold)
