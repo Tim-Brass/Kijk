@@ -349,10 +349,10 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             // halfdoorzichtige gids over de zender; het beeld loopt door
             Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
                 val ghs = remember { HomeState(1) }
-                GuideGrid(vm, nav, ghs, focusChannel = channel, onMenu = { nav.pop() }) { l, i ->
+                GuideGrid(vm, nav, ghs, focusChannel = channel, onMenu = { nav.pop() }, onPlay = { l, i ->
                     showGuide = false
                     if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
-                }
+                })
             }
         }
         AnimatedVisibility(showOptions, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(), modifier = Modifier.align(Alignment.CenterEnd)) {
