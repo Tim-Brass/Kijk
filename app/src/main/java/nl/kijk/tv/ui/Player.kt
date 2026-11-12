@@ -302,8 +302,8 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             showGuide -> showGuide = false
             showOptions -> showOptions = false
             browse != null -> { browse = null; infoTick++ }
-            showInfo -> showInfo = false
-            else -> nav.pop()
+            // Terug tijdens het kijken: de gids over de zender (naar het menu via de knop in de gids)
+            else -> { showInfo = false; showGuide = true }
         }
     }
 
@@ -349,7 +349,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             // halfdoorzichtige gids over de zender; het beeld loopt door
             Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
                 val ghs = remember { HomeState(1) }
-                GuideGrid(vm, nav, ghs, focusChannel = channel) { l, i ->
+                GuideGrid(vm, nav, ghs, focusChannel = channel, onMenu = { nav.pop() }) { l, i ->
                     showGuide = false
                     if (l[i].key != channel.key) { prevKey = channel.key; list = l; index = i }
                 }
@@ -363,6 +363,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             SidePanel(refocus = tracks) { first ->
                 item(key = "h") { PanelHeader(shortName(channel.name)) }
                 item(key = "guide") { OptionRow("📋  Gids", false, Modifier.focusRequester(first)) { showOptions = false; showGuide = true } }
+                item(key = "menu") { OptionRow("⌂  Naar het menu", false) { nav.pop() } }
                 val cur = current()
                 if (cur != null && vm.canRestart(channel, cur)) item(key = "restart") {
                     OptionRow("↺ Begin opnieuw: ${cur.title}", false) { showOptions = false; restart() }

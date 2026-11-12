@@ -86,6 +86,7 @@ fun GuideGrid(
     vm: AppViewModel, nav: Nav, hs: HomeState,
     focusChannel: Channel? = null,                       // gids over een zender heen: daar beginnen
     onPlay: ((List<Channel>, Int) -> Unit)? = null,      // zender kiezen zonder de speler te verlaten
+    onMenu: (() -> Unit)? = null,                        // gids over de zender: knop terug naar het menu
 ) {
     var favOnly by remember { mutableStateOf(vm.store.guideFav) }
     var archOnly by remember { mutableStateOf(vm.store.guideArch) }
@@ -151,6 +152,7 @@ fun GuideGrid(
         }
         // ---- werkbalk
         Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            onMenu?.let { m -> SmallPill("⌂ Menu") { m() } }
             SmallPill("Nu", Modifier.focusRequester(nowFocus)) { winStart = halfHour(System.currentTimeMillis()) }
             SmallPill("◀ Eerder") { shift(-WINDOW) }
             SmallPill("Later ▶") { shift(WINDOW) }
