@@ -342,8 +342,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 progress = null
                 refreshNowNext()
                 ensureVodIndex(force = downloaded && indexFile.exists() && System.currentTimeMillis() - indexFile.lastModified() > DAY)
-                if (forceEpg || epgDue(startup)) refreshEpgLocked()
-                else step(3) { it.copy(state = 2, note = epgStatsText()) }
+                val epgAge = System.currentTimeMillis() - epg.updated()
+                when {
+                    forceEpg -> refreshEpgLocked()
+                    !epgDue(startup) -> step(3) { it.copy(state = 2, note = epgStatsText()) }
+                    // er is al een gids (niet te oud): meteen starten, nieuwe gids op de achtergrond ophalen
+                    !startupDone && epg.updated() > 0L && epgAge < 2 * DAY -> {
+                        step(3) { it.copy(state = 2, note = "Opgeslagen gids · wordt op de achtergrond bijgewerkt") }
+                        refreshEpg()   // wacht op loadLock, dus start pas als het opstarten klaar is
+                    }
+                    else -> refreshEpgLocked()
+                }
                 // laadscherm: ook wachten op de zoeklijst van films en series
                 if (!startupDone) {
                     if (vod == null) step(4) { it.copy(state = 3) }
