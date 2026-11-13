@@ -71,6 +71,8 @@ class KijkApplication : android.app.Application(), coil.ImageLoaderFactory {
 
     override fun newImageLoader(): coil.ImageLoader =
         coil.ImageLoader.Builder(this).components { add(coil.decode.SvgDecoder.Factory()) }.crossfade(true)
+            // plaatjes op de tv bewaren, maar nooit meer dan 100 MB (oudste eerst weg)
+            .diskCache { coil.disk.DiskCache.Builder().directory(cacheDir.resolve("image_cache")).maxSizeBytes(100L * 1024 * 1024).build() }
             .eventListener(object : coil.EventListener {
                 override fun onError(request: coil.request.ImageRequest, result: coil.request.ErrorResult) {
                     nl.kijk.tv.data.ImageLog.add("${request.data} → ${result.throwable.javaClass.simpleName}: ${result.throwable.message}")

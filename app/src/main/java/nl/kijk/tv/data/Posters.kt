@@ -19,7 +19,22 @@ class Posters(dir: File, private val tmdbKey: () -> String) {
     private val sem = kotlinx.coroutines.sync.Semaphore(3)
 
     init {
-        runCatching { if (file.exists()) file.forEachLine { l -> val i = l.indexOf('\t'); if (i > 0) cache[l.substring(0, i)] = l.substring(i + 1) } }
+        // regels: sleutel \t link \t tijd. Ouder dan 30 dagen vervalt: dan krijgt de aanbieder eerst weer een kans.
+        // Bij het inlezen wordt het bestand meteen opgeschoond (dubbele en verlopen regels eruit).
+        runCatching {
+            if (file.exists()) {
+                val now = System.currentTimeMillis()
+                val times = HashMap<String, Long>()
+                file.forEachLine { l ->
+                    val c = l.split('\t')
+                    if (c.size < 2 || c[0].isEmpty()) return@forEachLine
+                    val t = c.getOrNull(2)?.toLongOrNull() ?: now
+                    if (now - t > MAX_AGE) { cache.remove(c[0]); times.remove(c[0]); return@forEachLine }
+                    cache[c[0]] = c[1]; times[c[0]] = t
+                }
+                synchronized(file) { file.bufferedWriter().use { w -> cache.forEach { (k, v) -> w.write("$k\t$v\t${times[k] ?: now}\n") } } }
+            }
+        }
     }
 
     fun cached(key: String): String? = cache[key]?.ifEmpty { null }
@@ -27,7 +42,7 @@ class Posters(dir: File, private val tmdbKey: () -> String) {
     fun put(key: String, url: String) {
         if (cache[key] == url) return
         cache[key] = url
-        runCatching { synchronized(file) { file.appendText("$key\t$url\n") } }
+        runCatching { synchronized(file) { file.appendText("$key\t$url\t${System.currentTimeMillis()}\n") } }
     }
 
     suspend fun movie(id: String, name: String, year: String?, tmdbId: String?): String? = lookup("m:$id", needsKey = true) {
@@ -55,7 +70,7 @@ class Posters(dir: File, private val tmdbKey: () -> String) {
             cache[key]?.let { return it.ifEmpty { null } }
             val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { find() }.getOrNull() }
             cache[key] = r ?: ""
-            runCatching { synchronized(file) { file.appendText("$key\t${r ?: ""}\n") } }
+            runCatching { synchronized(file) { file.appendText("$key\t${r ?: ""}\t${System.currentTimeMillis()}\n") } }
             return r
         } finally { sem.release() }
     }
@@ -93,6 +108,7 @@ class Posters(dir: File, private val tmdbKey: () -> String) {
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
     companion object {
+        private const val MAX_AGE = 30L * 24 * 60 * 60 * 1000
         private val PREFIX = Regex("""^\s*(\|[^|]{1,6}\||\[[^\]]{1,12}\]|[A-Z0-9]{2,4}\s*[-:|]\s+)""")
         private val YEAR = Regex("""\((\d{4})\)""")
         private val TAIL = Regex("""\s*(\(\d{4}\)|\[[^\]]*\]|\b(4K|UHD|FHD|HD|SD|MULTI|NL|SUB)\b).*$""", RegexOption.IGNORE_CASE)
