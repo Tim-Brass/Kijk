@@ -130,6 +130,14 @@ class Nav(start: Screen) {
 private fun KijkApp(vm: AppViewModel) {
     val nav = remember { Nav(if (vm.configured) Screen.Home else Screen.Setup) }
     val saveable = rememberSaveableStateHolder()
+    // bewaarde toestand opruimen van schermen die niet meer op de stapel staan (anders opent een nieuwe zender met oude toestand)
+    val seenIds = remember { mutableSetOf<String>() }
+    LaunchedEffect(Unit) {
+        androidx.compose.runtime.snapshotFlow { nav.stack.map { it.id }.toSet() }.collect { ids ->
+            (seenIds - ids).forEach { saveable.removeState(it) }
+            seenIds.clear(); seenIds.addAll(ids)
+        }
+    }
     val ctx = LocalContext.current
 
     // Instellen via de telefoon: de ingebouwde webserver draait zolang de app open is.
