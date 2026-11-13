@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.graphicsLayer
@@ -321,4 +322,23 @@ fun SideItem(text: String, selected: Boolean, modifier: Modifier = Modifier, onF
 fun Modifier.dividerRight(): Modifier = drawBehind {
     val w = 1.dp.toPx()
     drawRect(Color(0xFF2A2A31), topLeft = androidx.compose.ui.geometry.Offset(size.width - w, 0f), size = androidx.compose.ui.geometry.Size(w, size.height))
+}
+
+
+/** Kleine voortgang/melding naast het logo in de menubalk. Neemt geen eigen ruimte in als er niets is. */
+@Composable
+fun MenuStatus(p: LoadProgress?, message: String?, error: Boolean) {
+    if (p == null && message.isNullOrBlank()) return
+    Column(Modifier.width(170.dp)) {
+        if (p != null) {
+            val frac = if (p.total > 0) (p.done.toFloat() / p.total).coerceIn(0f, 1f) else null
+            Label(p.label + (frac?.let { "… ${(it * 100).toInt()}%" } ?: "…"), size = 12.sp, color = Kijk.Secondary, maxLines = 1)
+            Spacer(Modifier.height(4.dp))
+            Box(Modifier.fillMaxWidth().height(3.dp).background(Color(0x24FFFFFF), RoundedCornerShape(50))) {
+                Box(Modifier.fillMaxWidth(frac ?: 0.3f).height(3.dp).background(Kijk.Accent, RoundedCornerShape(50)))
+            }
+        } else if (message != null) {
+            Label(message, size = 12.sp, color = if (error) Kijk.Live else Kijk.Secondary, maxLines = 2)
+        }
+    }
 }

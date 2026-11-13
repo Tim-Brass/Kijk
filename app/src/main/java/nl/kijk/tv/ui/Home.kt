@@ -139,7 +139,12 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         }
                     }
                 }
-                MenuLogo(still = false, modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 6.dp), height = 36.dp)
+                Row(Modifier.align(Alignment.BottomStart).padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    MenuLogo(still = false, height = 36.dp)
+                    Spacer(Modifier.width(14.dp))
+                    // voortgang en meldingen klein in de menubalk, i.p.v. een eigen strook
+                    MenuStatus(vm.progress, vm.error ?: vm.status, vm.error != null)
+                }
                 Row(Modifier.align(Alignment.BottomEnd), verticalAlignment = Alignment.CenterVertically) {
                     vm.update?.let { u ->
                         SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
@@ -158,9 +163,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 }
             }
             Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
-            Spacer(Modifier.height(8.dp))
-            ProgressLine(vm.progress, vm.error ?: vm.status, vm.error != null)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f)) {
                 FadeIn(hs.tab) {
                     when (hs.tab) {
