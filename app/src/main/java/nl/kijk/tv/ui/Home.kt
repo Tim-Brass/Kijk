@@ -104,8 +104,9 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     }
     BackHandler {
         when {
-            overlay != null -> overlay.onClose()
+            // eerst altijd terug naar de menubalk, ook als het menu over een zender ligt
             !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
+            overlay != null -> overlay.onClose()
             hs.tab != TAB_HOME -> { hs.tab = TAB_HOME; runCatching { tabFocus[TAB_HOME].requestFocus() } }
             else -> nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
                 quitApp(activity)
