@@ -70,7 +70,12 @@ class KijkApplication : android.app.Application(), coil.ImageLoaderFactory {
     }
 
     override fun newImageLoader(): coil.ImageLoader =
-        coil.ImageLoader.Builder(this).components { add(coil.decode.SvgDecoder.Factory()) }.crossfade(true).build()
+        coil.ImageLoader.Builder(this).components { add(coil.decode.SvgDecoder.Factory()) }.crossfade(true)
+            .eventListener(object : coil.EventListener {
+                override fun onError(request: coil.request.ImageRequest, result: coil.request.ErrorResult) {
+                    nl.kijk.tv.data.ImageLog.add("${request.data} → ${result.throwable.javaClass.simpleName}: ${result.throwable.message}")
+                }
+            }).build()
 }
 
 class MainActivity : ComponentActivity() {

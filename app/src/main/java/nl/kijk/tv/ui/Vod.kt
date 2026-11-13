@@ -199,8 +199,17 @@ fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modif
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
         FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f, focusRing = true) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
-                if (poster != null) AsyncImage(poster, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                else Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
+                // kleiner decoderen (scheelt veel geheugen op zwakkere boxen); lukt het niet, dan de titel tonen
+                var failed by remember(poster) { mutableStateOf(poster == null) }
+                if (failed) Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
+                if (poster != null) {
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    AsyncImage(
+                        remember(poster) { coil.request.ImageRequest.Builder(ctx).data(poster).size(260, 390).build() },
+                        contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                        onError = { failed = true }, onSuccess = { failed = false },
+                    )
+                }
                 if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), height = 4.dp)
                 if (badge != null) Box(Modifier.align(Alignment.TopStart).padding(6.dp).background(Kijk.Accent, RoundedCornerShape(6.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
                     Label(badge, size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)

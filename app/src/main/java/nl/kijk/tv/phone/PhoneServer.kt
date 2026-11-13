@@ -116,6 +116,7 @@ object PhoneServer {
             method == "GET" && path == "/" -> send("200 OK", "text/html; charset=utf-8", PAGE.replace("{{CODE}}", query["code"]?.filter { it.isDigit() } ?: "").toByteArray())
             method == "GET" && path == "/crash" -> send("200 OK", "text/plain; charset=utf-8",
                 (filesDir?.let { java.io.File(it, "crash_last.txt") }?.takeIf { it.exists() }?.readText() ?: "Geen crash bewaard.").toByteArray())
+            method == "GET" && path == "/log" -> send("200 OK", "text/plain; charset=utf-8", nl.kijk.tv.data.ImageLog.text().toByteArray())
             method == "GET" && path == "/status" -> json("200 OK", JSONObject().put("app", "Kijk").put("ok", true).put("open", listener != null))
             method == "POST" && path.startsWith("/sync/") -> {
                 val o = try { JSONObject(String(body, Charsets.UTF_8).ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }
