@@ -156,7 +156,14 @@ private fun KijkApp(vm: AppViewModel) {
         if (nav.top is Screen.Live || nav.top is Screen.Vod) nav.pop()
         nav.push(Screen.Live(list, idx))
     }
+    val backDispatcher = (ctx as? androidx.activity.ComponentActivity)?.onBackPressedDispatcher
     Box(Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+        // Terug altijd zelf afhandelen: anders "verlaat" Compose eerst stil de lijst/het raster
+        // (focus weg, niets meer te bedienen) en werkt Terug pas bij de tweede keer.
+        if (e.key == Key.Back) {
+            if (e.type == KeyEventType.KeyUp) backDispatcher?.onBackPressed()
+            return@onPreviewKeyEvent backDispatcher != null
+        }
         val r = vm.dueReminder
         if (r != null && e.type == KeyEventType.KeyDown && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) { openReminder(r); true } else false
     }) {
