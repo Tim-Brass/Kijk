@@ -127,10 +127,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         if (overlay == null && (hs.tab == TAB_HOME || hs.tab == TAB_FILMS || hs.tab == TAB_SERIES)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
-            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline()) {
-            // voortgang en meldingen klein rechtsboven in de lege rand van de menubalk (neemt geen ruimte in)
-            MenuStatus(vm.progress, vm.error ?: vm.status, vm.error != null, Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = Kijk.SafeH))
-            Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
+            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
                         val m = Modifier.focusRequester(tabFocus[i])
@@ -160,7 +157,6 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
             }
-            }
             Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f)) {
@@ -181,6 +177,10 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             if (hs.tab == TAB_HOME) NewsTicker(vm)
         }
         NumberOverlay(digits, vm, Modifier.align(Alignment.TopEnd).padding(top = 70.dp, end = Kijk.SafeH))
+        // voortgang en meldingen: klein zwevend labeltje linksboven, over alles heen (neemt geen ruimte in)
+        MenuStatus(vm.progress, vm.error ?: vm.status, vm.error != null,
+            Modifier.align(Alignment.TopStart).padding(top = 6.dp, start = 12.dp)
+                .background(Color(0xE6202026), androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 5.dp))
     }
 }
 
