@@ -47,10 +47,14 @@ fun FocusCard(
     selected: Boolean = false,
     shape: Shape = RoundedCornerShape(Kijk.Corner),
     focusedScale: Float = 1.03f,
+    focusRing: Boolean = false,   // dun blauw randje om het geselecteerde item (posters)
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     Surface(
+        border = if (focusRing) ClickableSurfaceDefaults.border(
+            focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Kijk.Accent), inset = 3.dp, shape = shape),
+        ) else ClickableSurfaceDefaults.border(),
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier.onFocusChanged {

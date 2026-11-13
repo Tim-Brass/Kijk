@@ -197,7 +197,7 @@ fun VodBackdrop(url: String?) {
 fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
-        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f) {
+        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f, focusRing = true) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 if (poster != null) AsyncImage(poster, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
