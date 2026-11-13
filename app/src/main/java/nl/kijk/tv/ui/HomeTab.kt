@@ -84,7 +84,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
     LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
 
     val favs = remember(vm.channels, vm.favorites) { vm.channels.filter { it.key in vm.favorites } }
-    val newest by produceState<List<Any>>(emptyList(), vm.vodIndexReady, vm.unlocked, vm.releaseVersion) { value = vm.newestVod() }
+    val newest = vm.newest   // één keer berekend en bewaard in het ViewModel
 
     // achtergrond: titel waar je op staat (na even wachten), anders de nieuwste
     var focusItem by remember { mutableStateOf<Any?>(null) }
@@ -133,9 +133,9 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     items(newest) { item ->
                         when (item) {
                             is Movie -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
-                                onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }) { openMovie(item, resume = false) }
+                                onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item)) { openMovie(item, resume = false) }
                             is Show -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
-                                onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, badge = if (vm.isNew(item)) "Nieuw" else null) { openShow(item) }
+                                onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item), badge = if (vm.isNew(item)) "Nieuw" else null) { openShow(item) }
                         }
                     }
                 }

@@ -407,6 +407,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         channels = allChannels.filter { it.group !in hidden && (unlocked || !isLocked(it.group)) }
         groups = allGroups.filter { it !in hidden }
         dataVersion++
+        recomputeNewest()
     }
 
     fun list(group: String): List<Channel> = when (group) {
@@ -565,8 +566,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun updateHiddenGroups(v: Set<String>) { hidden = v; store.hiddenGroups = v; applyHidden() }
-    fun updateHiddenMovieCats(v: Set<String>) { hiddenMovieCats = v; store.hiddenMovieCats = v }
-    fun updateHiddenShowCats(v: Set<String>) { hiddenShowCats = v; store.hiddenShowCats = v }
+    fun updateHiddenMovieCats(v: Set<String>) { hiddenMovieCats = v; store.hiddenMovieCats = v; recomputeNewest() }
+    fun updateHiddenShowCats(v: Set<String>) { hiddenShowCats = v; store.hiddenShowCats = v; recomputeNewest() }
 
     fun unlock() { unlocked = true; applyHidden() }
     fun relock() { unlocked = false; applyHidden() }
@@ -642,7 +643,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val tag = "v3:" + store.playlistUrl.hashCode()
             try {
                 val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
-                if (fresh && readIndex(f, tag) && movieIndex.isNotEmpty()) { vodIndexReady = true; baselineFavShows(); refreshReleaseDates(); return@launch }
+                if (fresh && readIndex(f, tag) && movieIndex.isNotEmpty()) { vodIndexReady = true; baselineFavShows(); recomputeNewest(); refreshReleaseDates(); return@launch }
                 vodIndexStatus = "Films ophalen voor zoeken…"
                 step(4) { it.copy(note = "Films ophalen") }
                 var m = runCatching { src.movies(null) }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; emptyList() }
@@ -663,6 +664,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 vodIndexReady = true; vodIndexStatus = null
                 baselineFavShows()
                 writeIndex(f, tag)
+                recomputeNewest()
                 refreshReleaseDates()
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Throwable) {
@@ -703,15 +705,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val posters = nl.kijk.tv.data.Posters(getApplication<Application>().filesDir) { github.tmdbKey }
 
     /** Andere poster voor een film of serie waarvan het plaatje ontbreekt of niet laadt; null = niets gevonden. */
-    suspend fun posterFallback(item: Any): String? = when (item) {
-        is Movie -> {
-            val info = movieInfo(item)
-            posters.movie(item.id, item.name, item.year ?: info?.year, info?.tmdb)
-                ?: info?.poster?.takeIf { it.isNotBlank() && it != item.poster }
+    suspend fun posterFallback(item: Any): String? {
+        val key = posterKey(item) ?: return null
+        posters.cached(key)?.let { return it }
+        val r = when (item) {
+            is Movie -> {
+                val info = movieInfo(item)
+                posters.movie(item.id, item.name, item.year ?: info?.year, info?.tmdb)
+                    ?: info?.poster?.takeIf { it.isNotBlank() && it != item.poster }
+            }
+            is Show -> posters.show(item.id, item.name, item.released ?: item.year)
+            else -> null
         }
-        is Show -> posters.show(item.id, item.name, item.released ?: item.year)
-        else -> null
+        if (r != null) posters.put(key, r)   // onthouden: volgende keer meteen deze poster
+        return r
     }
+    /** Al eerder gevonden vervangende poster (direct, zonder internet), of null. */
+    fun knownPoster(item: Any): String? = posterKey(item)?.let { posters.cached(it) }
+    private fun posterKey(item: Any) = when (item) { is Movie -> "f:m:" + item.id; is Show -> "f:s:" + item.id; else -> null }
 
     // ---------------------------------------------------------------- datum van uitkomen (voor "Nieuwste" op Thuis)
     /** filmId → yyyy-MM-dd ("" = onbekend). Eén keer per dag aangevuld voor recente films; bewaard in een bestand. */
@@ -727,6 +738,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (releaseDates.isEmpty() && releaseFile.exists()) runCatching {
                 releaseFile.forEachLine { l -> val i = l.indexOf('\t'); if (i > 0) releaseDates[l.substring(0, i)] = l.substring(i + 1) }
                 releaseVersion++
+                recomputeNewest()
             }
             val sp = getApplication<Application>().getSharedPreferences("kijk_release", android.content.Context.MODE_PRIVATE)
             if (System.currentTimeMillis() - sp.getLong("last", 0L) < 20 * HOUR) return@launch
@@ -748,10 +760,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { releaseFile.bufferedWriter().use { w -> releaseDates.forEach { (k, v) -> w.write("$k\t$v\n") } } }
             sp.edit().putLong("last", System.currentTimeMillis()).apply()
             releaseVersion++
+            recomputeNewest()
         }
     }
 
     /** "Nieuw binnen" op Thuis: laatst toegevoegde films en series (zonder verborgen/vergrendelde). */
+    /** Nieuwste films en series voor Thuis: één keer berekend en bewaard; opnieuw na een nieuwe lijst, nieuwe datums of slot/verbergen. */
+    var newest by mutableStateOf<List<Any>>(emptyList()); private set
+    private var newestJob: Job? = null
+    fun recomputeNewest() {
+        if (!vodIndexReady) return
+        newestJob?.cancel()
+        newestJob = viewModelScope.launch { newest = runCatching { newestVod() }.getOrDefault(newest) }
+    }
+
     suspend fun newestVod(limit: Int = 18): List<Any> {
         if (!vodIndexReady) return emptyList()
         val mCats = (try { movieCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }

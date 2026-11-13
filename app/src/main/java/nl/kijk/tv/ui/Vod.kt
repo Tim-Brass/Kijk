@@ -170,11 +170,11 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
                 ) {
                     items(list) { item ->
                         when (item) {
-                            is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction, fallback = { vm.posterFallback(item) },
+                            is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item),
                                 fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
                                 vm.addRecentMovie(item); nav.push(Screen.MovieDetail(item))
                             }
-                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) },
+                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item),
                                 badge = if (vm.isNew(item)) "Nieuw" else null) {
                                 vm.addRecentShow(item); nav.push(Screen.ShowDetail(item))
                             }
@@ -204,15 +204,16 @@ fun VodBackdrop(url: String?) {
 }
 
 @Composable
-fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onPosterError: (() -> Unit)? = null, fallback: (suspend () -> String?)? = null, onClick: () -> Unit) {
+fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onPosterError: (() -> Unit)? = null, fallback: (suspend () -> String?)? = null, known: String? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
         FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f, focusRing = true) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 // kleiner decoderen (scheelt veel geheugen op zwakkere boxen); lukt het niet, dan de titel tonen
                 // ontbreekt het plaatje of laadt het niet, dan één keer een andere bron proberen (filminfo, TMDB, TVmaze)
-                var alt by remember(poster) { mutableStateOf<String?>(null) }
-                var needAlt by remember(poster) { mutableStateOf(poster == null) }
+                // al eerder een vervanger gevonden: die meteen tonen, het kapotte plaatje niet opnieuw proberen
+                var alt by remember(poster, known) { mutableStateOf(known) }
+                var needAlt by remember(poster, known) { mutableStateOf(poster == null && known == null) }
                 val shown = alt ?: poster
                 var failed by remember(shown) { mutableStateOf(shown == null) }
                 LaunchedEffect(needAlt) {

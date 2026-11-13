@@ -24,6 +24,11 @@ class Posters(dir: File, private val tmdbKey: () -> String) {
 
     fun cached(key: String): String? = cache[key]?.ifEmpty { null }
     fun known(key: String) = cache.containsKey(key)
+    fun put(key: String, url: String) {
+        if (cache[key] == url) return
+        cache[key] = url
+        runCatching { synchronized(file) { file.appendText("$key\t$url\n") } }
+    }
 
     suspend fun movie(id: String, name: String, year: String?, tmdbId: String?): String? = lookup("m:$id", needsKey = true) {
         val key = tmdbKey()
