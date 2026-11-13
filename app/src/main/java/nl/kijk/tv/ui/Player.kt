@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -230,16 +231,19 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     val ctx = LocalContext.current
     var list by remember { mutableStateOf(startList.ifEmpty { vm.channels }) }
     if (list.isEmpty()) { EmptyState("Geen zenders"); BackHandler { nav.pop() }; return }
-    var index by remember { mutableIntStateOf(startIndex.coerceIn(0, list.lastIndex)) }
+    // onthouden welke zender liep: na een film of detailpagina kom je bij dezelfde zender terug
+    var savedKey by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var index by remember { mutableIntStateOf((savedKey?.let { k -> list.indexOfFirst { it.key == k }.takeIf { it >= 0 } } ?: startIndex).coerceIn(0, list.lastIndex)) }
     var prevKey by remember { mutableStateOf<String?>(null) }
     val channel = list[index.coerceIn(0, list.lastIndex)]
+    SideEffect { savedKey = channel.key }
     val player = remember { buildPlayer(ctx, vm.store.softAudio) }
     var showInfo by remember { mutableStateOf(true) }
     var infoTick by remember { mutableIntStateOf(0) }
     var browse by remember { mutableStateOf<Int?>(null) }     // index in de lijst waar je in de infobalk naar kijkt
     var showOptions by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }   // ▶: alleen de gids, halfdoorzichtig over de zender
-    var showMenu by remember { mutableStateOf(false) }    // Terug: hoofdmenu over de zender (zender loopt door)
+    var showMenu by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }    // Terug: hoofdmenu over de zender (blijft open na een film/detailpagina)
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var buffering by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }

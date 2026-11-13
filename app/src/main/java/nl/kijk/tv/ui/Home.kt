@@ -79,7 +79,10 @@ class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit
 @Composable
 fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     // Kijk opent altijd op Thuis; het menu over een zender opent op het laatst gekozen tabblad (Thuis → Live)
-    val hs = remember { HomeState(if (overlay == null) TAB_HOME else vm.store.lastTab.coerceIn(0, TABS.lastIndex).takeIf { it != TAB_HOME } ?: TAB_LIVE) }
+    // onthouden (ook na een film of detailpagina): bij Terug kom je op hetzelfde tabblad en dezelfde groep terug
+    val hs = androidx.compose.runtime.saveable.rememberSaveable(saver = androidx.compose.runtime.saveable.Saver<HomeState, List<Any>>(
+        save = { listOf(it.tab, it.group) }, restore = { HomeState(it[0] as Int).apply { group = it[1] as String } },
+    )) { HomeState(if (overlay == null) TAB_HOME else vm.store.lastTab.coerceIn(0, TABS.lastIndex).takeIf { it != TAB_HOME } ?: TAB_LIVE) }
     val tabFocus = remember { List(TABS.size) { FocusRequester() } }
     var digits by remember { mutableStateOf("") }
     // over een zender: de gids pakt zelf de selectie (op de huidige zender)
