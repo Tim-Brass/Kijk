@@ -89,12 +89,10 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 r.kind == "show" && vm.store.lastEpisodes.containsKey(r.id) -> Show(r.id, r.name, r.poster, r.categoryId, null, null, null)
                 else -> null
             }
-        }.take(3)   // alleen de laatste 3
+        }.take(15)
     }
     val favs = remember(vm.channels, vm.favorites) { vm.channels.filter { it.key in vm.favorites } }
-    val newest by produceState<List<Any>>(emptyList(), vm.vodIndexReady, vm.unlocked) { value = vm.newestVod(moviesOnly = true) }
-    // nieuwe afleveringen van je favoriete series
-    val newEps = remember(vm.vodFavs, vm.vodIndexReady, vm.dataVersion) { vm.favShows().filter { vm.isNew(it) }.sortedByDescending { it.updated ?: 0L } }
+    val newest by produceState<List<Any>>(emptyList(), vm.vodIndexReady, vm.unlocked) { value = vm.newestVod() }
 
     // achtergrond: titel waar je op staat (na even wachten), anders de nieuwste
     var focusItem by remember { mutableStateOf<Any?>(null) }
@@ -127,16 +125,6 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
         }
         // ---- rijen
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (favs.isNotEmpty()) item {
-                HomeRow("Nu op je favorieten") {
-                    items(favs) { ch ->
-                        FavChannelCard(vm, ch) {
-                            val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
-                            if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
-                        }
-                    }
-                }
-            }
             if (cont.isNotEmpty()) item {
                 HomeRow("Verder kijken") {
                     items(cont) { item ->
@@ -148,8 +136,18 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     }
                 }
             }
+            if (favs.isNotEmpty()) item {
+                HomeRow("Nu op je favorieten") {
+                    items(favs) { ch ->
+                        FavChannelCard(vm, ch) {
+                            val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
+                            if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
+                        }
+                    }
+                }
+            }
             if (newest.isNotEmpty()) item {
-                HomeRow("Nieuwe films") {
+                HomeRow("Nieuw binnen") {
                     items(newest) { item ->
                         when (item) {
                             is Movie -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
@@ -160,15 +158,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     }
                 }
             }
-            if (newEps.isNotEmpty()) item {
-                HomeRow("Nieuwe afleveringen") {
-                    items(newEps) { item ->
-                        PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = true, onLongClick = { vm.toggleFav(item) },
-                            onFocus = { focusItem = item }, badge = "Nieuw") { openShow(item) }
-                    }
-                }
-            }
-            if (cont.isEmpty() && favs.isEmpty() && newest.isEmpty() && newEps.isEmpty()) item {
+            if (cont.isEmpty() && favs.isEmpty() && newest.isEmpty()) item {
                 Label(if (vm.progress != null) "Even geduld, de lijsten worden geladen…" else "Kies Live, Gids, Films of Series in het menu.",
                     Modifier.padding(12.dp), color = Kijk.Secondary)
             }
