@@ -156,7 +156,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
             }
-            Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = Kijk.SafeV)) {
+            Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(8.dp))
             ProgressLine(vm.progress, vm.error ?: vm.status, vm.error != null)
             Spacer(Modifier.height(6.dp))
@@ -174,6 +174,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 }
             }
             }
+            // Thuis: lichtkrant over de volle breedte, altijd in beeld
+            if (hs.tab == TAB_HOME) NewsTicker(vm)
         }
         NumberOverlay(digits, vm, Modifier.align(Alignment.TopEnd).padding(top = 70.dp, end = Kijk.SafeH))
     }

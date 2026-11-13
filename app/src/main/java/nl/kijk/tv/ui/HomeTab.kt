@@ -163,8 +163,6 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     Modifier.padding(12.dp), color = Kijk.Secondary)
             }
         }
-        // ---- lichtkrant (altijd in beeld)
-        NewsTicker(vm, frame)
     }
 }
 
@@ -321,19 +319,22 @@ private fun DrawScope.drawSky(sky: Sky, night: Boolean, t: Float, animate: Boole
 
 // ---------------------------------------------------------------- lichtkrant
 
+/** NOS-lichtkrant over de volle schermbreedte (onderaan Thuis, buiten de marges). */
 @Composable
-private fun NewsTicker(vm: AppViewModel, frame: MutableLongState) {
+fun NewsTicker(vm: AppViewModel) {
     val news = vm.news ?: return
     if (news.headlines.isEmpty()) return
+    val frame = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
     val tm = rememberTextMeasurer()
     val style = TextStyle(color = Color(0xFFE5E5EA), fontSize = 14.sp)
     val layouts = remember(news) { news.headlines.map { tm.measure(it, style) } }
     val start = remember(news) { frame.longValue }
     Row(
-        Modifier.fillMaxWidth().height(30.dp).background(Color(0xFF141419)).drawTopLine(),
+        Modifier.fillMaxWidth().height(34.dp).background(Color(0xFF141419)).drawTopLine(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Label("NOS", Modifier.padding(start = 12.dp), size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
+        Label("NOS", Modifier.padding(start = Kijk.SafeH), size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
         Label(Format.time(news.fetched), Modifier.padding(start = 6.dp, end = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)
         Canvas(Modifier.weight(1f).fillMaxHeight().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
             val gap = 18.dp.toPx(); val eyeW = 22.dp.toPx()

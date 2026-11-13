@@ -36,6 +36,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.Dispatchers
@@ -65,86 +67,106 @@ private val OFFSETS = listOf(0, 30, 60, 90, 120, -120, -90, -60, -30)
 
 private fun <T> next(list: List<T>, cur: T) = list[(list.indexOf(cur) + 1).mod(list.size)]
 
+private val SETTING_CATS = listOf(
+    "Bron en playlist", "Zenders en gids", "Films en series", "Ondertitels en geluid",
+    "Kinderslot", "Synchroniseren", "Kijkgeschiedenis", "Over Kijk",
+)
+
+/** Instellingen: links de categorieën, rechts wat erbij hoort (zoals op een Apple TV). */
 @Composable
 fun SettingsTab(vm: AppViewModel, nav: Nav) {
     val s = vm.store
     var tick by remember { mutableStateOf(0) }   // forceert opnieuw tekenen na een wijziging in Store
     fun changed() { tick++ }
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(horizontal = 60.dp, vertical = 6.dp)) {
-        item { Section("BRON") }
-        item { tick.hashCode(); SettingRow("Instellen via telefoon of laptop", PhoneServer.address()?.let { "$it · code ${PhoneServer.code}" } ?: "Niet beschikbaar (geen netwerk)") { nav.push(Screen.Setup) } }
-        item { tick.hashCode(); SettingRow("Playlist", s.playlistUrl.let { u -> nl.kijk.tv.data.Xtream.fromPlaylistUrl(u)?.let { "Xtream · ${it.host}" } ?: u.take(60) }) { nav.push(Screen.Setup) } }
-        item { tick.hashCode(); SettingRow("Gids-link", s.epgUrl.ifBlank { "Uit de playlist" }.take(80)) { nav.push(Screen.Setup) } }
-        item { tick.hashCode(); SettingRow("Playlist vernieuwen", PL_POLICIES.first { it.first == s.refreshPlaylist }.second) { s.refreshPlaylist = next(PL_POLICIES.map { it.first }, s.refreshPlaylist); changed() } }
-        item { tick.hashCode(); SettingRow("Gids vernieuwen", EPG_POLICIES.firstOrNull { it.first == s.refreshEpg }?.second ?: "") { s.refreshEpg = next(EPG_POLICIES.map { it.first }, s.refreshEpg); changed() } }
-        item { tick.hashCode(); SettingRow("Playlist nu vernieuwen", if (s.playlistUpdated > 0) "Bijgewerkt ${Format.dayTime(s.playlistUpdated)}" else "") { vm.load(forcePlaylist = true) } }
-        item { tick.hashCode(); SettingRow("Gids nu bijwerken", if (vm.epgBusy) "Bezig…" else vm.epgStatsText()) { vm.refreshEpg() } }
-
-        item { Section("ZENDERS EN GIDS") }
-        item { tick.hashCode(); SettingRow("Zendergroepen", "${vm.groups.size} van ${vm.allGroups.size} zichtbaar") { nav.push(Screen.Groups("live")) } }
-        item { tick.hashCode(); SettingRow("Filmcategorieën", if (vm.hiddenMovieCats.isEmpty()) "Alles zichtbaar" else "${vm.hiddenMovieCats.size} verborgen") { nav.push(Screen.Groups("movie")) } }
-        item { tick.hashCode(); SettingRow("Seriecategorieën", if (vm.hiddenShowCats.isEmpty()) "Alles zichtbaar" else "${vm.hiddenShowCats.size} verborgen") { nav.push(Screen.Groups("show")) } }
-        item { tick.hashCode(); SettingRow("Gids koppelen per zender", "${s.epgLinks.size} handmatig gekoppeld") { nav.push(Screen.EpgChannels) } }
-        item { tick.hashCode(); SettingRow("Tijdverschuiving gids", if (vm.epgOffsetMinutes == 0) "Geen" else "%+d min".format(vm.epgOffsetMinutes)) { vm.setEpgOffset(next(OFFSETS, vm.epgOffsetMinutes)) } }
-
-        item { Section("ANDERE TV") }
-        item {
-            vm.githubVersion.hashCode()
-            val gh = vm.github
-            SettingRow("Synchroniseren via GitHub",
-                if (gh.connected) "Ingelogd als ${gh.login}" + (if (gh.lastSync > 0) " · bijgewerkt ${Format.time(gh.lastSync)}" else "") + (vm.githubStatus?.takeIf { it.startsWith("Fout") }?.let { " · $it" } ?: "")
-                else "Favorieten, voortgang en instellingen delen met je andere tv's") { nav.push(Screen.GitHub) }
-        }
-        item {
-            vm.peersVersion.hashCode()
-            val peers = vm.sync.peers.values.toList()
-            SettingRow(if (vm.sync.paired) "Gekoppelde apparaten" else "Koppelen met een andere tv",
-                if (vm.sync.paired && peers.isNotEmpty()) peers.joinToString(", ") { p -> p.name + (if (p.lastSync > 0) " (${Format.time(p.lastSync)})" else "") }
-                else "Instellingen, favorieten en kijkvoortgang delen; kies dit op het nieuwe apparaat") { nav.push(Screen.SyncPair) }
-        }
-        if (vm.sync.paired) {
-            item { SettingRow("Nu synchroniseren", vm.syncStatus ?: "Gaat ook vanzelf, elke paar seconden") { vm.syncNow() } }
-            item { SettingRow("Ontkoppelen", "Dit apparaat deelt dan niets meer") { nav.confirm("Ontkoppelen?", "Instellingen blijven op dit apparaat staan, maar worden niet meer gedeeld.", yes = "Ontkoppelen") { vm.unpair() } } }
-        }
-        item { Section("KINDERSLOT") }
-        item { tick.hashCode(); SettingRow("Kinderslot op volwassen groepen", if (vm.lockOn) "Aan" else "Uit") {
-            if (vm.lockOn) nav.askPin(vm, sub = "Voer je pincode in om het kinderslot uit te zetten.") { vm.setLock(false) } else vm.setLock(true)
-        } }
-        item { tick.hashCode(); SettingRow("Pincode wijzigen", if (s.pinHash.isEmpty()) "Standaard (0000)" else "Eigen code") {
-            nav.askPin(vm, "Huidige pincode", "Voer je huidige pincode in.") {
-                nav.push(Screen.Pin("Nieuwe pincode", "Kies 4 cijfers.", { true }) { code ->
-                    nav.pop()
-                    if (code != null) nav.push(Screen.Pin("Herhaal pincode", "Voer de nieuwe code nog een keer in.", { it == code }) { c2 ->
-                        nav.pop(); if (c2 != null) { s.pinHash = Store.hashPin(c2); changed() }
-                    })
-                })
-            }
-        } }
-        if (vm.unlocked) item { tick.hashCode(); SettingRow("Opnieuw vergrendelen", "Nu ontgrendeld") { vm.relock() } }
-
-        item { Section("ONDERTITELS") }
-        val st = vm.subStyle
-        item { tick.hashCode(); SettingRow("Taal", SUB_LANGS.first { it.first == st.language }.second) { vm.updateSubStyle(st.copy(language = next(SUB_LANGS.map { it.first }, st.language))) } }
-        item { tick.hashCode(); SettingRow("Grootte", SUB_SIZES[st.size]) { vm.updateSubStyle(st.copy(size = (st.size + 1) % 4)) } }
-        item { tick.hashCode(); SettingRow("Achtergrond", SUB_BGS[st.background]) { vm.updateSubStyle(st.copy(background = (st.background + 1) % 3)) } }
-        item { tick.hashCode(); SettingRow("Positie", if (st.position == 1) "Hoger" else "Laag") { vm.updateSubStyle(st.copy(position = 1 - st.position)) } }
-        item { tick.hashCode(); SettingRow("Automatisch zoeken bij OpenSubtitles", if (s.autoSubs) "Aan, als de film geen eigen ondertitels heeft" else "Uit") { s.autoSubs = !s.autoSubs; changed() } }
-        item { tick.hashCode(); SettingRow("Dolby- en DTS-geluid omzetten", if (s.softAudio) "Aan: de app zet het om, werkt altijd" else "Uit: doorgeven aan tv of soundbar") { s.softAudio = !s.softAudio; changed() } }
-        item { tick.hashCode(); SettingRow("OpenSubtitles-account", if (vm.subs.configured) "Ingesteld" + (if (s.osUser.isNotBlank()) " · ${s.osUser}" else "") else "Niet ingesteld") { nav.push(Screen.OsConfig) } }
-
-        item { Section("KIJKGESCHIEDENIS") }
-        listOf("live" to "Laatst bekeken zenders wissen", "movie" to "Films: voortgang wissen", "show" to "Series: voortgang wissen", "all" to "Alles wissen").forEach { (k, t) ->
-            item { tick.hashCode(); SettingRow(t, "") { nav.confirm(t, "Dit kan niet ongedaan worden gemaakt.") { vm.clearHistory(k); changed() } } }
-        }
-
-        item { Section("OVER") }
-        item {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            SettingRow("Kijk bijwerken", vm.updateStatus ?: "Versie ${BuildConfig.VERSION_NAME} · OK om te controleren op een nieuwe versie") {
-                if (vm.update != null) vm.installUpdate(ctx) else vm.checkUpdate(manual = true)
+    var cat by rememberSaveable { mutableStateOf(0) }
+    Row(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        // ---- categorieën
+        LazyColumn(Modifier.width(280.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+            items(SETTING_CATS.size) { i ->
+                FocusCard(onClick = { cat = i }, onFocus = { cat = i }, selected = cat == i, modifier = Modifier.fillMaxWidth(), focusedScale = 1.02f) { f ->
+                    Label(SETTING_CATS[i], Modifier.padding(horizontal = 16.dp, vertical = 11.dp), size = Kijk.Body,
+                        weight = if (cat == i || f) Kijk.Semibold else null, color = if (f) Color.Black else if (cat == i) Color.White else Kijk.Secondary)
+                }
             }
         }
-        item { tick.hashCode(); SettingRow("Kijk", "Versie ${BuildConfig.VERSION_NAME} · ${vm.allChannels.size} zenders") { } }
+        Spacer(Modifier.width(36.dp))
+        // ---- instellingen van de gekozen categorie
+        LazyColumn(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+            item { Label(SETTING_CATS[cat], Modifier.padding(start = 4.dp, bottom = 8.dp), size = Kijk.Title, weight = Kijk.Bold) }
+            when (cat) {
+                0 -> {
+                    item { tick.hashCode(); SettingRow("Instellen via telefoon of laptop", PhoneServer.address()?.let { "$it · code ${PhoneServer.code}" } ?: "Niet beschikbaar (geen netwerk)") { nav.push(Screen.Setup) } }
+                    item { tick.hashCode(); SettingRow("Playlist", s.playlistUrl.let { u -> nl.kijk.tv.data.Xtream.fromPlaylistUrl(u)?.let { "Xtream · ${it.host}" } ?: u.take(60) }) { nav.push(Screen.Setup) } }
+                    item { tick.hashCode(); SettingRow("Gids-link", s.epgUrl.ifBlank { "Uit de playlist" }.take(80)) { nav.push(Screen.Setup) } }
+                    item { tick.hashCode(); SettingRow("Playlist vernieuwen", PL_POLICIES.first { it.first == s.refreshPlaylist }.second) { s.refreshPlaylist = next(PL_POLICIES.map { it.first }, s.refreshPlaylist); changed() } }
+                    item { tick.hashCode(); SettingRow("Gids vernieuwen", EPG_POLICIES.firstOrNull { it.first == s.refreshEpg }?.second ?: "") { s.refreshEpg = next(EPG_POLICIES.map { it.first }, s.refreshEpg); changed() } }
+                    item { tick.hashCode(); SettingRow("Playlist nu vernieuwen", if (s.playlistUpdated > 0) "Bijgewerkt ${Format.dayTime(s.playlistUpdated)}" else "") { vm.load(forcePlaylist = true) } }
+                    item { tick.hashCode(); SettingRow("Gids nu bijwerken", if (vm.epgBusy) "Bezig…" else vm.epgStatsText()) { vm.refreshEpg() } }
+                }
+                1 -> {
+                    item { tick.hashCode(); SettingRow("Zendergroepen", "${vm.groups.size} van ${vm.allGroups.size} zichtbaar") { nav.push(Screen.Groups("live")) } }
+                    item { tick.hashCode(); SettingRow("Gids koppelen per zender", "${s.epgLinks.size} handmatig gekoppeld") { nav.push(Screen.EpgChannels) } }
+                    item { tick.hashCode(); SettingRow("Tijdverschuiving gids", if (vm.epgOffsetMinutes == 0) "Geen" else "%+d min".format(vm.epgOffsetMinutes)) { vm.setEpgOffset(next(OFFSETS, vm.epgOffsetMinutes)) } }
+                }
+                2 -> {
+                    item { tick.hashCode(); SettingRow("Filmcategorieën", if (vm.hiddenMovieCats.isEmpty()) "Alles zichtbaar" else "${vm.hiddenMovieCats.size} verborgen") { nav.push(Screen.Groups("movie")) } }
+                    item { tick.hashCode(); SettingRow("Seriecategorieën", if (vm.hiddenShowCats.isEmpty()) "Alles zichtbaar" else "${vm.hiddenShowCats.size} verborgen") { nav.push(Screen.Groups("show")) } }
+                }
+                3 -> {
+                    val st = vm.subStyle
+                    item { tick.hashCode(); SettingRow("Taal", SUB_LANGS.first { it.first == st.language }.second) { vm.updateSubStyle(st.copy(language = next(SUB_LANGS.map { it.first }, st.language))) } }
+                    item { tick.hashCode(); SettingRow("Grootte", SUB_SIZES[st.size]) { vm.updateSubStyle(st.copy(size = (st.size + 1) % 4)) } }
+                    item { tick.hashCode(); SettingRow("Achtergrond", SUB_BGS[st.background]) { vm.updateSubStyle(st.copy(background = (st.background + 1) % 3)) } }
+                    item { tick.hashCode(); SettingRow("Positie", if (st.position == 1) "Hoger" else "Laag") { vm.updateSubStyle(st.copy(position = 1 - st.position)) } }
+                    item { tick.hashCode(); SettingRow("Automatisch zoeken bij OpenSubtitles", if (s.autoSubs) "Aan, als de film geen eigen ondertitels heeft" else "Uit") { s.autoSubs = !s.autoSubs; changed() } }
+                    item { tick.hashCode(); SettingRow("OpenSubtitles-account", if (vm.subs.configured) "Ingesteld" + (if (s.osUser.isNotBlank()) " · ${s.osUser}" else "") else "Niet ingesteld") { nav.push(Screen.OsConfig) } }
+                    item { tick.hashCode(); SettingRow("Dolby- en DTS-geluid omzetten", if (s.softAudio) "Aan: de app zet het om, werkt altijd" else "Uit: doorgeven aan tv of soundbar") { s.softAudio = !s.softAudio; changed() } }
+                }
+                4 -> {
+                    item { tick.hashCode(); SettingRow("Kinderslot op volwassen groepen", if (vm.lockOn) "Aan" else "Uit") {
+                        if (vm.lockOn) nav.askPin(vm, sub = "Voer je pincode in om het kinderslot uit te zetten.") { vm.setLock(false) } else vm.setLock(true)
+                    } }
+                    item { tick.hashCode(); SettingRow("Pincode wijzigen", if (s.pinHash.isEmpty()) "Standaard (0000)" else "Eigen code") {
+                        nav.askPin(vm, "Huidige pincode", "Voer je huidige pincode in.") {
+                            nav.push(Screen.Pin("Nieuwe pincode", "Kies 4 cijfers.", { true }) { code ->
+                                nav.pop()
+                                if (code != null) nav.push(Screen.Pin("Herhaal pincode", "Voer de nieuwe code nog een keer in.", { it == code }) { c2 ->
+                                    nav.pop(); if (c2 != null) { s.pinHash = Store.hashPin(c2); changed() }
+                                })
+                            })
+                        }
+                    } }
+                    if (vm.unlocked) item { tick.hashCode(); SettingRow("Opnieuw vergrendelen", "Nu ontgrendeld") { vm.relock() } }
+                }
+                5 -> {
+                    item {
+                        vm.githubVersion.hashCode()
+                        val gh = vm.github
+                        SettingRow("Synchroniseren via GitHub",
+                            if (gh.connected) "Ingelogd als ${gh.login}" + (if (gh.lastSync > 0) " · bijgewerkt ${Format.time(gh.lastSync)}" else "") + (vm.githubStatus?.takeIf { it.startsWith("Fout") }?.let { " · $it" } ?: "")
+                            else "Favorieten, voortgang en instellingen delen met je andere tv's") { nav.push(Screen.GitHub) }
+                    }
+                    if (vm.github.connected) item { vm.githubVersion.hashCode(); SettingRow("Nu synchroniseren", vm.githubStatus ?: "Gaat vanzelf bij openen en verlaten van Kijk") { vm.githubSyncNow() } }
+                    if (vm.sync.paired) item { vm.peersVersion.hashCode(); SettingRow("Oude wifi-koppeling verwijderen", "Niet meer nodig nu GitHub het delen doet") {
+                        nav.confirm("Wifi-koppeling verwijderen?", "Synchroniseren via GitHub blijft gewoon werken.", yes = "Verwijderen") { vm.unpair() }
+                    } }
+                }
+                6 -> {
+                    listOf("live" to "Laatst bekeken zenders wissen", "movie" to "Films: voortgang wissen", "show" to "Series: voortgang wissen", "all" to "Alles wissen").forEach { (k, t) ->
+                        item { tick.hashCode(); SettingRow(t, "") { nav.confirm(t, "Dit kan niet ongedaan worden gemaakt.") { vm.clearHistory(k); changed() } } }
+                    }
+                }
+                else -> {
+                    item {
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        SettingRow("Kijk bijwerken", vm.updateStatus ?: "Versie ${BuildConfig.VERSION_NAME} · OK om te controleren op een nieuwe versie") {
+                            if (vm.update != null) vm.installUpdate(ctx) else vm.checkUpdate(manual = true)
+                        }
+                    }
+                    item { tick.hashCode(); SettingRow("Kijk", "Versie ${BuildConfig.VERSION_NAME} · ${vm.allChannels.size} zenders") { } }
+                }
+            }
+        }
     }
 }
 

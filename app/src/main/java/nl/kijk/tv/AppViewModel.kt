@@ -135,8 +135,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch(Dispatchers.IO) {
             while (PhoneServer.port == 0) delay(1000)
+            // koppelen via wifi is vervangen door GitHub: alleen nog voor een bestaande koppeling
+            if (!sync.paired) return@launch
             sync.startDiscovery(PhoneServer.port)
-            while (true) {
+            while (sync.paired) {
                 if (sync.paired) {
                     val ch = try { sync.syncAll() } catch (_: Exception) { emptySet() }
                     withContext(Dispatchers.Main) { if (ch.isNotEmpty()) reloadFromStore(ch); peersVersion++ }

@@ -139,7 +139,6 @@ fun SetupScreen(vm: AppViewModel, onPair: () -> Unit = {}, onGitHub: () -> Unit 
                 }
                 if (vm.configured) PillButton("Annuleren") { onDone() }
                 PillButton("Overnemen via GitHub") { onGitHub() }
-                PillButton("Overnemen van andere tv") { onPair() }
             }
         }
     }
@@ -150,86 +149,106 @@ fun SetupScreen(vm: AppViewModel, onPair: () -> Unit = {}, onGitHub: () -> Unit 
 @Composable
 fun SearchTab(vm: AppViewModel, nav: Nav) {
     var q by rememberSaveable { mutableStateOf("") }
+    // wat zoek je: 0 films, 1 series, 2 zenders, 3 in de gids (onthouden)
+    var kind by remember { mutableStateOf(vm.store.searchKind.coerceIn(0, 3)) }
+    val vodKind = kind <= 1
     var res by remember { mutableStateOf<nl.kijk.tv.SearchResult?>(null) }
     var busy by remember { mutableStateOf(false) }
     var vodRes by remember { mutableStateOf<Pair<List<nl.kijk.tv.data.Movie>, List<nl.kijk.tv.data.Show>>?>(null) }
     LaunchedEffect(Unit) { vm.ensureVodIndex() }
-    LaunchedEffect(q, vm.dataVersion) {
-        if (q.trim().length < 2) { res = null; return@LaunchedEffect }
+    LaunchedEffect(q, vm.dataVersion, vodKind) {
+        if (vodKind || q.trim().length < 2) { res = null; busy = false; return@LaunchedEffect }
         busy = true
         delay(350)
         res = try { vm.search(q) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         busy = false
     }
-    LaunchedEffect(q, vm.vodIndexReady) {
+    LaunchedEffect(q, vm.vodIndexReady, vodKind) {
         vodRes = null
-        if (q.trim().length < 2) return@LaunchedEffect
+        if (!vodKind || q.trim().length < 2) return@LaunchedEffect
         delay(350)
         vodRes = try { vm.searchVod(q) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
     }
     var dots by remember { mutableStateOf(0) }
-    LaunchedEffect(busy, vm.vodIndexReady) { while (busy || !vm.vodIndexReady) { delay(400); dots = (dots + 1) % 4 } }
+    val waitingVod = vodKind && vm.vod != null && !vm.vodIndexReady
+    LaunchedEffect(busy, waitingVod) { while (busy || waitingVod) { delay(400); dots = (dots + 1) % 4 } }
+    val kinds = listOf("Films", "Series", "Zenders", "In de gids")
+    val placeholder = when (kind) { 0 -> "Zoek een film…"; 1 -> "Zoek een serie…"; 2 -> "Zoek een zender…"; else -> "Zoek een programma in de gids…" }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Field("", q, { q = it }, placeholder = "Zoek zenders, programma's, films en series…", modifier = Modifier.width(560.dp), last = true)
+            Field("", q, { q = it }, placeholder = placeholder, modifier = Modifier.width(560.dp), last = true)
             Spacer(Modifier.width(16.dp))
             val st = when {
                 busy -> "Zoeken" + ".".repeat(dots)
-                q.trim().length >= 2 && vm.vod != null && !vm.vodIndexReady -> (vm.vodIndexStatus ?: "Films en series voorbereiden").trimEnd('…') + ".".repeat(dots)
+                q.trim().length >= 2 && waitingVod -> (vm.vodIndexStatus ?: "Films en series voorbereiden").trimEnd('…') + ".".repeat(dots)
                 else -> ""
             }
             Label(st, size = Kijk.Body, color = Kijk.Accent)
         }
-        val r = res?.let { it.copy(movies = vodRes?.first ?: emptyList(), shows = vodRes?.second ?: emptyList()) }
+        // keuze in lijnstijl
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp).baseline(), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.Bottom) {
+            kinds.forEachIndexed { i, t -> LineText(t, active = kind == i, size = Kijk.Body) { kind = i; vm.store.searchKind = i } }
+        }
+        Spacer(Modifier.height(8.dp))
+        val enough = q.trim().length >= 2
         when {
-            q.trim().length < 2 -> EmptyState("Zoeken", "Typ minstens twee letters. Programma's worden gezocht in de gids van een week terug tot twee dagen vooruit.")
-            r == null -> EmptyState(if (busy) "Zoeken…" else "", "Bij de eerste keer zoeken haalt Kijk de lijst met films en series op; dat kan even duren.")
-            r.channels.isEmpty() && r.programmes.isEmpty() && r.movies.isEmpty() && r.shows.isEmpty() && (vodRes != null || vm.vod == null) -> EmptyState("Niets gevonden voor \"${q.trim()}\"")
-            else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                if (r.channels.isNotEmpty()) {
-                    item { Section("ZENDERS") }
-                    items(r.channels.take(12)) { ch ->
-                        ChannelRow(vm, ch, onClick = { nav.push(Screen.Live(r.channels, r.channels.indexOf(ch))) }, onLongClick = { vm.toggleFavorite(ch) })
-                    }
-                }
-                if (r.programmes.isNotEmpty()) {
-                    item { Section("IN DE GIDS") }
-                    items(r.programmes) { (ch, p) ->
-                        val live = p.isLive(vm.now); val back = vm.canCatchup(ch, p)
-                        FocusCard(onClick = {
-                            when {
-                                live -> nav.push(Screen.Live(vm.channels, vm.channels.indexOf(ch).coerceAtLeast(0)))
-                                back -> nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null))
-                            }
-                        }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
-                            Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                                ChannelLogo(ch.logo, ch.name, Modifier.size(52.dp, 32.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (live) { LiveBadge(); Spacer(Modifier.width(6.dp)) }
-                                        if (back) Label("↺ ", color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)
-                                        Label(p.title, size = Kijk.Headline, weight = Kijk.Semibold)
-                                    }
-                                    Label("${shortName(ch.name)} · ${Format.dayLabel(p.start, vm.now)} ${Format.range(p.start, p.stop)}", size = Kijk.Caption, color = secondary(f))
+            !enough -> EmptyState(kinds[kind], when (kind) {
+                0, 1 -> "Typ minstens twee letters van de titel."
+                2 -> "Typ minstens twee letters van de zendernaam."
+                else -> "Typ minstens twee letters. Programma's worden gezocht van een week terug tot twee dagen vooruit."
+            })
+            vodKind -> {
+                val list: List<Any>? = vodRes?.let { if (kind == 0) it.first else it.second }
+                when {
+                    list == null -> EmptyState(if (waitingVod) "Even geduld…" else "Zoeken…", "Bij de eerste keer zoeken haalt Kijk de lijst met films en series op; dat kan even duren.")
+                    list.isEmpty() -> EmptyState("Geen ${kinds[kind].lowercase()} gevonden voor \"${q.trim()}\"")
+                    else -> Column {
+                        Label("${list.size}${if (list.size >= 60) "+" else ""} ${if (kind == 0) (if (list.size == 1) "film" else "films") else (if (list.size == 1) "serie" else "series")} gevonden", Modifier.padding(start = 8.dp), size = Kijk.Caption, color = Kijk.Secondary)
+                        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                            columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(118.dp), modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(20.dp), contentPadding = PaddingValues(12.dp),
+                        ) {
+                            items(list.size) { i ->
+                                when (val it = list[i]) {
+                                    is nl.kijk.tv.data.Movie -> PosterCard(it.name, it.poster, null, fav = vm.isFav(it), onLongClick = { vm.toggleFav(it) }) { vm.addRecentMovie(it); nav.push(Screen.MovieDetail(it)) }
+                                    is nl.kijk.tv.data.Show -> PosterCard(it.name, it.poster, null, fav = vm.isFav(it), onLongClick = { vm.toggleFav(it) }) { vm.addRecentShow(it); nav.push(Screen.ShowDetail(it)) }
                                 }
                             }
                         }
                     }
                 }
-                if (r.movies.isNotEmpty()) {
-                    item { Section("FILMS") }
-                    item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(8.dp)) {
-                            items(r.movies) { m -> PosterCard(m.name, m.poster, null, Modifier.width(118.dp)) { vm.addRecentMovie(m); nav.push(Screen.MovieDetail(m)) } }
+            }
+            else -> {
+                val r = res
+                when {
+                    r == null -> EmptyState(if (busy) "Zoeken…" else "")
+                    kind == 2 && r.channels.isEmpty() -> EmptyState("Geen zenders gevonden voor \"${q.trim()}\"")
+                    kind == 3 && r.programmes.isEmpty() -> EmptyState("Niets in de gids gevonden voor \"${q.trim()}\"")
+                    else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                        if (kind == 2) items(r.channels) { ch ->
+                            ChannelRow(vm, ch, onClick = { nav.push(Screen.Live(r.channels, r.channels.indexOf(ch))) }, onLongClick = { vm.toggleFavorite(ch) })
                         }
-                    }
-                }
-                if (r.shows.isNotEmpty()) {
-                    item { Section("SERIES") }
-                    item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(8.dp)) {
-                            items(r.shows) { s -> PosterCard(s.name, s.poster, null, Modifier.width(118.dp)) { vm.addRecentShow(s); nav.push(Screen.ShowDetail(s)) } }
+                        if (kind == 3) items(r.programmes) { (ch, p) ->
+                            val live = p.isLive(vm.now); val back = vm.canCatchup(ch, p)
+                            FocusCard(onClick = {
+                                when {
+                                    live -> nav.push(Screen.Live(vm.channels, vm.channels.indexOf(ch).coerceAtLeast(0)))
+                                    back -> nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null))
+                                }
+                            }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
+                                Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    ChannelLogo(ch.logo, ch.name, Modifier.size(52.dp, 32.dp))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (live) { LiveBadge(); Spacer(Modifier.width(6.dp)) }
+                                            if (back) Label("↺ ", color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)
+                                            Label(p.title, size = Kijk.Headline, weight = Kijk.Semibold)
+                                        }
+                                        Label("${shortName(ch.name)} · ${Format.dayLabel(p.start, vm.now)} ${Format.range(p.start, p.stop)}", size = Kijk.Caption, color = secondary(f))
+                                    }
+                                }
+                            }
                         }
                     }
                 }

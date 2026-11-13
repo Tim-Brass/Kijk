@@ -45,6 +45,7 @@ class Store(ctx: Context) {
     var guideArch: Boolean get() = sp.getBoolean("guideArch", false); set(v) = putBool("guideArch", v)
     var guideFav: Boolean get() = sp.getBoolean("guideFav", false); set(v) = putBool("guideFav", v)
     var lastTab: Int get() = sp.getInt("tab", 0); set(v) = putInt("tab", v)
+    var searchKind: Int get() = sp.getInt("searchKind", 0); set(v) = putInt("searchKind", v)
 
     // ---- kinderslot
     var pinHash: String get() = str("pinHash"); set(v) = put("pinHash", v)
