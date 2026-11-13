@@ -337,7 +337,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 vod = newVod; vodCache.clear(); archCache.clear()
                 applyHidden()
                 progress = LoadProgress("Zenders aan de gids koppelen")
-                epgMatch = try { withContext(Dispatchers.Default) { epg.match(chans, store.epgLinks) } } catch (e: Exception) { status = "Gids koppelen mislukt: ${e.message}"; emptyMap() }
+                epgMatch = try { withContext(Dispatchers.IO) { matchCached(chans, store.epgLinks) } } catch (e: Exception) { status = "Gids koppelen mislukt: ${e.message}"; emptyMap() }
                 dataVersion++
                 progress = null
                 refreshNowNext()
@@ -370,11 +370,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshEpg() { viewModelScope.launch { loadLock.withLock { refreshEpgLocked() } } }
 
+    /** Zenders aan de gids koppelen, maar alleen opnieuw als gids, zenders of handmatige koppelingen veranderd zijn. */
+    private fun matchCached(chans: List<Channel>, links: Map<String, String>): Map<String, String> {
+        val f = File(getApplication<Application>().filesDir, "epg_match.tsv")
+        var h = 17L
+        for (c in chans) h = h * 31 + c.key.hashCode() * 7 + c.name.hashCode()
+        val key = "${epg.built()}|${chans.size}|$h|${links.hashCode()}"
+        runCatching {
+            if (f.exists()) f.bufferedReader().use { r ->
+                if (r.readLine() == "#$key") {
+                    val m = HashMap<String, String>()
+                    r.forEachLine { l -> val i = l.indexOf('\t'); if (i > 0) m[l.substring(0, i)] = l.substring(i + 1) }
+                    return m
+                }
+            }
+        }
+        val m = epg.match(chans, links)
+        runCatching {
+            val tmp = File(f.path + ".tmp")
+            tmp.bufferedWriter().use { w -> w.write("#$key\n"); m.forEach { (k, v) -> w.write("$k\t$v\n") } }
+            tmp.renameTo(f)
+        }
+        return m
+    }
+
     private suspend fun refreshEpgLocked() {
         val urls = (store.epgUrl.ifBlank { playlistEpgUrl ?: xtream?.xmltvUrl() ?: "" }).split(',').map { it.trim() }.filter { it.startsWith("http") }
         if (urls.isEmpty()) { status = "Geen gids-link. Vul er een in bij Instellingen › Playlist."; step(3) { it.copy(state = 3, note = "Geen gids-link") }; return }
         epgBusy = true
         step(3) { it.copy(state = 1) }
+        // eerst vragen of de gids op de server veranderd is; zo niet, dan downloaden en opbouwen overslaan
+        val vsp = getApplication<Application>().getSharedPreferences("kijk_epg_http", android.content.Context.MODE_PRIVATE)
+        val probes = if (epg.updated() > 0L) withContext(Dispatchers.IO) {
+            urls.map { u -> runCatching { Net.probe(u, vsp.getString("e:$u", null), vsp.getString("m:$u", null)) }.getOrNull() }
+        } else emptyList()
+        if (probes.isNotEmpty() && probes.all { it != null && !it.first }) {
+            withContext(Dispatchers.IO) { epg.touch() }
+            epgBusy = false; status = null
+            if (steps[3].state == 1) step(3) { it.copy(state = 2, note = epgStatsText()) }
+            return
+        }
         try {
             withContext(Dispatchers.IO) {
                 var label = "Gids downloaden"
@@ -385,11 +420,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             status = null
+            // validatoren onthouden voor de volgende keer
+            vsp.edit().apply { urls.forEachIndexed { i, u -> val p = probes.getOrNull(i); putString("e:$u", p?.second); putString("m:$u", p?.third) } }.apply()
+            if (probes.isEmpty()) withContext(Dispatchers.IO) {
+                val fresh = urls.map { u -> runCatching { Net.probe(u, null, null) }.getOrNull() }
+                vsp.edit().apply { urls.forEachIndexed { i, u -> putString("e:$u", fresh[i]?.second); putString("m:$u", fresh[i]?.third) } }.apply()
+            }
         } catch (e: Exception) {
             status = "Gids bijwerken mislukt: ${e.message ?: e.javaClass.simpleName}"
             step(3) { it.copy(state = 4, note = status) }
         } finally { epgBusy = false; progress = null }
-        epgMatch = withContext(Dispatchers.IO) { epg.match(allChannels, store.epgLinks) }
+        epgMatch = withContext(Dispatchers.IO) { matchCached(allChannels, store.epgLinks) }
         refreshNowNext()
         dataVersion++
         if (steps[3].state == 1) step(3) { it.copy(state = 2, note = epgStatsText()) }
@@ -754,8 +795,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 todo.forEach { m ->
                     launch {
                         sem.acquire()
-                        try { releaseDates[m.id] = runCatching { src.movieInfo(m)?.released }.getOrNull()?.takeIf { it.length >= 10 } ?: "" }
-                        finally { sem.release() }
+                        try {
+                            val d = runCatching { src.movieInfo(m)?.released }.getOrNull()?.takeIf { it.length >= 10 } ?: ""
+                            releaseDates[m.id] = d
+                            // meteen wegschrijven: na afsluiten gaat het de volgende keer verder waar het was
+                            runCatching { synchronized(releaseFile) { releaseFile.appendText("${m.id}\t$d\n") } }
+                        } finally { sem.release() }
                     }
                 }
             }

@@ -35,6 +35,10 @@ data class FoundProgramme(val cid: String, val p: Programme)
 class EpgRepository(ctx: Context) {
     private val db: SQLiteDatabase = EpgDb(ctx.applicationContext).writableDatabase
 
+    /** Gids is nog actueel (niet veranderd op de server): alleen het tijdstip bijwerken. */
+    fun touch() { db.execSQL("INSERT OR REPLACE INTO meta (k, v) VALUES ('updated', ?)", arrayOf(System.currentTimeMillis().toString())) }
+    /** Wanneer de gids echt opnieuw is opgebouwd (niet bij touch). */
+    fun built(): Long = db.rawQuery("SELECT v FROM meta WHERE k='built'", null).use { c -> if (c.moveToFirst()) c.getString(0).toLongOrNull() ?: 0 else 0 }.takeIf { it > 0 } ?: updated()
     fun updated(): Long = db.rawQuery("SELECT v FROM meta WHERE k='updated'", null).use { c -> if (c.moveToFirst()) c.getString(0).toLongOrNull() ?: 0 else 0 }
 
     /** @param progress (melding?, gedownloade bytes, totaal) */
@@ -106,6 +110,7 @@ class EpgRepository(ctx: Context) {
                 }
             }
             db.execSQL("INSERT OR REPLACE INTO meta (k, v) VALUES ('updated', ?)", arrayOf(now.toString()))
+            db.execSQL("INSERT OR REPLACE INTO meta (k, v) VALUES ('built', ?)", arrayOf(now.toString()))
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()

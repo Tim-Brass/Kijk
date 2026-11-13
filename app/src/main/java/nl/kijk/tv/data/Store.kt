@@ -31,7 +31,7 @@ class Store(ctx: Context) {
     var playlistUrl: String get() = str("playlistUrl"); set(v) = put("playlistUrl", v)
     var epgUrl: String get() = str("epgUrl"); set(v) = put("epgUrl", v)
     var refreshPlaylist: String get() = str("refreshPlaylist", "daily"); set(v) = put("refreshPlaylist", v)
-    var refreshEpg: String get() = str("refreshEpg", "twice"); set(v) = put("refreshEpg", v)
+    var refreshEpg: String get() = str("refreshEpg", "daily"); set(v) = put("refreshEpg", v)
     var playlistUpdated: Long get() = sp.getLong("playlistUpdated", 0); set(v) = putLong("playlistUpdated", v)
     var epgOffsetMinutes: Int get() = sp.getInt("epgOffset", 0); set(v) = putInt("epgOffset", v)
     var archiveJson: String get() = str("archive", "{}"); set(v) = put("archive", v)
