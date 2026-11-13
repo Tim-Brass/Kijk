@@ -204,20 +204,21 @@ fun VodBackdrop(url: String?) {
 }
 
 @Composable
-fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onClick: () -> Unit) {
+fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onPosterError: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
         FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f, focusRing = true) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 // kleiner decoderen (scheelt veel geheugen op zwakkere boxen); lukt het niet, dan de titel tonen
                 var failed by remember(poster) { mutableStateOf(poster == null) }
+                if (poster == null) LaunchedEffect(Unit) { onPosterError?.invoke() }
                 if (failed) Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
                 if (poster != null) {
                     val ctx = androidx.compose.ui.platform.LocalContext.current
                     AsyncImage(
                         remember(poster) { coil.request.ImageRequest.Builder(ctx).data(poster).size(260, 390).build() },
                         contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                        onError = { failed = true }, onSuccess = { failed = false },
+                        onError = { failed = true; onPosterError?.invoke() }, onSuccess = { failed = false },
                     )
                 }
                 if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), height = 4.dp)

@@ -101,6 +101,7 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
             cast = info.firstOf("cast", "actors"), director = info.str("director"),
             backdrop = backdrop ?: info.str("movie_image"), year = info.str("releasedate")?.take(4),
             tmdb = info.firstOf("tmdb_id", "tmdb"), imdb = info.str("imdb_id"),
+            poster = info.firstOf("cover_big", "movie_image"),
         )
     }
 

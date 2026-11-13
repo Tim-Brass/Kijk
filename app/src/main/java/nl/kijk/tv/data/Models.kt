@@ -49,6 +49,7 @@ data class Movie(
 data class MovieInfo(
     val plot: String?, val genre: String?, val duration: String?, val cast: String?,
     val director: String?, val backdrop: String?, val year: String?, val tmdb: String?, val imdb: String?,
+    val poster: String? = null,
 )
 
 data class Show(

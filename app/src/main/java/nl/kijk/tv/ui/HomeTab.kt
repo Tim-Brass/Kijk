@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import nl.kijk.tv.AppViewModel
 import nl.kijk.tv.Format
 import nl.kijk.tv.Nav
@@ -87,6 +88,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 
     // achtergrond: titel waar je op staat (na even wachten), anders de nieuwste
     var focusItem by remember { mutableStateOf<Any?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(focusItem, newest) {
         val it = focusItem ?: newest.firstOrNull() ?: run { hs.backdrop = null; return@LaunchedEffect }
         delay(600)
@@ -130,8 +132,13 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 HomeRow("Nieuw binnen") {
                     items(newest) { item ->
                         when (item) {
-                            is Movie -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
-                                onFocus = { focusItem = item }) { openMovie(item, resume = false) }
+                            is Movie -> {
+                                // poster uit de lijst werkt niet altijd bij net toegevoegde films: dan die uit de filminfo nemen
+                                var alt by remember(item.id) { mutableStateOf<String?>(null) }
+                                var tried by remember(item.id) { mutableStateOf(false) }
+                                PosterCard(item.name, alt ?: item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
+                                    onFocus = { focusItem = item }, onPosterError = { if (!tried) { tried = true; scope.launch { alt = runCatching { vm.movieInfo(item)?.poster }.getOrNull() } } }) { openMovie(item, resume = false) }
+                            }
                             is Show -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
                                 onFocus = { focusItem = item }, badge = if (vm.isNew(item)) "Nieuw" else null) { openShow(item) }
                         }
