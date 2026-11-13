@@ -720,7 +720,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val thisYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
             val recent = movieIndex.filter { (it.year?.take(4)?.toIntOrNull() ?: 0) >= thisYear - 1 } +
                 movieIndex.sortedByDescending { it.added ?: 0L }.take(300)
-            val todo = recent.distinctBy { it.id }.filter { it.id !in releaseDates }.take(400)
+            val todo = recent.distinctBy { it.id }.filter { !releaseDates.containsKey(it.id) }.take(400)
             val sem = kotlinx.coroutines.sync.Semaphore(3)   // rustig aan voor de server
             kotlinx.coroutines.coroutineScope {
                 todo.forEach { m ->
