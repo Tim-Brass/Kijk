@@ -706,12 +706,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return withContext(Dispatchers.Default) {
             val ms = movieIndex.filter { it.categoryId !in hiddenMovieCats && (unlocked || (!isLocked(mCats[it.categoryId]) && !isLocked(it.name))) }
             val ss = showIndex.filter { it.categoryId !in hiddenShowCats && (unlocked || (!isLocked(sCats[it.categoryId]) && !isLocked(it.name))) }
-            // zonder datum (M3U): de laatste regels van de lijst zijn meestal het nieuwst
-            val mTop: List<Pair<Long, Any>> = if (ms.any { it.added != null }) ms.sortedByDescending { it.added ?: 0 }.take(limit).map { (it.added ?: 0L) to it }
-                else ms.takeLast(limit).reversed().mapIndexed { i, m -> (Long.MAX_VALUE - i * 2) to m }
-            val sTop: List<Pair<Long, Any>> = if (ss.any { it.updated != null }) ss.sortedByDescending { it.updated ?: 0 }.take(limit).map { (it.updated ?: 0L) to it }
-                else ss.takeLast(limit).reversed().mapIndexed { i, x -> (Long.MAX_VALUE - i * 2 - 1) to x }
-            (mTop + sTop).sortedByDescending { it.first }.take(limit).map { it.second }
+            // nieuwste qua uitkomen eerst: jaar van uitbrengen (uit de lijst of "(2025)" in de titel),
+            // binnen hetzelfde jaar het laatst toegevoegd eerst. Jaren in de toekomst (foute gegevens) tellen niet.
+            val thisYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            val yearRx = Regex("""\((\d{4})\)""")
+            fun yearOf(y: String?, name: String) = (y?.take(4)?.toIntOrNull() ?: yearRx.findAll(name).lastOrNull()?.groupValues?.get(1)?.toIntOrNull())
+                ?.takeIf { it in 1900..thisYear } ?: 0
+            data class C(val year: Int, val added: Long, val item: Any)
+            val all = ms.map { C(yearOf(it.year, it.name), it.added ?: 0L, it) } + ss.map { C(yearOf(it.year, it.name), it.updated ?: 0L, it) }
+            all.sortedWith(compareByDescending<C> { it.year }.thenByDescending { it.added }).take(limit).map { it.item }
         }
     }
 

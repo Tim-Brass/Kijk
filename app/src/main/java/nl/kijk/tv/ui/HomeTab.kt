@@ -129,7 +129,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 }
             }
             if (newest.isNotEmpty()) item {
-                HomeRow("Nieuw binnen") {
+                HomeRow("Nieuwste films en series") {
                     items(newest) { item ->
                         when (item) {
                             is Movie -> {
