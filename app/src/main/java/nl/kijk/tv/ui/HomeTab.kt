@@ -111,7 +111,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 
     Column(Modifier.fillMaxSize()) {
         // ---- groet + tijd links, weer rechts
-        Row(Modifier.fillMaxWidth().height(150.dp).padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {   // hoogte past zich aan: niets valt eraf
             Column(Modifier.weight(1f)) {
                 Label(greeting(vm.now), size = 30.sp, weight = Kijk.Bold, color = Color.White)
                 Spacer(Modifier.height(6.dp))
@@ -211,7 +211,7 @@ private fun dayShort(date: String): String = try {
 private fun WeatherBlock(vm: AppViewModel, frame: MutableLongState) {
     val w = vm.weather ?: return
     Column(horizontalAlignment = Alignment.End) {
-        Box(Modifier.width(300.dp).height(84.dp)) {
+        Box(Modifier.width(330.dp).height(78.dp)) {
             // groot, half doorzichtig, bewegend icoon met de tekst eroverheen
             Canvas(Modifier.align(Alignment.CenterEnd).padding(end = 70.dp).size(width = 130.dp, height = 104.dp).graphicsLayer { alpha = 0.55f }) {
                 drawSky(w.sky, !w.isDay, frame.longValue / 1e9f, animate = true)
@@ -225,13 +225,13 @@ private fun WeatherBlock(vm: AppViewModel, frame: MutableLongState) {
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             w.days.forEachIndexed { i, d ->
                 Column(
-                    Modifier.width(42.dp).background(if (i == 0) Kijk.Accent.copy(alpha = 0.22f) else Color(0x10FFFFFF), RoundedCornerShape(7.dp)).padding(vertical = 4.dp),
+                    Modifier.width(44.dp).background(if (i == 0) Kijk.Accent.copy(alpha = 0.35f) else Color(0x99141419), RoundedCornerShape(7.dp)).padding(vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Label(dayShort(d.date), size = 11.sp, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
-                    Canvas(Modifier.size(width = 24.dp, height = 20.dp)) { drawSky(d.sky, false, 0f, animate = false) }
-                    Label("${d.max}°", size = 12.sp, weight = Kijk.Semibold, color = Color.White)
-                    Label("${d.min}°", size = 11.sp, color = Kijk.Secondary)
+                    Label(dayShort(d.date), size = 13.sp, weight = Kijk.Semibold, color = Color.White, maxLines = 1)
+                    Canvas(Modifier.padding(vertical = 2.dp).size(width = 24.dp, height = 20.dp)) { drawSky(d.sky, false, 0f, animate = false) }
+                    Label("${d.max}°", size = 14.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+                    Label("${d.min}°", size = 13.sp, weight = Kijk.Semibold, color = Color(0xFFC7C7CC), maxLines = 1)
                 }
             }
         }
