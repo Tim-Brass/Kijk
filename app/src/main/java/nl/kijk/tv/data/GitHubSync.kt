@@ -38,8 +38,16 @@ class GitHubSync(ctx: Context, private val sync: Sync) {
         val (code, body) = api("GET", "https://api.github.com/repos/$login/$REPO_NAME/contents/kijk-sleutels.json", token, allow404 = true)
         if (code != 200) return
         val raw = String(Base64.decode(JSONObject(body).optString("content").replace("\n", ""), Base64.DEFAULT), Charsets.UTF_8)
-        val o = JSONObject(raw)
-        val k = listOf("tmdb", "tmdbKey", "tmdb_key", "tmdbToken").firstNotNullOfOrNull { o.optString(it).trim().takeIf { v -> v.isNotEmpty() } } ?: ""
+        // telefoons maken van " vaak “ ” (krulletjes): die eerst rechtzetten
+        val fixed = raw.replace('\u201C', '"').replace('\u201D', '"').replace('\u201E', '"').replace('\u2018', '\'').replace('\u2019', '\'')
+        val k = runCatching {
+            val o = JSONObject(fixed)
+            listOf("tmdb", "tmdbKey", "tmdb_key", "tmdbToken").firstNotNullOfOrNull { o.optString(it).trim().takeIf { v -> v.isNotEmpty() } }
+        }.getOrNull()
+            // lukt het lezen niet: dan gewoon de token of sleutel zelf uit de tekst vissen
+            ?: Regex("""eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+""").find(fixed)?.value
+            ?: Regex("""\b[0-9a-f]{32}\b""").find(fixed)?.value
+            ?: ""
         sp.edit().putString("tmdb", k).apply()
     }
 
