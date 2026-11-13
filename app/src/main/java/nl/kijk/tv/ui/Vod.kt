@@ -115,7 +115,13 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
     LaunchedEffect(all) { if (all.isNotEmpty() && (catId == null || all.none { it.id == catId })) catId = all.first().id }
 
     LaunchedEffect(catId) { focusItem = null; hs?.backdrop = null }   // andere categorie: oude titel en achtergrond weg
-    LaunchedEffect(catId, vm.unlocked, cont, favs) {
+    // favoriet erbij/eraf: alleen de lijst Favorieten/Verder kijken bijwerken, niet de hele categorie opnieuw laden
+    // (dat liet het raster even verdwijnen, waarna de selectie naar een andere categorie sprong)
+    LaunchedEffect(cont, favs) {
+        if (catId == CONTINUE) items = cont
+        if (catId == FAVS) items = favs
+    }
+    LaunchedEffect(catId, vm.unlocked) {
         val id = catId ?: return@LaunchedEffect
         error = null
         val cat = all.firstOrNull { it.id == id }
