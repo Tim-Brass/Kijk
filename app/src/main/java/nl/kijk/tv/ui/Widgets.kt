@@ -278,3 +278,47 @@ fun Modifier.baseline(): Modifier = drawBehind {
     val h = 1.dp.toPx()
     drawRect(Color(0xFF2A2A31), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
 }
+
+/**
+ * Item in een lijst links (categorieën, zendergroepen, instellingen): geen pil, maar tekst met een streepje ervoor.
+ * Gekozen = wit met blauw streepje; focus = wit, iets groter, wit streepje; anders grijs.
+ */
+@Composable
+fun SideItem(text: String, selected: Boolean, modifier: Modifier = Modifier, onFocus: (() -> Unit)? = null, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val bar = when { focused -> Color.White; selected -> Kijk.Accent; else -> Color.Transparent }
+    val barW = if (focused) 2.dp else 3.dp
+    androidx.tv.material3.Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().onFocusChanged {
+            if (it.isFocused != focused) { focused = it.isFocused; if (it.isFocused) onFocus?.invoke() }
+        },
+        shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(0.dp)),
+        scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent, contentColor = Color.White,
+            focusedContainerColor = Color.Transparent, focusedContentColor = Color.White,
+            pressedContainerColor = Color.Transparent, pressedContentColor = Color.White,
+        ),
+    ) {
+        Box(
+            Modifier.fillMaxWidth()
+                .drawBehind {
+                    if (bar != Color.Transparent) {
+                        val w = barW.toPx(); val inset = 7.dp.toPx()
+                        drawRoundRect(bar, androidx.compose.ui.geometry.Offset(0f, inset), androidx.compose.ui.geometry.Size(w, size.height - inset * 2), androidx.compose.ui.geometry.CornerRadius(w / 2))
+                    }
+                }
+                .padding(start = 16.dp, end = 8.dp, top = 9.dp, bottom = 9.dp),
+        ) {
+            Label(text, size = if (focused) Kijk.Headline else Kijk.Body, weight = if (focused || selected) Kijk.Semibold else Kijk.Medium,
+                color = if (focused || selected) Color.White else Kijk.Secondary, maxLines = 1)
+        }
+    }
+}
+
+/** Dunne grijze scheidingslijn rechts van een lijst. */
+fun Modifier.dividerRight(): Modifier = drawBehind {
+    val w = 1.dp.toPx()
+    drawRect(Color(0xFF2A2A31), topLeft = androidx.compose.ui.geometry.Offset(size.width - w, 0f), size = androidx.compose.ui.geometry.Size(w, size.height))
+}

@@ -81,12 +81,9 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
     var cat by rememberSaveable { mutableStateOf(0) }
     Row(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         // ---- categorieën
-        LazyColumn(Modifier.width(280.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+        LazyColumn(Modifier.width(280.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
             items(SETTING_CATS.size) { i ->
-                FocusCard(onClick = { cat = i }, onFocus = { cat = i }, selected = cat == i, modifier = Modifier.fillMaxWidth(), focusedScale = 1.02f) { f ->
-                    Label(SETTING_CATS[i], Modifier.padding(horizontal = 16.dp, vertical = 11.dp), size = Kijk.Body,
-                        weight = if (cat == i || f) Kijk.Semibold else null, color = if (f) Color.Black else if (cat == i) Color.White else Kijk.Secondary)
-                }
+                SideItem(SETTING_CATS[i], selected = cat == i, onFocus = { cat = i }) { cat = i }
             }
         }
         Spacer(Modifier.width(36.dp))

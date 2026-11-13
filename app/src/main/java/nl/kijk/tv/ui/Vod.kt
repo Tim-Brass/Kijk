@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -134,13 +135,12 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
         cats == null -> EmptyState("Laden…")
         all.isEmpty() -> EmptyState(error ?: "Niets gevonden", if (hiddenCats.isNotEmpty()) "Misschien staan alle categorieën uit bij Instellingen." else "")
         else -> Row(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.width(230.dp), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(6.dp)) {
+            LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
                 items(all) { cat ->
                     val locked = vm.isLocked(cat.name) && !vm.unlocked
-                    FocusCard(
-                        onClick = { if (locked) nav.askPin(vm) { vm.unlock(); catId = cat.id } else catId = cat.id },
-                        onFocus = { catId = cat.id }, selected = cat.id == catId, modifier = Modifier.fillMaxWidth(),
-                    ) { Label((if (locked) "🔒 " else "") + cat.name, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), weight = Kijk.Medium) }
+                    SideItem((if (locked) "🔒 " else "") + cat.name, selected = cat.id == catId, onFocus = { catId = cat.id }) {
+                        if (locked) nav.askPin(vm) { vm.unlock(); catId = cat.id } else catId = cat.id
+                    }
                 }
             }
             Spacer(Modifier.width(20.dp))

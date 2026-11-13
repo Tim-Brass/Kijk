@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -190,13 +191,12 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
     if (hs.group !in all) hs.group = GROUP_ALL
     val list = remember(vm.dataVersion, hs.group, vm.favorites, vm.recentChannels, vm.unlocked) { vm.list(hs.group) }
     Row(Modifier.fillMaxSize()) {
-        LazyColumn(Modifier.width(230.dp), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(6.dp)) {
-            items(all, key = { it }) { g ->
+        LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+            items(all) { g ->
                 val locked = vm.isLocked(g) && !vm.unlocked
-                FocusCard(
-                    onClick = { if (locked) nav.askPin(vm) { vm.unlock(); hs.group = g } else hs.group = g },
-                    onFocus = { hs.group = g }, selected = hs.group == g, modifier = Modifier.fillMaxWidth(),
-                ) { Label((if (locked) "🔒 " else "") + groupLabel(g), Modifier.padding(horizontal = 16.dp, vertical = 10.dp), weight = Kijk.Medium) }
+                SideItem((if (locked) "🔒 " else "") + groupLabel(g), selected = hs.group == g, onFocus = { hs.group = g }) {
+                    if (locked) nav.askPin(vm) { vm.unlock(); hs.group = g } else hs.group = g
+                }
             }
         }
         Spacer(Modifier.width(20.dp))
