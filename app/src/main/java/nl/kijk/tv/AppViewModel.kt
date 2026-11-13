@@ -193,11 +193,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun startGitHubSync() {
-        viewModelScope.launch {
-            delay(5_000)
-            while (true) { githubSyncNow(quiet = true); delay(45_000) }
-        }
+    /** Voor het afsluiten: nog even wegschrijven (hooguit een paar seconden). */
+    suspend fun githubFlush() {
+        if (!github.connected) return
+        kotlinx.coroutines.withTimeoutOrNull(6_000) { githubMutex.withLock { withContext(Dispatchers.IO) { runCatching { github.syncOnce() } } } }
     }
 
     private fun stopForPeer(name: String): Pair<String, Long>? {
@@ -778,6 +777,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (configured) load(startup = true)
         startSync()
-        startGitHubSync()
     }
 }

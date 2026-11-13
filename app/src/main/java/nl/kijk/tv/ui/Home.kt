@@ -40,6 +40,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import nl.kijk.tv.AppViewModel
 import nl.kijk.tv.Format
 import nl.kijk.tv.GROUP_ALL
@@ -109,7 +110,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             overlay != null -> overlay.onClose()
             hs.tab != TAB_HOME -> { hs.tab = TAB_HOME; runCatching { tabFocus[TAB_HOME].requestFocus() } }
             else -> nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
-                quitApp(activity)
+                quitApp(activity) { vm.githubFlush() }
             }
         }
     }
@@ -150,7 +151,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     // afsluiten
                     LineItem(onClick = {
                         nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
-                            quitApp(activity)
+                            quitApp(activity) { vm.githubFlush() }
                         }
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
@@ -247,8 +248,13 @@ fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: 
 }
 
 /** Kijk echt afsluiten: scherm dicht, uit de recente apps, en het proces stoppen (geen stream of server meer op de achtergrond). */
-fun quitApp(activity: android.app.Activity?) {
+fun quitApp(activity: android.app.Activity?, beforeQuit: (suspend () -> Unit)? = null) {
     activity ?: return
     activity.finishAndRemoveTask()
-    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
+    // eerst nog wegschrijven (bv. naar GitHub), dan echt stoppen
+    kotlinx.coroutines.MainScope().launch {
+        delay(400)
+        beforeQuit?.invoke()
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
 }

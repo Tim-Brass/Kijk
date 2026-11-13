@@ -74,10 +74,14 @@ class KijkApplication : android.app.Application(), coil.ImageLoaderFactory {
 }
 
 class MainActivity : ComponentActivity() {
+    private val vm: AppViewModel by androidx.activity.viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { KijkTheme { KijkApp(viewModel()) } }
+        setContent { KijkTheme { KijkApp(vm) } }
     }
+    // GitHub: bijwerken bij het openen van Kijk en wegschrijven bij het verlaten (niet tussendoor)
+    override fun onStart() { super.onStart(); vm.githubSyncNow(quiet = true) }
+    override fun onStop() { super.onStop(); vm.githubSyncNow(quiet = true) }
 }
 
 /** Alle schermen. Een nieuw scherm komt bovenop de stapel; Terug haalt het eraf. */
