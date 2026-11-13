@@ -170,11 +170,11 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
                 ) {
                     items(list) { item ->
                         when (item) {
-                            is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction,
+                            is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction, fallback = { vm.posterFallback(item) },
                                 fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
                                 vm.addRecentMovie(item); nav.push(Screen.MovieDetail(item))
                             }
-                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item },
+                            is Show -> PosterCard(item.name, item.poster, null, fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) },
                                 badge = if (vm.isNew(item)) "Nieuw" else null) {
                                 vm.addRecentShow(item); nav.push(Screen.ShowDetail(item))
                             }
@@ -204,21 +204,29 @@ fun VodBackdrop(url: String?) {
 }
 
 @Composable
-fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onPosterError: (() -> Unit)? = null, onClick: () -> Unit) {
+fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onPosterError: (() -> Unit)? = null, fallback: (suspend () -> String?)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
         FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f, focusRing = true) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 // kleiner decoderen (scheelt veel geheugen op zwakkere boxen); lukt het niet, dan de titel tonen
-                var failed by remember(poster) { mutableStateOf(poster == null) }
-                if (poster == null) LaunchedEffect(Unit) { onPosterError?.invoke() }
+                // ontbreekt het plaatje of laadt het niet, dan één keer een andere bron proberen (filminfo, TMDB, TVmaze)
+                var alt by remember(poster) { mutableStateOf<String?>(null) }
+                var needAlt by remember(poster) { mutableStateOf(poster == null) }
+                val shown = alt ?: poster
+                var failed by remember(shown) { mutableStateOf(shown == null) }
+                LaunchedEffect(needAlt) {
+                    if (!needAlt) return@LaunchedEffect
+                    onPosterError?.invoke()
+                    if (fallback != null) alt = runCatching { fallback() }.getOrNull()?.takeIf { it.isNotBlank() && it != poster }
+                }
                 if (failed) Label(title, Modifier.align(Alignment.Center).padding(10.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color.White, maxLines = 4)
-                if (poster != null) {
+                if (shown != null) {
                     val ctx = androidx.compose.ui.platform.LocalContext.current
                     AsyncImage(
-                        remember(poster) { coil.request.ImageRequest.Builder(ctx).data(poster).size(260, 390).build() },
+                        remember(shown) { coil.request.ImageRequest.Builder(ctx).data(shown).size(260, 390).build() },
                         contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
-                        onError = { failed = true; onPosterError?.invoke() }, onSuccess = { failed = false },
+                        onError = { failed = true; if (alt == null) needAlt = true }, onSuccess = { failed = false },
                     )
                 }
                 if (progress != null) ProgressBar(progress, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), height = 4.dp)

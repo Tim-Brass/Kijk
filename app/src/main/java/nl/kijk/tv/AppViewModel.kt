@@ -699,6 +699,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ok
     } catch (_: Exception) { false }
 
+    // ---------------------------------------------------------------- posters van buiten (TVmaze / TMDB)
+    val posters = nl.kijk.tv.data.Posters(getApplication<Application>().filesDir) { github.tmdbKey }
+
+    /** Andere poster voor een film of serie waarvan het plaatje ontbreekt of niet laadt; null = niets gevonden. */
+    suspend fun posterFallback(item: Any): String? = when (item) {
+        is Movie -> {
+            val info = movieInfo(item)
+            posters.movie(item.id, item.name, item.year ?: info?.year, info?.tmdb)
+                ?: info?.poster?.takeIf { it.isNotBlank() && it != item.poster }
+        }
+        is Show -> posters.show(item.id, item.name, item.released ?: item.year)
+        else -> null
+    }
+
     // ---------------------------------------------------------------- datum van uitkomen (voor "Nieuwste" op Thuis)
     /** filmId → yyyy-MM-dd ("" = onbekend). Eén keer per dag aangevuld voor recente films; bewaard in een bestand. */
     private val releaseDates = java.util.concurrent.ConcurrentHashMap<String, String>()

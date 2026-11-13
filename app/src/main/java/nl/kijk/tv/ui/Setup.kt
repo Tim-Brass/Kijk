@@ -211,8 +211,8 @@ fun SearchTab(vm: AppViewModel, nav: Nav) {
                         ) {
                             items(list.size) { i ->
                                 when (val it = list[i]) {
-                                    is nl.kijk.tv.data.Movie -> PosterCard(it.name, it.poster, null, fav = vm.isFav(it), onLongClick = { vm.toggleFav(it) }) { vm.addRecentMovie(it); nav.push(Screen.MovieDetail(it)) }
-                                    is nl.kijk.tv.data.Show -> PosterCard(it.name, it.poster, null, fav = vm.isFav(it), onLongClick = { vm.toggleFav(it) }) { vm.addRecentShow(it); nav.push(Screen.ShowDetail(it)) }
+                                    is nl.kijk.tv.data.Movie -> PosterCard(it.name, it.poster, null, fav = vm.isFav(it), onLongClick = { vm.toggleFav(it) }, fallback = { vm.posterFallback(it) }) { vm.addRecentMovie(it); nav.push(Screen.MovieDetail(it)) }
+                                    is nl.kijk.tv.data.Show -> PosterCard(it.name, it.poster, null, fav = vm.isFav(it), onLongClick = { vm.toggleFav(it) }, fallback = { vm.posterFallback(it) }) { vm.addRecentShow(it); nav.push(Screen.ShowDetail(it)) }
                                 }
                             }
                         }

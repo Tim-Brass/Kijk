@@ -132,15 +132,10 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 HomeRow("Nieuwste films en series") {
                     items(newest) { item ->
                         when (item) {
-                            is Movie -> {
-                                // poster uit de lijst werkt niet altijd bij net toegevoegde films: dan die uit de filminfo nemen
-                                var alt by remember(item.id) { mutableStateOf<String?>(null) }
-                                var tried by remember(item.id) { mutableStateOf(false) }
-                                PosterCard(item.name, alt ?: item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
-                                    onFocus = { focusItem = item }, onPosterError = { if (!tried) { tried = true; scope.launch { alt = runCatching { vm.movieInfo(item)?.poster }.getOrNull() } } }) { openMovie(item, resume = false) }
-                            }
+                            is Movie -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
+                                onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }) { openMovie(item, resume = false) }
                             is Show -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
-                                onFocus = { focusItem = item }, badge = if (vm.isNew(item)) "Nieuw" else null) { openShow(item) }
+                                onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, badge = if (vm.isNew(item)) "Nieuw" else null) { openShow(item) }
                         }
                     }
                 }

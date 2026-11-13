@@ -31,6 +31,18 @@ class GitHubSync(ctx: Context, private val sync: Sync) {
 
     fun signOut() { sp.edit().clear().apply() }
 
+    /** TMDB-sleutel uit kijk-sleutels.json in de privé repo (alleen lokaal bewaard, niet in de sync). */
+    val tmdbKey: String get() = sp.getString("tmdb", "") ?: ""
+
+    private fun fetchKeys() {
+        val (code, body) = api("GET", "https://api.github.com/repos/$login/$REPO_NAME/contents/kijk-sleutels.json", token, allow404 = true)
+        if (code != 200) return
+        val raw = String(Base64.decode(JSONObject(body).optString("content").replace("\n", ""), Base64.DEFAULT), Charsets.UTF_8)
+        val o = JSONObject(raw)
+        val k = listOf("tmdb", "tmdbKey", "tmdb_key", "tmdbToken").firstNotNullOfOrNull { o.optString(it).trim().takeIf { v -> v.isNotEmpty() } } ?: ""
+        sp.edit().putString("tmdb", k).apply()
+    }
+
     // ---------------------------------------------------------------- inloggen (device flow)
     data class DeviceCode(val deviceCode: String, val userCode: String, val uri: String, val interval: Int, val expiresAt: Long)
 
@@ -65,6 +77,7 @@ class GitHubSync(ctx: Context, private val sync: Sync) {
     /** Ophalen, samenvoegen en zo nodig terugschrijven. Geeft de gewijzigde instellingen terug. */
     fun syncOnce(): Set<String> {
         if (!connected) return emptySet()
+        runCatching { fetchKeys() }
         repeat(3) { attempt ->
             sync.scan()
             val (code, body) = api("GET", fileUrl, token, allow404 = true)
