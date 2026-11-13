@@ -87,10 +87,10 @@ fun Section(title: String) {
 @Composable
 fun SettingRow(title: String, value: String, onClick: () -> Unit) {
     FocusCard(onClick = onClick, modifier = Modifier.fillMaxWidth(), focusedScale = 1.02f) { focused ->
-        Row(Modifier.padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Label(title, Modifier.weight(1f), size = Kijk.Headline, weight = Kijk.Medium)
-            Spacer(Modifier.width(16.dp))
-            Label(value, Modifier.weight(1.3f), size = Kijk.Body, color = secondary(focused), maxLines = 2)
+        // titel boven, waarde eronder: past ook in de smallere rechterkant van Instellingen
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp)) {
+            Label(title, size = Kijk.Headline, weight = Kijk.Medium, maxLines = 2)
+            if (value.isNotBlank()) Label(value, Modifier.padding(top = 2.dp), size = Kijk.Body, color = secondary(focused), maxLines = 3)
         }
     }
 }
