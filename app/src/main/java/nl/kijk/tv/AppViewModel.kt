@@ -402,6 +402,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- zenders en groepen
     fun isLocked(name: String?) = lockOn && name != null && ADULT.containsMatchIn(name)
+    /** Volwassen inhoud, los van het kinderslot (Thuis toont dit nooit, ook niet na de pincode). */
+    fun isAdult(name: String?) = name != null && ADULT.containsMatchIn(name)
 
     private fun applyHidden() {
         channels = allChannels.filter { it.group !in hidden && (unlocked || !isLocked(it.group)) }
@@ -779,8 +781,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val mCats = (try { movieCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
         val sCats = (try { showCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
         return withContext(Dispatchers.Default) {
-            val ms = movieIndex.filter { it.categoryId !in hiddenMovieCats && (unlocked || (!isLocked(mCats[it.categoryId]) && !isLocked(it.name))) }
-            val ss = showIndex.filter { it.categoryId !in hiddenShowCats && (unlocked || (!isLocked(sCats[it.categoryId]) && !isLocked(it.name))) }
+            // Thuis: volwassen titels nooit, ook niet als het kinderslot open of uit staat
+            val ms = movieIndex.filter { it.categoryId !in hiddenMovieCats && !isAdult(mCats[it.categoryId]) && !isAdult(it.name) }
+            val ss = showIndex.filter { it.categoryId !in hiddenShowCats && !isAdult(sCats[it.categoryId]) && !isAdult(it.name) }
             // nieuwste qua uitkomen eerst: jaar van uitbrengen (uit de lijst of "(2025)" in de titel),
             // binnen hetzelfde jaar het laatst toegevoegd eerst. Jaren in de toekomst (foute gegevens) tellen niet.
             val thisYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)

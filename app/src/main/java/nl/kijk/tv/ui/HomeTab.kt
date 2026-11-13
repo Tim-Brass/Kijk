@@ -83,7 +83,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
     val frame = remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
 
-    val favs = remember(vm.channels, vm.favorites) { vm.channels.filter { it.key in vm.favorites } }
+    val favs = remember(vm.channels, vm.favorites) { vm.channels.filter { it.key in vm.favorites && !vm.isAdult(it.group) && !vm.isAdult(it.name) } }   // nooit volwassen zenders op Thuis
     val newest = vm.newest   // één keer berekend en bewaard in het ViewModel
 
     // achtergrond: titel waar je op staat (na even wachten), anders de nieuwste
