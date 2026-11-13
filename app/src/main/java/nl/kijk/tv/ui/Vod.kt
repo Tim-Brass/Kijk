@@ -112,7 +112,11 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
         (if (cont.isNotEmpty()) listOf(VodCategory(CONTINUE, "▶ Verder kijken")) else emptyList()) +
             (if (favs.isNotEmpty()) listOf(VodCategory(FAVS, "★ Favorieten")) else emptyList()) + (visibleCats ?: emptyList())
     }
-    LaunchedEffect(all) { if (all.isNotEmpty() && (catId == null || all.none { it.id == catId })) catId = all.first().id }
+    // pas kiezen als de categorieën echt geladen zijn; anders verliest Terug-van-een-poster de gekozen categorie
+    LaunchedEffect(all, visibleCats != null) {
+        if (visibleCats == null) return@LaunchedEffect
+        if (all.isNotEmpty() && (catId == null || all.none { it.id == catId })) catId = all.first().id
+    }
 
     LaunchedEffect(catId) { focusItem = null; hs?.backdrop = null }   // andere categorie: oude titel en achtergrond weg
     // favoriet erbij/eraf: alleen de lijst Favorieten/Verder kijken bijwerken, niet de hele categorie opnieuw laden
