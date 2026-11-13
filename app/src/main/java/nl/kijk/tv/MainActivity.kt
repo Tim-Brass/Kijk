@@ -37,6 +37,7 @@ import nl.kijk.tv.data.Playable
 import nl.kijk.tv.data.Show
 import nl.kijk.tv.phone.PhoneServer
 import nl.kijk.tv.ui.ConfirmScreen
+import nl.kijk.tv.ui.GitHubSyncScreen
 import nl.kijk.tv.ui.EpgChannelsScreen
 import nl.kijk.tv.ui.EpgLinkScreen
 import nl.kijk.tv.ui.GroupsScreen
@@ -93,6 +94,7 @@ sealed interface Screen {
     data class EpgLink(val channel: Channel) : Screen { override val id = "epglink:${channel.key}" }
     data object OsConfig : Screen { override val id = "osconfig" }
     data object SyncPair : Screen { override val id = "syncpair" }
+    data object GitHub : Screen { override val id = "github" }
     data class SubSearch(val item: Playable, val onPick: (Long) -> Unit) : Screen { override val id = "subsearch" }
     data class Pin(val title: String, val sub: String, val check: (String) -> Boolean, val onResult: (String?) -> Unit) : Screen { override val id = "pin:$title" }
     data class Confirm(val title: String, val text: String, val yes: String, val onResult: (Boolean) -> Unit) : Screen { override val id = "confirm" }
@@ -171,6 +173,7 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
             Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
             Screen.SyncPair -> { BackHandler { nav.pop() }; SyncPairScreen(vm, nav) }
+            Screen.GitHub -> { BackHandler { vm.cancelGitHubLogin(); nav.pop() }; GitHubSyncScreen(vm, nav) }
             is Screen.SubSearch -> SubSearchScreen(vm, screen.item, { nav.pop() }, screen.onPick)
             is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
             is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }

@@ -36,6 +36,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -87,6 +88,13 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
         item { tick.hashCode(); SettingRow("Tijdverschuiving gids", if (vm.epgOffsetMinutes == 0) "Geen" else "%+d min".format(vm.epgOffsetMinutes)) { vm.setEpgOffset(next(OFFSETS, vm.epgOffsetMinutes)) } }
 
         item { Section("ANDERE TV") }
+        item {
+            vm.githubVersion.hashCode()
+            val gh = vm.github
+            SettingRow("Synchroniseren via GitHub",
+                if (gh.connected) "Ingelogd als ${gh.login}" + (if (gh.lastSync > 0) " · bijgewerkt ${Format.time(gh.lastSync)}" else "") + (vm.githubStatus?.takeIf { it.startsWith("Fout") }?.let { " · $it" } ?: "")
+                else "Favorieten, voortgang en instellingen delen met je andere tv's") { nav.push(Screen.GitHub) }
+        }
         item {
             vm.peersVersion.hashCode()
             val peers = vm.sync.peers.values.toList()
@@ -436,6 +444,61 @@ fun SyncPairScreen(vm: AppViewModel, nav: Nav) {
                 color = if (vm.syncStatus?.startsWith("Koppelen mislukt") == true) Kijk.Live else Kijk.Secondary, maxLines = 3)
             Spacer(Modifier.height(18.dp))
             Label("Deze tv: ${vm.sync.deviceName} · ${PhoneServer.address() ?: "geen netwerk"} · code ${PhoneServer.code}", size = Kijk.Caption, color = Kijk.Secondary, maxLines = 2)
+        }
+    }
+}
+
+
+/** Inloggen bij GitHub (device flow) en de status van het delen. */
+@Composable
+fun GitHubSyncScreen(vm: AppViewModel, nav: Nav) {
+    vm.githubVersion.hashCode()
+    val gh = vm.github
+    val code = vm.githubCode
+    val first = remember { FocusRequester() }
+    LaunchedEffect(gh.connected, code == null) { delay(80); runCatching { first.requestFocus() } }
+    Row(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 20.dp, vertical = Kijk.SafeV)) {
+        Column(Modifier.weight(1f)) {
+            Label("Synchroniseren via GitHub", size = Kijk.LargeTitle, weight = Kijk.Bold)
+            Spacer(Modifier.height(6.dp))
+            Label("Je favorieten, kijkvoortgang, herinneringen en instellingen worden bewaard in je privé repository '${nl.kijk.tv.data.GitHubSync.REPO_NAME}'. " +
+                "Elke tv met Kijk die is ingelogd, blijft zo vanzelf gelijk.", size = Kijk.Body, color = Kijk.Secondary, maxLines = 4)
+            Spacer(Modifier.height(24.dp))
+            when {
+                gh.connected -> {
+                    Label("Ingelogd als ${gh.login}", size = Kijk.Headline, weight = Kijk.Semibold)
+                    Label(if (gh.lastSync > 0) "Laatst bijgewerkt om ${Format.time(gh.lastSync)}" else "Nog niet gesynchroniseerd", Modifier.padding(top = 4.dp), size = Kijk.Body, color = Kijk.Secondary)
+                    vm.githubStatus?.let { Label(it, Modifier.padding(top = 4.dp), size = Kijk.Body, color = if (it.startsWith("Fout")) Kijk.Live else Kijk.Secondary, maxLines = 2) }
+                    Spacer(Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        PillButton("Nu synchroniseren", Modifier.focusRequester(first)) { vm.githubSyncNow() }
+                        PillButton("Afmelden") { nav.confirm("Afmelden bij GitHub?", "Deze tv deelt dan niets meer. Je instellingen blijven op deze tv staan.", yes = "Afmelden") { vm.githubSignOut() } }
+                    }
+                }
+                code != null -> {
+                    Label("1. Scan de QR-code of ga op je telefoon naar", size = Kijk.Body, color = Kijk.Secondary)
+                    Label(code.uri.removePrefix("https://"), size = Kijk.Headline, weight = Kijk.Semibold)
+                    Spacer(Modifier.height(14.dp))
+                    Label("2. Vul deze code in", size = Kijk.Body, color = Kijk.Secondary)
+                    Label(code.userCode, size = 44.sp, weight = Kijk.Bold, color = Color.White)
+                    Spacer(Modifier.height(14.dp))
+                    Label("3. Kies 'Authorize'. Deze tv gaat dan vanzelf verder.", size = Kijk.Body, color = Kijk.Secondary)
+                    Spacer(Modifier.height(20.dp))
+                    PillButton("Annuleren", Modifier.focusRequester(first)) { vm.cancelGitHubLogin() }
+                }
+                else -> {
+                    vm.githubStatus?.let { Label(it, Modifier.padding(bottom = 12.dp), size = Kijk.Body, color = if ("mislukt" in it || "verlopen" in it) Kijk.Live else Kijk.Secondary, maxLines = 2) }
+                    PillButton("Inloggen met GitHub", Modifier.focusRequester(first)) { vm.startGitHubLogin() }
+                }
+            }
+        }
+        if (code != null && !gh.connected) {
+            Spacer(Modifier.width(40.dp))
+            Column(Modifier.width(300.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(Modifier.height(60.dp))
+                Box(Modifier.background(Color.White, RoundedCornerShape(16.dp)).padding(14.dp)) { QrCode(code.uri, Modifier.size(240.dp)) }
+                Label("Werkt tot ${Format.time(code.expiresAt)}", Modifier.padding(top = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)
+            }
         }
     }
 }

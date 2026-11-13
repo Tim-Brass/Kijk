@@ -146,6 +146,60 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------------------------------------------------------------- delen via GitHub
+    val github = nl.kijk.tv.data.GitHubSync(app, sync)
+    var githubCode by mutableStateOf<nl.kijk.tv.data.GitHubSync.DeviceCode?>(null); private set
+    var githubStatus by mutableStateOf<String?>(null); private set
+    var githubVersion by mutableStateOf(0); private set
+    private var githubLoginJob: Job? = null
+    private val githubMutex = Mutex()
+
+    fun startGitHubLogin() {
+        githubLoginJob?.cancel()
+        githubStatus = "Code ophalen…"; githubCode = null
+        githubLoginJob = viewModelScope.launch {
+            try {
+                val dc = withContext(Dispatchers.IO) { github.startLogin() }
+                githubCode = dc; githubStatus = null
+                var wait = dc.interval.coerceAtLeast(5) * 1000L
+                while (System.currentTimeMillis() < dc.expiresAt) {
+                    delay(wait)
+                    val done = try { withContext(Dispatchers.IO) { github.poll(dc) } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: java.net.SocketTimeoutException) { null }
+                    if (done == true) {
+                        githubCode = null; githubStatus = "Ingelogd als ${github.login}"; githubVersion++
+                        githubSyncNow(); return@launch
+                    }
+                }
+                githubCode = null; githubStatus = "De code is verlopen. Probeer het opnieuw."
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { githubCode = null; githubStatus = "Inloggen mislukt: ${e.message ?: e.javaClass.simpleName}" }
+        }
+    }
+    fun cancelGitHubLogin() { githubLoginJob?.cancel(); githubCode = null; githubStatus = null }
+    fun githubSignOut() { github.signOut(); githubStatus = "Afgemeld"; githubVersion++ }
+
+    fun githubSyncNow(quiet: Boolean = false) {
+        if (!github.connected) return
+        viewModelScope.launch {
+            if (!githubMutex.tryLock()) return@launch
+            try {
+                if (!quiet) githubStatus = "Synchroniseren…"
+                val ch = withContext(Dispatchers.IO) { github.syncOnce() }
+                if (ch.isNotEmpty()) { reloadFromStore(ch); if ("playlistUrl" in ch && configured) imports++ }
+                githubStatus = if (quiet) githubStatus?.takeIf { !it.startsWith("Fout") } else if (ch.isEmpty()) "Alles is gelijk" else "Bijgewerkt: ${ch.size} onderdelen"
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { githubStatus = "Fout: ${e.message ?: e.javaClass.simpleName}"
+            } finally { githubMutex.unlock(); githubVersion++ }
+        }
+    }
+
+    private fun startGitHubSync() {
+        viewModelScope.launch {
+            delay(5_000)
+            while (true) { githubSyncNow(quiet = true); delay(45_000) }
+        }
+    }
+
     private fun stopForPeer(name: String): Pair<String, Long>? {
         val p = playing ?: return null
         val r = p.first to (try { p.second() } catch (_: Exception) { 0L })
@@ -724,5 +778,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (configured) load(startup = true)
         startSync()
+        startGitHubSync()
     }
 }

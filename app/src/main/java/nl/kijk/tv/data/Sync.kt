@@ -149,6 +149,7 @@ class Sync(private val ctx: Context) {
         changed
     }
 
+    fun entries(): JSONObject = entriesJson()
     private fun entriesJson(): JSONObject = synchronized(lock) {
         val o = JSONObject()
         for ((k, m) in metaAll()) o.put(k, JSONArray().put(m.v).put(m.t))
