@@ -642,7 +642,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val tag = "v3:" + store.playlistUrl.hashCode()
             try {
                 val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
-                if (fresh && readIndex(f, tag) && movieIndex.isNotEmpty()) { vodIndexReady = true; baselineFavShows(); return@launch }
+                if (fresh && readIndex(f, tag) && movieIndex.isNotEmpty()) { vodIndexReady = true; baselineFavShows(); refreshReleaseDates(); return@launch }
                 vodIndexStatus = "Films ophalen voor zoeken…"
                 step(4) { it.copy(note = "Films ophalen") }
                 var m = runCatching { src.movies(null) }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; emptyList() }
@@ -663,6 +663,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 vodIndexReady = true; vodIndexStatus = null
                 baselineFavShows()
                 writeIndex(f, tag)
+                refreshReleaseDates()
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Throwable) {
                 if (f.exists() && readIndex(f, tag)) vodIndexReady = true   // oude index is beter dan niets
@@ -677,7 +678,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         tmp.bufferedWriter().use { w ->
             w.write("#$tag\n")
             movieIndex.forEach { w.write("m\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t${clean(it.url)}\t${clean(it.year)}\t${it.added ?: ""}\n") }
-            showIndex.forEach { w.write("s\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t\t${clean(it.year)}\t${it.updated ?: ""}\n") }
+            showIndex.forEach { w.write("s\t${clean(it.id)}\t${clean(it.name)}\t${clean(it.poster)}\t${clean(it.categoryId)}\t\t${clean(it.year)}\t${it.updated ?: ""}\t${clean(it.released)}\n") }
         }
         tmp.renameTo(f)
     }
@@ -691,12 +692,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (c.size < 7) continue
                 val poster = c[3].ifEmpty { null }; val year = c[6].ifEmpty { null }
                 if (c[0] == "m") m += Movie(c[1], c[2], poster, c[4], c[5], null, year, c.getOrNull(7)?.toLongOrNull())
-                else sh += Show(c[1], c[2], poster, c[4], null, null, year, c.getOrNull(7)?.toLongOrNull())
+                else sh += Show(c[1], c[2], poster, c[4], null, null, year, c.getOrNull(7)?.toLongOrNull(), c.getOrNull(8)?.ifEmpty { null })
             }
         }
         if (ok) { movieIndex = m; showIndex = sh }
         ok
     } catch (_: Exception) { false }
+
+    // ---------------------------------------------------------------- datum van uitkomen (voor "Nieuwste" op Thuis)
+    /** filmId → yyyy-MM-dd ("" = onbekend). Eén keer per dag aangevuld voor recente films; bewaard in een bestand. */
+    private val releaseDates = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val releaseFile get() = File(getApplication<Application>().filesDir, "release_dates.tsv")
+    var releaseVersion by mutableStateOf(0); private set
+    private var releaseJob: Job? = null
+
+    private fun refreshReleaseDates() {
+        if (releaseJob?.isActive == true) return
+        val src = vod ?: return
+        releaseJob = viewModelScope.launch(Dispatchers.IO) {
+            if (releaseDates.isEmpty() && releaseFile.exists()) runCatching {
+                releaseFile.forEachLine { l -> val i = l.indexOf('\t'); if (i > 0) releaseDates[l.substring(0, i)] = l.substring(i + 1) }
+                releaseVersion++
+            }
+            val sp = getApplication<Application>().getSharedPreferences("kijk_release", android.content.Context.MODE_PRIVATE)
+            if (System.currentTimeMillis() - sp.getLong("last", 0L) < 20 * HOUR) return@launch
+            // kandidaten: films van dit en vorig jaar + de laatst toegevoegde; alleen wat we nog niet weten
+            val thisYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            val recent = movieIndex.filter { (it.year?.take(4)?.toIntOrNull() ?: 0) >= thisYear - 1 } +
+                movieIndex.sortedByDescending { it.added ?: 0L }.take(300)
+            val todo = recent.distinctBy { it.id }.filter { it.id !in releaseDates }.take(400)
+            val sem = kotlinx.coroutines.sync.Semaphore(3)   // rustig aan voor de server
+            kotlinx.coroutines.coroutineScope {
+                todo.forEach { m ->
+                    launch {
+                        sem.acquire()
+                        try { releaseDates[m.id] = runCatching { src.movieInfo(m)?.released }.getOrNull()?.takeIf { it.length >= 10 } ?: "" }
+                        finally { sem.release() }
+                    }
+                }
+            }
+            runCatching { releaseFile.bufferedWriter().use { w -> releaseDates.forEach { (k, v) -> w.write("$k\t$v\n") } } }
+            sp.edit().putLong("last", System.currentTimeMillis()).apply()
+            releaseVersion++
+        }
+    }
 
     /** "Nieuw binnen" op Thuis: laatst toegevoegde films en series (zonder verborgen/vergrendelde). */
     suspend fun newestVod(limit: Int = 18): List<Any> {
@@ -712,9 +751,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val yearRx = Regex("""\((\d{4})\)""")
             fun yearOf(y: String?, name: String) = (y?.take(4)?.toIntOrNull() ?: yearRx.findAll(name).lastOrNull()?.groupValues?.get(1)?.toIntOrNull())
                 ?.takeIf { it in 1900..thisYear } ?: 0
-            data class C(val year: Int, val added: Long, val item: Any)
-            val all = ms.map { C(yearOf(it.year, it.name), it.added ?: 0L, it) } + ss.map { C(yearOf(it.year, it.name), it.updated ?: 0L, it) }
-            all.sortedWith(compareByDescending<C> { it.year }.thenByDescending { it.added }).take(limit).map { it.item }
+            // datum als getal yyyyMMdd; alleen een jaar bekend → midden in dat jaar
+            fun dateKey(d: String?, year: Int): Int {
+                val x = d?.takeIf { it.length >= 10 }?.let { (it.take(4) + it.substring(5, 7) + it.substring(8, 10)).toIntOrNull() }
+                val today = thisYear * 10000 + 1231
+                return x?.takeIf { it in 19000101..today } ?: if (year > 0) year * 10000 + 701 else 0
+            }
+            data class C(val date: Int, val added: Long, val item: Any)
+            val all = ms.map { C(dateKey(releaseDates[it.id], yearOf(it.year, it.name)), it.added ?: 0L, it) } +
+                ss.map { C(dateKey(it.released, yearOf(it.year, it.name)), it.updated ?: 0L, it) }
+            all.sortedWith(compareByDescending<C> { it.date }.thenByDescending { it.added }).take(limit).map { it.item }
         }
     }
 

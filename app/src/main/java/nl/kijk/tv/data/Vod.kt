@@ -102,6 +102,7 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
             backdrop = backdrop ?: info.str("movie_image"), year = info.str("releasedate")?.take(4),
             tmdb = info.firstOf("tmdb_id", "tmdb"), imdb = info.str("imdb_id"),
             poster = info.firstOf("cover_big", "movie_image"),
+            released = info.firstOf("releasedate", "release_date")?.take(10),
         )
     }
 
@@ -112,7 +113,8 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
         stream("get_series", if (cat != null) "&category_id=${enc(cat)}" else "", keys) { o ->
             out += Show(o.s("series_id") ?: return@stream, o.s("name") ?: "Serie", o.s("cover"), cat ?: o.s("category_id") ?: "",
                 o.s("plot"), o.s("rating")?.takeIf { it != "0" }, (o.s("releaseDate") ?: o.s("release_date"))?.take(4),
-                o.s("last_modified")?.toLongOrNull()?.let { it * 1000 })
+                o.s("last_modified")?.toLongOrNull()?.let { it * 1000 },
+                (o.s("releaseDate") ?: o.s("release_date"))?.takeIf { it.length >= 10 }?.take(10))
         }
         return out
     }

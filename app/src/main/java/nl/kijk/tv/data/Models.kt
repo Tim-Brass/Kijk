@@ -50,12 +50,14 @@ data class MovieInfo(
     val plot: String?, val genre: String?, val duration: String?, val cast: String?,
     val director: String?, val backdrop: String?, val year: String?, val tmdb: String?, val imdb: String?,
     val poster: String? = null,
+    val released: String? = null,   // datum van uitkomen (yyyy-MM-dd), als de server die weet
 )
 
 data class Show(
     val id: String, val name: String, val poster: String?, val categoryId: String,
     val plot: String?, val rating: String?, val year: String?,
     val updated: Long? = null,   // laatst gewijzigd volgens de server (nieuwe afleveringen)
+    val released: String? = null, // datum van uitkomen (yyyy-MM-dd), als de lijst die geeft
 )
 
 data class Episode(

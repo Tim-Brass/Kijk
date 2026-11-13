@@ -84,7 +84,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
     LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
 
     val favs = remember(vm.channels, vm.favorites) { vm.channels.filter { it.key in vm.favorites } }
-    val newest by produceState<List<Any>>(emptyList(), vm.vodIndexReady, vm.unlocked) { value = vm.newestVod() }
+    val newest by produceState<List<Any>>(emptyList(), vm.vodIndexReady, vm.unlocked, vm.releaseVersion) { value = vm.newestVod() }
 
     // achtergrond: titel waar je op staat (na even wachten), anders de nieuwste
     var focusItem by remember { mutableStateOf<Any?>(null) }
