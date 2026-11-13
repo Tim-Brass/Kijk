@@ -127,7 +127,10 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         if (overlay == null && (hs.tab == TAB_HOME || hs.tab == TAB_FILMS || hs.tab == TAB_SERIES)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
-            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
+            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline()) {
+            // voortgang en meldingen klein rechtsboven in de lege rand van de menubalk (neemt geen ruimte in)
+            MenuStatus(vm.progress, vm.error ?: vm.status, vm.error != null, Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = Kijk.SafeH))
+            Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
                         val m = Modifier.focusRequester(tabFocus[i])
@@ -139,12 +142,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         }
                     }
                 }
-                Row(Modifier.align(Alignment.BottomStart).padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MenuLogo(still = false, height = 36.dp)
-                    Spacer(Modifier.width(14.dp))
-                    // voortgang en meldingen klein in de menubalk, i.p.v. een eigen strook
-                    MenuStatus(vm.progress, vm.error ?: vm.status, vm.error != null)
-                }
+                MenuLogo(still = false, modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 6.dp), height = 36.dp)
                 Row(Modifier.align(Alignment.BottomEnd), verticalAlignment = Alignment.CenterVertically) {
                     vm.update?.let { u ->
                         SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
@@ -161,6 +159,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         }
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
+            }
             }
             Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(12.dp))
