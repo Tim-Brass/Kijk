@@ -130,7 +130,7 @@ private fun KijkApp(vm: AppViewModel) {
         onDispose { PhoneServer.stop(receiver) }
     }
     // Instellingen ontvangen: van het instelscherm door naar Home.
-    LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && (nav.top is Screen.Setup || nav.top is Screen.SyncPair)) nav.replaceAll(Screen.Home) }
+    LaunchedEffect(vm.imports) { if (vm.imports > 0 && vm.configured && (nav.top is Screen.Setup || nav.top is Screen.SyncPair || (nav.top is Screen.GitHub && nav.stack.firstOrNull() is Screen.Setup))) nav.replaceAll(Screen.Home) }
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(8_000); vm.checkUpdate() }
     LaunchedEffect(vm.notice) { if (vm.notice != null) { kotlinx.coroutines.delay(5000); vm.notice = null } }
 
@@ -161,7 +161,7 @@ private fun KijkApp(vm: AppViewModel) {
         when (screen) {
             Screen.Setup -> {
                 if (vm.configured) BackHandler { nav.replaceAll(Screen.Home) }
-                SetupScreen(vm, onPair = { nav.push(Screen.SyncPair) }, onDone = { nav.replaceAll(Screen.Home) })
+                SetupScreen(vm, onPair = { nav.push(Screen.SyncPair) }, onGitHub = { nav.push(Screen.GitHub) }, onDone = { nav.replaceAll(Screen.Home) })
             }
             Screen.Home -> HomeScreen(vm, nav)
             is Screen.Live -> LivePlayer(vm, nav, screen.list, screen.index)
