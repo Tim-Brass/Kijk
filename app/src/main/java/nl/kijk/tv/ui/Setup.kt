@@ -201,7 +201,8 @@ fun SearchTab(vm: AppViewModel, nav: Nav) {
                 val list: List<Any>? = vodRes?.let { if (kind == 0) it.first else it.second }
                 when {
                     list == null -> EmptyState(if (waitingVod) "Even geduld…" else "Zoeken…", "Bij de eerste keer zoeken haalt Kijk de lijst met films en series op; dat kan even duren.")
-                    list.isEmpty() -> EmptyState("Geen ${kinds[kind].lowercase()} gevonden voor \"${q.trim()}\"")
+                    list.isEmpty() -> EmptyState("Geen ${kinds[kind].lowercase()} gevonden voor \"${q.trim()}\"",
+                        "De zoeklijst bevat ${vm.movieIndex.size} films en ${vm.showIndex.size} series.")
                     else -> Column {
                         Label("${list.size}${if (list.size >= 60) "+" else ""} ${if (kind == 0) (if (list.size == 1) "film" else "films") else (if (list.size == 1) "serie" else "series")} gevonden", Modifier.padding(start = 8.dp), size = Kijk.Caption, color = Kijk.Secondary)
                         androidx.compose.foundation.lazy.grid.LazyVerticalGrid(

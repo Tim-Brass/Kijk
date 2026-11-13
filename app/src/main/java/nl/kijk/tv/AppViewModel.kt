@@ -629,8 +629,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- zoekindex voor films en series: één keer per dag ophalen en op de tv bewaren, zodat zoeken direct gaat
     var vodIndexReady by mutableStateOf(false); private set
     var vodIndexStatus by mutableStateOf<String?>(null); private set
-    private var movieIndex: List<Movie> = emptyList()
-    private var showIndex: List<Show> = emptyList()
+    var movieIndex: List<Movie> = emptyList(); private set
+    var showIndex: List<Show> = emptyList(); private set
     private var indexJob: kotlinx.coroutines.Job? = null
     private val indexFile get() = File(getApplication<Application>().filesDir, "vod_index.tsv")
 
@@ -642,10 +642,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val tag = "v3:" + store.playlistUrl.hashCode()
             try {
                 val fresh = !force && f.exists() && System.currentTimeMillis() - f.lastModified() < DAY
-                if (fresh && readIndex(f, tag)) { vodIndexReady = true; baselineFavShows(); return@launch }
+                if (fresh && readIndex(f, tag) && movieIndex.isNotEmpty()) { vodIndexReady = true; baselineFavShows(); return@launch }
                 vodIndexStatus = "Films ophalen voor zoeken…"
                 step(4) { it.copy(note = "Films ophalen") }
-                val m = src.movies(null)
+                var m = runCatching { src.movies(null) }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; emptyList() }
+                // sommige servers geven de complete lijst niet in één keer: dan per categorie ophalen
+                if (m.isEmpty()) {
+                    val cats = runCatching { src.movieCategories() }.getOrDefault(emptyList())
+                    val all = ArrayList<Movie>()
+                    cats.forEachIndexed { i, c ->
+                        vodIndexStatus = "Films ophalen voor zoeken (${i + 1}/${cats.size})…"
+                        runCatching { src.movies(c.id) }.onSuccess { all += it }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    }
+                    m = all
+                }
                 vodIndexStatus = "Series ophalen voor zoeken…"
                 step(4) { it.copy(note = "Series ophalen") }
                 val sh = src.shows(null)
