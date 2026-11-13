@@ -78,14 +78,15 @@ class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit
 
 @Composable
 fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
-    val hs = remember { HomeState(TAB_HOME) }   // Kijk opent altijd op Thuis
+    // Kijk opent altijd op Thuis; het menu over een zender opent op het laatst gekozen tabblad (Thuis → Live)
+    val hs = remember { HomeState(if (overlay == null) TAB_HOME else vm.store.lastTab.coerceIn(0, TABS.lastIndex).takeIf { it != TAB_HOME } ?: TAB_LIVE) }
     val tabFocus = remember { List(TABS.size) { FocusRequester() } }
     var digits by remember { mutableStateOf("") }
     // over een zender: de gids pakt zelf de selectie (op de huidige zender)
     LaunchedEffect(Unit) { runCatching { tabFocus[hs.tab].requestFocus() } }
     // menu over een zender: alleen bij het openen pakt de gids de selectie; daarna blijft die op de tabbalk
     var guideGrabsFocus by remember { mutableStateOf(false) }
-    fun pick(i: Int) { hs.tab = i; guideGrabsFocus = false; if (overlay == null) vm.store.lastTab = i }
+    fun pick(i: Int) { hs.tab = i; guideGrabsFocus = false; vm.store.lastTab = i }
     LaunchedEffect(digits) {
         if (digits.isEmpty()) return@LaunchedEffect
         delay(if (digits.length >= 4) 300 else 1500)
