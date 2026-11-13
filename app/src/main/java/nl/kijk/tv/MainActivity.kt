@@ -74,7 +74,7 @@ class KijkApplication : android.app.Application(), coil.ImageLoaderFactory {
 }
 
 class MainActivity : ComponentActivity() {
-    private val vm: AppViewModel by androidx.activity.viewModels()
+    private val vm: AppViewModel by lazy { androidx.lifecycle.ViewModelProvider(this)[AppViewModel::class.java] }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { KijkTheme { KijkApp(vm) } }
