@@ -680,7 +680,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     } catch (_: Exception) { false }
 
     /** "Nieuw binnen" op Thuis: laatst toegevoegde films en series (zonder verborgen/vergrendelde). */
-    suspend fun newestVod(limit: Int = 18): List<Any> {
+    suspend fun newestVod(limit: Int = 18, moviesOnly: Boolean = false): List<Any> {
         if (!vodIndexReady) return emptyList()
         val mCats = (try { movieCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
         val sCats = (try { showCategories() } catch (_: Exception) { emptyList() }).associate { it.id to it.name }
@@ -692,7 +692,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 else ms.takeLast(limit).reversed().mapIndexed { i, m -> (Long.MAX_VALUE - i * 2) to m }
             val sTop: List<Pair<Long, Any>> = if (ss.any { it.updated != null }) ss.sortedByDescending { it.updated ?: 0 }.take(limit).map { (it.updated ?: 0L) to it }
                 else ss.takeLast(limit).reversed().mapIndexed { i, x -> (Long.MAX_VALUE - i * 2 - 1) to x }
-            (mTop + sTop).sortedByDescending { it.first }.take(limit).map { it.second }
+            (if (moviesOnly) mTop else mTop + sTop).sortedByDescending { it.first }.take(limit).map { it.second }
         }
     }
 
