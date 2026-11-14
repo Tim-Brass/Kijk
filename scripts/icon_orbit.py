@@ -27,8 +27,7 @@ def icon(v,size):
     cx,cy,rx,ry=W/2,W*0.52,W*0.40,W*0.17
     dim=(31,58,138,255) if v in "AC" else (255,255,255,90)
     br=(47,107,255,255) if v in "AC" else (255,255,255,255)
-    od.ellipse([cx-rx,cy-ry,cx+rx,cy+ry],outline=dim,width=int(W*0.014))
-    od.arc([cx-rx,cy-ry,cx+rx,cy+ry],300,35,fill=br,width=int(W*0.03))
+    od.ellipse([cx-rx,cy-ry,cx+rx,cy+ry],outline=br,width=int(W*0.022))   # overal even dik
     orb=orb.rotate(14,center=(cx,cy),resample=Image.BICUBIC)
     im.alpha_composite(orb); d=ImageDraw.Draw(im)
     ew,eh,gap=W*0.13,W*0.165,W*0.025

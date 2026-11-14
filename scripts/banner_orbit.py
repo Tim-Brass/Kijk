@@ -34,9 +34,7 @@ img = Image.new("RGBA", (W, H), (0, 0, 0, 255))
 # baan: schuine ellips, gedimd, met een helder stuk
 orb = Image.new("RGBA", (W, H), (0, 0, 0, 0)); od = ImageDraw.Draw(orb)
 cx, cy, rx, ry = W / 2, H * 0.47, W * 0.40, H * 0.24
-od.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], outline=(31, 58, 138, 255), width=5)
-od.arc([cx - rx, cy - ry, cx + rx, cy + ry], 300, 30, fill=(47, 107, 255, 255), width=11)
-od.arc([cx - rx, cy - ry, cx + rx, cy + ry], 140, 175, fill=(47, 107, 255, 255), width=9)
+od.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], outline=(47, 107, 255, 200), width=8)   # overal even dik
 orb = orb.rotate(8, center=(cx, cy), resample=Image.BICUBIC)
 img.alpha_composite(orb)
 d = ImageDraw.Draw(img)
@@ -44,14 +42,15 @@ d = ImageDraw.Draw(img)
 def tile(x, y, s, kind):
     d.rounded_rectangle([x, y, x + s, y + s], radius=s * 0.24, fill=(15, 22, 38, 255), outline=(29, 42, 68, 255), width=4)
     c = (91, 140, 255, 255); w = int(s * 0.06)
-    if kind == "tv":
-        d.rounded_rectangle([x + s * .22, y + s * .26, x + s * .78, y + s * .64], radius=s * .05, outline=c, width=w)
-        d.line([x + s * .5, y + s * .64, x + s * .5, y + s * .73], fill=c, width=w)
-        d.line([x + s * .38, y + s * .75, x + s * .62, y + s * .75], fill=c, width=w)
+    if kind == "klapper":
+        d.rounded_rectangle([x + s * .24, y + s * .42, x + s * .76, y + s * .74], radius=s * .04, outline=c, width=w)
+        d.polygon([(x + s * .24, y + s * .40), (x + s * .72, y + s * .27), (x + s * .75, y + s * .36), (x + s * .27, y + s * .49)], outline=c, width=w)
+        for k in range(3):
+            xx = x + s * (0.36 + 0.12 * k); d.line([xx, y + s * (0.43 - 0.03 * k), xx + s * .05, y + s * (0.33 - 0.03 * k)], fill=c, width=int(w * .8))
     else:
         d.polygon([(x + s * .38, y + s * .28), (x + s * .38, y + s * .72), (x + s * .74, y + s * .5)], fill=c)
 
-tile(W * 0.07, H * 0.20, 150, "tv")
+tile(W * 0.07, H * 0.20, 150, "klapper")
 tile(W * 0.83, H * 0.56, 150, "play")
 # woordmerk met open oogjes
 fs = 300; wm, eyes = wordmark(fs)
