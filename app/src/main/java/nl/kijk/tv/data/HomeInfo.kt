@@ -9,7 +9,7 @@ enum class Sky { Clear, Partly, Cloudy, Fog, Rain, Snow, Storm }
 
 data class WeatherDay(val date: String, val sky: Sky, val max: Int, val min: Int)
 data class Weather(val temp: Int, val sky: Sky, val text: String, val isDay: Boolean, val days: List<WeatherDay>, val fetched: Long)
-data class News(val headlines: List<String>, val fetched: Long)
+data class News(val headlines: List<String>, val fetched: Long, val logo: String? = null)
 
 /** Weer (Open-Meteo, gratis en zonder sleutel) en nieuwskoppen (NOS) voor de Thuis-pagina. */
 object HomeInfo {
@@ -35,18 +35,27 @@ object HomeInfo {
 
     fun news(): News {
         val titles = ArrayList<String>()
+        var logo: String? = null
         Net.open("https://feeds.nos.nl/nosnieuwsalgemeen").use { input ->
             val p = Xml.newPullParser()
             p.setInput(input, null)
-            var inItem = false
+            var inItem = false; var inImage = false
             while (p.next() != XmlPullParser.END_DOCUMENT && titles.size < 12) {
                 if (p.eventType == XmlPullParser.START_TAG) {
-                    if (p.name == "item") inItem = true
-                    else if (inItem && p.name == "title") p.nextText().trim().takeIf { it.isNotEmpty() }?.let { titles += it }
-                } else if (p.eventType == XmlPullParser.END_TAG && p.name == "item") inItem = false
+                    when {
+                        p.name == "item" -> inItem = true
+                        // het logo van de nieuwsbron zelf (kanaalafbeelding in de feed)
+                        !inItem && p.name == "image" -> inImage = true
+                        inImage && p.name == "url" -> logo = p.nextText().trim().ifEmpty { null }
+                        inItem && p.name == "title" -> p.nextText().trim().takeIf { it.isNotEmpty() }?.let { titles += it }
+                    }
+                } else if (p.eventType == XmlPullParser.END_TAG) {
+                    if (p.name == "item") inItem = false
+                    if (p.name == "image") inImage = false
+                }
             }
         }
-        return News(titles, System.currentTimeMillis())
+        return News(titles, System.currentTimeMillis(), logo)
     }
 
     // WMO-weercodes

@@ -330,7 +330,10 @@ fun NewsTicker(vm: AppViewModel) {
         Modifier.fillMaxWidth().height(34.dp).background(Color(0xFF141419)).drawTopLine(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Label("NOS", Modifier.padding(start = Kijk.SafeH), size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
+        // logo van de NOS uit de nieuwsfeed zelf; lukt dat niet, dan de tekst
+        Box(Modifier.padding(start = Kijk.SafeH)) {
+            LogoOr(news.logo, Modifier.height(20.dp).width(44.dp)) { Label("NOS", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White) }
+        }
         Label(Format.time(news.fetched), Modifier.padding(start = 6.dp, end = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)
         Canvas(Modifier.weight(1f).fillMaxHeight().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
             val gap = 18.dp.toPx(); val eyeW = 22.dp.toPx()
