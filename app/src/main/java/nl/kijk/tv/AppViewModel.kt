@@ -763,7 +763,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         sportsJob = viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching { sports.f1() }.getOrNull()?.let { f1 = it }
-                runCatching { sports.psv() }.getOrNull()?.let { psvMatch = it }
+                runCatching { sports.nextMatch() }.getOrNull()?.let { psvMatch = it }
             }
             sportsAt = System.currentTimeMillis()
             findSportOnTv()
@@ -778,7 +778,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val next = w.sessions.firstOrNull { it.start + 2 * HOUR > now }
                 f1Tv = next?.let { s -> findOnTv(listOf("formule 1", "formula 1", "grand prix", "f1"), s.start) }
             }
-            psvMatch?.let { m -> psvTv = findOnTv(listOf("psv"), m.start) }
+            psvMatch?.let { m -> psvTv = findOnTv(if (m.team == "PSV") listOf("psv") else listOf("nederland", "oranje"), m.start) }
         }
     }
 

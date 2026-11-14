@@ -22,6 +22,8 @@ data class F1Weekend(
 data class Match(
     val competition: String, val home: String, val away: String, val homeLogo: String?, val awayLogo: String?,
     val start: Long, val venue: String?, val psvHome: Boolean,
+    /** "PSV" of "Oranje" (voor het zoeken in de gids) */
+    val team: String = "PSV",
 )
 
 /**
@@ -95,13 +97,20 @@ class Sports(private val dir: File) {
     }
 
     // ---------------------------------------------------------------- PSV
-    fun psv(now: Long = System.currentTimeMillis()): Match? {
-        val leagues = listOf("ned.1" to "Eredivisie", "uefa.champions" to "Champions League", "uefa.europa" to "Europa League",
-            "uefa.europa.conf" to "Conference League", "ned.cup" to "KNVB Beker")
+    /** Eerstvolgende wedstrijd van PSV of het Nederlands elftal (mannen), welke het eerst is. */
+    fun nextMatch(now: Long = System.currentTimeMillis()): Match? {
+        val psv = team("148", "PSV", now, listOf("ned.1" to "Eredivisie", "uefa.champions" to "Champions League", "uefa.europa" to "Europa League",
+            "uefa.europa.conf" to "Conference League", "ned.cup" to "KNVB Beker"))
+        val oranje = team("449", "Oranje", now, listOf("uefa.nations" to "Nations League", "fifa.worldq.uefa" to "WK-kwalificatie",
+            "fifa.world" to "WK", "uefa.euroq" to "EK-kwalificatie", "uefa.euro" to "EK", "fifa.friendly" to "Oefenwedstrijd"))
+        return listOfNotNull(psv, oranje).minByOrNull { it.start }
+    }
+
+    private fun team(id: String, team: String, now: Long, leagues: List<Pair<String, String>>): Match? {
         var best: Match? = null
         for ((slug, label) in leagues) {
             val events = runCatching {
-                JSONObject(get("https://site.api.espn.com/apis/site/v2/sports/soccer/$slug/teams/148/schedule?fixture=true") ?: return@runCatching null)
+                JSONObject(get("https://site.api.espn.com/apis/site/v2/sports/soccer/$slug/teams/$id/schedule?fixture=true") ?: return@runCatching null)
                     .optJSONArray("events")
             }.getOrNull() ?: continue
             for (i in 0 until events.length()) {
@@ -116,9 +125,9 @@ class Sports(private val dir: File) {
                 if (home == null || away == null) continue
                 fun name(c: JSONObject) = c.optJSONObject("team")?.let { it.optString("shortDisplayName").ifEmpty { it.optString("displayName") } } ?: "?"
                 fun logo(c: JSONObject) = c.optJSONObject("team")?.let { t -> t.optJSONArray("logos")?.optJSONObject(0)?.optString("href")?.ifEmpty { null } ?: t.optString("logo").ifEmpty { null } }
-                val psvHome = home.optJSONObject("team")?.optString("id") == "148"
+                val ourHome = home.optJSONObject("team")?.optString("id") == id
                 best = Match(label, name(home), name(away), logo(home), logo(away), start,
-                    comp.optJSONObject("venue")?.optString("fullName")?.ifEmpty { null }, psvHome)
+                    comp.optJSONObject("venue")?.optString("fullName")?.ifEmpty { null }, ourHome, team)
             }
         }
         return best
