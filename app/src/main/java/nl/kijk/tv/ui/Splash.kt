@@ -7,19 +7,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,185 +32,163 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.delay
 import nl.kijk.tv.AppViewModel
 import kotlin.math.PI
-import kotlin.math.exp
+import kotlin.math.cos
 import kotlin.math.sin
 
-/** Grappige omschrijving per laadstap (zelfde volgorde als vm.steps). */
-private val FUN_LABELS = listOf(
-    "Playlist uitgerold als een rode loper",
-    "Zenders tellen (en nog een keer, voor de zekerheid)",
-    "Terugspoelknop aan het oliën",
-    "Gids lezen, ook de kleine lettertjes…",
-    "Popcorn poffen voor films en series",
-)
-private const val DONE_TEXT = "De kat van de bank af gepraat. Daar gaan we!"
+private val OrbitDim = Color(0xFF1F3A8A)
+private val OrbitBright = Color(0xFF2F6BFF)
+private val TileBg = Color(0xFF0F1626)
+private val TileLine = Color(0xFF1D2A44)
+private val IconBlue = Color(0xFF5B8CFF)
 
-private val Carpet = listOf(Color(0xFFC9184A), Color(0xFFFF4D6D))
-private val Gold = Color(0xFFD4A017)
-private val Popcorn = Color(0xFFFFF3C4)
+/** Wat Kijk aan het doen is, per stap (zelfde volgorde als vm.steps). */
+private val DOING = listOf("Playlist laden", "Zenders laden", "Terugkijken controleren", "Gids laden", "Films en series laden")
 
 /**
- * Laadscherm (concept C): zwart, logo met oogjes, één centrale balk die per stap een ander effect heeft.
- * Alles wordt in één Canvas getekend met één frameklok: geen hercompositie per frame.
+ * Laadscherm: zwart, het kijk-logo met oogjes in het midden, vier iconen die langzaam rond het logo
+ * vliegen over een blauwe baan, en onderaan gewoon wat Kijk doet met één dun voortgangsbalkje.
+ * Eén frameklok; de iconen en de baan worden in twee Canvassen getekend (achter en voor het logo).
  */
 @Composable
 fun SplashScreen(vm: AppViewModel) {
     val focus = remember { FocusRequester() }
     var canSkip by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() }; delay(20_000); canSkip = true }
+    val frame = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
+    val start = remember { System.nanoTime() }
 
     val steps = vm.steps
     val done = steps.all { it.state >= 2 }
-    val failedStep = steps.firstOrNull { it.state == 4 }
-    val cur = if (done) steps.size else steps.indexOfFirst { it.state == 1 }.takeIf { it >= 0 } ?: steps.indexOfFirst { it.state == 0 }.coerceAtLeast(0)
-
-    // frameklok (alleen gelezen tijdens het tekenen)
-    val frame = remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
-    // begin van de huidige stap, voor het "kruipen" als de echte voortgang onbekend is
-    val stepStart = remember(cur) { System.nanoTime() }
-
-    val stepFrac: () -> Float = {
-        val s = steps.getOrNull(cur)
+    val failed = steps.firstOrNull { it.state == 4 }
+    val cur = steps.indexOfFirst { it.state == 1 }.takeIf { it >= 0 } ?: steps.indexOfFirst { it.state == 0 }.takeIf { it >= 0 } ?: steps.lastIndex
+    val prog = steps.sumOf { s ->
         when {
-            s == null -> 1f
-            s.state >= 2 -> 1f
-            s.state == 1 && s.total > 0 -> (s.done.toFloat() / s.total).coerceIn(0f, 1f)
-            else -> { val t = (System.nanoTime() - stepStart) / 1e9f; 0.85f * (1f - exp(-t / 5f)) }   // onbekend: rustig oplopen
+            s.state >= 2 -> 1.0
+            s.state == 1 && s.total > 0 -> 0.15 + 0.8 * (s.done.toDouble() / s.total).coerceIn(0.0, 1.0)
+            s.state == 1 -> 0.4
+            else -> 0.0
         }
-    }
-    val doneBefore = steps.count { it.state >= 2 }.coerceAtMost(cur)
-    val shownTarget = if (done) 1f else doneBefore.toFloat() / steps.size
-    val base by animateFloatAsState(shownTarget, tween(400), label = "base")
-
-    val tm = rememberTextMeasurer()
-    val chipStyle = TextStyle(color = Color(0xFFD1D1D6), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-    val pctStyle = TextStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-    val chips = remember { (1..24).map { tm.measure(it.toString(), chipStyle) } }
-    val pctCache = remember { HashMap<Int, TextLayoutResult>() }
+    }.toFloat() / steps.size.coerceAtLeast(1)
+    val shown by animateFloatAsState(if (done) 1f else prog, tween(450), label = "prog")
 
     Box(
-        Modifier.fillMaxSize().background(Kijk.Background).focusRequester(focus)
+        Modifier.fillMaxSize().background(Color.Black).focusRequester(focus)
             .onKeyEvent { e ->
                 if (canSkip && e.type == KeyEventType.KeyDown && (e.key == Key.DirectionCenter || e.key == Key.Enter)) { vm.finishStartup(); true } else false
             }.focusable(),
-        contentAlignment = Alignment.Center,
     ) {
-        Column(Modifier.width(620.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            EyesLogo(done = done, marks = true, modifier = Modifier.height(100.dp))
-            Spacer(Modifier.height(28.dp))
-
-            // ---- de dynamische balk (met ruimte erboven voor zenders, percentage en popcorn)
-            Canvas(Modifier.width(470.dp).height(52.dp)) {
-                val now = frame.longValue
-                val t = (now - stepStart) / 1e9f
-                val barH = 8.dp.toPx(); val y = size.height - barH; val r = CornerRadius(barH / 2)
-                val w = size.width
-                val n = steps.size.toFloat()
-                val segStart = base * w
-                val end = if (done) w else (base + stepFrac() / n) * w
-                drawRoundRect(Color(0x1FFFFFFF), Offset(0f, y), Size(w, barH), r)
-                if (end > 0f) drawRoundRect(Kijk.Accent, Offset(0f, y), Size(end, barH), r)
-                if (done || failedStep != null) return@Canvas
-                when (cur) {
-                    0 -> {   // rode loper rolt uit
-                        val cw = (end - segStart).coerceAtLeast(0f)
-                        if (cw > 0f) drawRoundRect(Brush.horizontalGradient(Carpet, startX = segStart, endX = end), Offset(segStart, y), Size(cw, barH), r)
-                        drawCircle(Carpet[1], barH * 0.95f, Offset(end, y + barH / 2))
-                        drawCircle(Carpet[0], barH * 0.95f, Offset(end, y + barH / 2), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-                    }
-                    1 -> {   // zenders flitsen voorbij
-                        val cwPx = 34.dp.toPx(); val chH = 22.dp.toPx(); val gap = 10.dp.toPx(); val step = cwPx + gap
-                        val total = step * chips.size
-                        val shift = (t * 150.dp.toPx()) % total
-                        val fade = 50.dp.toPx()
-                        chips.forEachIndexed { i, tl ->
-                            var x = i * step - shift; if (x < -cwPx) x += total
-                            if (x > w) return@forEachIndexed
-                            val a = minOf(1f, (x + cwPx) / fade, (w - x) / fade).coerceIn(0f, 1f)
-                            drawRoundRect(Color(0x24FFFFFF), Offset(x, 0f), Size(cwPx, chH), CornerRadius(5.dp.toPx()), alpha = a)
-                            drawText(tl, topLeft = Offset(x + (cwPx - tl.size.width) / 2, (chH - tl.size.height) / 2), alpha = a)
-                        }
-                    }
-                    2 -> {   // vloeibare goud/blauwe glans
-                        val period = 120.dp.toPx(); val off = (t * 90.dp.toPx()) % period
-                        drawRoundRect(
-                            Brush.linearGradient(listOf(Kijk.Accent, Gold, Kijk.Accent), start = Offset(-off, 0f), end = Offset(period - off, 0f), tileMode = TileMode.Repeated),
-                            Offset(0f, y), Size(end, barH), r,
-                        )
-                    }
-                    3 -> {   // percentage loopt mee
-                        val s = steps.getOrNull(3)
-                        if (s != null && s.total > 0) {
-                            val pc = (s.done * 100 / s.total).toInt().coerceIn(0, 100)
-                            val tl = pctCache.getOrPut(pc) { tm.measure("$pc%", pctStyle) }
-                            val x = (end - tl.size.width / 2f).coerceIn(0f, w - tl.size.width)
-                            drawText(tl, topLeft = Offset(x, y - tl.size.height - 6.dp.toPx()))
-                        }
-                    }
-                    4 -> {   // popcorn popt op uit de balk
-                        val span = (end - segStart).coerceAtLeast(12.dp.toPx())
-                        for (k in 0 until 7) {
-                            val period = 0.9f; val ph = t / period + k / 7f
-                            val cycle = ph.toInt(); val a = ph - cycle
-                            val rnd = ((cycle * 7 + k) * 2654435761L).toInt().ushr(8) / 16777216f
-                            val rnd2 = ((cycle * 13 + k * 3) * 40503L).toInt().ushr(8) % 1000 / 1000f
-                            val x = segStart + rnd * span + (rnd2 - 0.5f) * 24.dp.toPx() * a
-                            val yy = y + barH / 2 - 30.dp.toPx() * sin(a * PI.toFloat())
-                            val rr = 3.5.dp.toPx() * (0.6f + 0.6f * sin(a * PI.toFloat()))
-                            drawCircle(Popcorn, rr, Offset(x, yy), alpha = 1f - a * 0.6f)
-                        }
-                    }
-                }
+        // achterste helft van de baan en de iconen die achter het logo langs gaan
+        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = false) }
+        // logo
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            EyesLogo(done = done, modifier = Modifier.offset(y = (-54).dp).height(118.dp))   // midden van de baan (40% hoogte)
+        }
+        // voorste helft: iconen die vóór het logo langs gaan
+        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = true) }
+        // status
+        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 92.dp).width(520.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            val title = when {
+                failed != null -> "${failed.label}: ${failed.note ?: "niet gelukt"}"
+                done -> "Klaar"
+                else -> DOING.getOrElse(cur) { steps.getOrNull(cur)?.label ?: "" }
             }
-
-            Spacer(Modifier.height(22.dp))
-            val label = when {
-                failedStep != null -> "${failedStep.label}: ${failedStep.note ?: "niet gelukt"}"
-                done -> DONE_TEXT
-                else -> FUN_LABELS.getOrElse(cur) { steps.getOrNull(cur)?.label ?: "" }
+            Label(title, size = 20.sp, weight = Kijk.Semibold, color = if (failed != null) Color(0xFFFF6961) else Color.White, maxLines = 2)
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.width(180.dp).height(4.dp).background(Color(0xFF1C2335), RoundedCornerShape(50))) {
+                Box(Modifier.fillMaxWidth(shown.coerceIn(0f, 1f)).height(4.dp).background(Kijk.Accent, RoundedCornerShape(50)))
             }
-            Label(label, size = 20.sp, weight = Kijk.Semibold, color = Color.White)
+            Spacer(Modifier.height(8.dp))
+            val note = if (done || failed != null) " " else steps.getOrNull(cur)?.let { s ->
+                s.note ?: if (s.state == 1 && s.total > 0) "${(s.done * 100 / s.total).coerceIn(0, 100)}%" else null
+            } ?: " "
+            Label(note, size = Kijk.Caption, color = Kijk.Secondary, maxLines = 1)
             Spacer(Modifier.height(6.dp))
-            val note = steps.getOrNull(cur)?.note?.takeIf { !done && failedStep == null } ?: " "
-            Label(note, size = Kijk.Caption, color = Kijk.Secondary)
-            Spacer(Modifier.height(18.dp))
-            // bolletjes: waar zijn we?
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                steps.indices.forEach { i ->
-                    val isCur = i == cur && !done
-                    Box(
-                        Modifier.width(if (isCur) 18.dp else 7.dp).height(7.dp)
-                            .background(
-                                when { isCur -> Kijk.Accent; i < cur || done -> Color.White; else -> Color(0x33FFFFFF) },
-                                RoundedCornerShape(50),
-                            ),
-                    )
-                }
-            }
-            Spacer(Modifier.height(18.dp))
             Label(if (canSkip) "Druk op OK om alvast te beginnen" else " ", size = Kijk.Caption, color = Kijk.Secondary)
+        }
+    }
+}
+
+/** De baan (schuine ellips) met vier iconen-tegels. front = alleen wat vóór het logo ligt. */
+private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boolean) {
+    val t = ((frame.longValue - start).coerceAtLeast(0L)) / 1e9f
+    val cx = size.width / 2f; val cy = size.height * 0.40f
+    val rx = size.width * 0.30f; val ry = size.height * 0.16f
+    val tilt = -8f
+    val oval = Rect(Offset(cx - rx, cy - ry), Size(rx * 2, ry * 2))
+    rotate(tilt, Offset(cx, cy)) {
+        if (!front) {
+            drawOval(OrbitDim, oval.topLeft, oval.size, style = Stroke(1.5.dp.toPx()))
+            // een helder stuk dat langzaam meedraait
+            drawArc(OrbitBright, (t * 20f) % 360f, 70f, false, oval.topLeft, oval.size, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+        }
+    }
+    val rad = tilt * PI.toFloat() / 180f
+    val tile = 46.dp.toPx()
+    for (i in 0 until 4) {
+        val a = t * 0.35f + i * PI.toFloat() / 2f
+        val x = cos(a) * rx; val y = sin(a) * ry
+        val px = cx + x * cos(rad) - y * sin(rad); val py = cy + x * sin(rad) + y * cos(rad)
+        val inFront = sin(a) > 0f
+        if (inFront != front) continue
+        val depth = (sin(a) + 1f) / 2f              // 0 achter … 1 voor
+        val s = tile * (0.78f + 0.22f * depth)
+        val alpha = 0.45f + 0.55f * depth
+        translate(px - s / 2, py - s / 2) {
+            drawRoundRect(TileBg, Offset.Zero, Size(s, s), CornerRadius(s * 0.24f), alpha = alpha)
+            drawRoundRect(TileLine, Offset.Zero, Size(s, s), CornerRadius(s * 0.24f), style = Stroke(1.dp.toPx()), alpha = alpha)
+            drawTileIcon(i, s, alpha)
+        }
+    }
+}
+
+/** Eenvoudige platte iconen: 0 tv, 1 klapbord, 2 afspelen, 3 filmrol. */
+private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
+    val st = Stroke(s * 0.055f, cap = StrokeCap.Round)
+    val c = IconBlue
+    when (kind) {
+        0 -> {
+            drawRoundRect(c, Offset(s * 0.22f, s * 0.26f), Size(s * 0.56f, s * 0.38f), CornerRadius(s * 0.05f), style = st, alpha = alpha)
+            drawLine(c, Offset(s * 0.5f, s * 0.64f), Offset(s * 0.5f, s * 0.73f), st.width, StrokeCap.Round, alpha = alpha)
+            drawLine(c, Offset(s * 0.38f, s * 0.74f), Offset(s * 0.62f, s * 0.74f), st.width, StrokeCap.Round, alpha = alpha)
+        }
+        1 -> {
+            drawRoundRect(c, Offset(s * 0.24f, s * 0.42f), Size(s * 0.52f, s * 0.32f), CornerRadius(s * 0.04f), style = st, alpha = alpha)
+            val top = Path().apply { moveTo(s * 0.24f, s * 0.40f); lineTo(s * 0.72f, s * 0.27f); lineTo(s * 0.75f, s * 0.36f); lineTo(s * 0.27f, s * 0.49f); close() }
+            drawPath(top, c, style = st, alpha = alpha)
+            for (k in 0..2) { val x = s * (0.36f + 0.12f * k); drawLine(c, Offset(x, s * 0.43f - k * s * 0.03f), Offset(x + s * 0.05f, s * 0.33f - k * s * 0.03f), st.width * 0.8f, StrokeCap.Round, alpha = alpha) }
+        }
+        2 -> {
+            val p = Path().apply { moveTo(s * 0.38f, s * 0.28f); lineTo(s * 0.38f, s * 0.72f); lineTo(s * 0.74f, s * 0.5f); close() }
+            drawPath(p, c, alpha = alpha)
+        }
+        else -> {
+            drawCircle(c, s * 0.25f, Offset(s * 0.5f, s * 0.5f), style = st, alpha = alpha)
+            for (k in 0 until 4) {
+                val a = k * PI.toFloat() / 2f + PI.toFloat() / 4f
+                drawCircle(c, s * 0.055f, Offset(s * 0.5f + cos(a) * s * 0.13f, s * 0.5f + sin(a) * s * 0.13f), alpha = alpha)
+            }
+            drawCircle(c, s * 0.03f, Offset(s * 0.5f, s * 0.5f), alpha = alpha)
         }
     }
 }
