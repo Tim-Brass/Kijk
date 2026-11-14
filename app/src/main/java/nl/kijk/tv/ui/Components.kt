@@ -53,9 +53,8 @@ fun FocusCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     Surface(
-        border = if (darkFocus) ClickableSurfaceDefaults.border(
-            focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White), shape = shape),
-        ) else if (focusRing) ClickableSurfaceDefaults.border(
+        // sporttegels en posters: hetzelfde dunne blauwe randje met een beetje ruimte eromheen
+        border = if (focusRing || darkFocus) ClickableSurfaceDefaults.border(
             focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Kijk.Accent), inset = 3.dp, shape = shape),
         ) else ClickableSurfaceDefaults.border(),
         onClick = onClick,
