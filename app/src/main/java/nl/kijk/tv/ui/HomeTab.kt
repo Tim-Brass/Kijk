@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -105,8 +106,8 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 
     Column(Modifier.fillMaxSize()) {
         // ---- groet + tijd links, weer rechts
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {   // hoogte past zich aan: niets valt eraf
-            Column(Modifier.weight(1f)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {   // hoogte past zich aan
+            Column {
                 Label(greeting(vm.now), size = 30.sp, weight = Kijk.Bold, color = Color.White)
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -115,7 +116,8 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     Label(dateLabel(vm.now), Modifier.padding(bottom = 5.dp), size = Kijk.Body, color = Kijk.Secondary)
                 }
             }
-            WeatherBlock(vm, frame)
+            Spacer(Modifier.width(20.dp))
+            WeatherBlock(vm, frame, Modifier.weight(1f))
         }
         // ---- rijen
         // zacht verloop aan boven- en onderrand zodra er iets onder het welkomstblok of de lichtkrant verdwijnt
@@ -243,29 +245,67 @@ private fun dayShort(date: String): String = try {
 
 // ---------------------------------------------------------------- weer
 
+/** Weer over de volle breedte naast de groet: het weer van nu (groot, bewegend) en een brede weekstrook met temperatuurlijnen. */
 @Composable
-private fun WeatherBlock(vm: AppViewModel, frame: MutableLongState) {
+private fun WeatherBlock(vm: AppViewModel, frame: MutableLongState, modifier: Modifier) {
     val w = vm.weather ?: return
-    // compact: even hoog als de groet; icoon + temperatuur, daarnaast de week in smalle kolommetjes
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(width = 58.dp, height = 50.dp)) { drawSky(w.sky, !w.isDay, frame.longValue / 1e9f, animate = true) }
-        Spacer(Modifier.width(6.dp))
-        Column {
-            Label("${w.temp}°", size = 30.sp, weight = androidx.compose.ui.text.font.FontWeight.Light, color = Color.White, maxLines = 1)
-            Label(w.text, size = Kijk.Caption, weight = Kijk.Semibold, color = Color.White, maxLines = 1)
-        }
+    Row(modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 6.dp).background(Color(0xFF2A2A31)))
         Spacer(Modifier.width(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            w.days.forEachIndexed { i, d ->
-                Column(
-                    Modifier.width(40.dp).background(if (i == 0) Kijk.Accent.copy(alpha = 0.35f) else Color(0x99141419), RoundedCornerShape(7.dp)).padding(vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+        // weer van nu
+        Canvas(Modifier.size(width = 64.dp, height = 56.dp)) { drawSky(w.sky, !w.isDay, frame.longValue / 1e9f, animate = true) }
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Label("${w.temp}°", size = 34.sp, weight = androidx.compose.ui.text.font.FontWeight.Light, color = Color.White, maxLines = 1)
+            Label(w.text, size = Kijk.Caption, weight = Kijk.Semibold, color = Color.White, maxLines = 1)
+            Label("Nuenen", size = 12.sp, color = Kijk.Secondary, maxLines = 1)
+        }
+        Spacer(Modifier.width(20.dp))
+        WeekStrip(w.days, Modifier.weight(1f))
+    }
+}
+
+private val HiOrange = Color(0xFFFF9F0A)
+private val LoBlue = Color(0xFF5B8CFF)
+
+/** Week: per dag dag + icoontje, daaronder een oranje lijn (hoog) en blauwe lijn (laag) met de getallen. Staat stil. */
+@Composable
+private fun WeekStrip(days: List<nl.kijk.tv.data.WeatherDay>, modifier: Modifier) {
+    if (days.isEmpty()) return
+    val n = days.size
+    val tm = rememberTextMeasurer()
+    val hiStyle = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+    val loStyle = TextStyle(color = Color(0xFFAEAEB2), fontSize = 12.sp)
+    val hiL = remember(days) { days.map { tm.measure("${it.max}°", hiStyle) } }
+    val loL = remember(days) { days.map { tm.measure("${it.min}°", loStyle) } }
+    Column(modifier.drawBehind {
+        // vandaag: licht blauw vlak achter de eerste kolom
+        drawRoundRect(Kijk.Accent.copy(alpha = 0.18f), Offset.Zero, Size(size.width / n, size.height), CornerRadius(8.dp.toPx()))
+    }) {
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            days.forEach { d ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Label(dayShort(d.date), size = 12.sp, weight = Kijk.Semibold, color = Color.White, maxLines = 1)
-                    Canvas(Modifier.padding(vertical = 1.dp).size(width = 22.dp, height = 18.dp)) { drawSky(d.sky, false, 0f, animate = false) }
-                    Label("${d.max}°", size = 13.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
-                    Label("${d.min}°", size = 12.sp, weight = Kijk.Semibold, color = Color(0xFFC7C7CC), maxLines = 1)
+                    Canvas(Modifier.padding(top = 2.dp).size(width = 22.dp, height = 18.dp)) { drawSky(d.sky, false, 0f, animate = false) }
                 }
+            }
+        }
+        Canvas(Modifier.fillMaxWidth().height(58.dp)) {
+            val maxT = days.maxOf { it.max }; val minT = days.minOf { it.min }
+            val span = (maxT - minT).coerceAtLeast(1)
+            val top = 16.dp.toPx(); val bottom = size.height - 16.dp.toPx()
+            fun y(t: Int) = bottom - (t - minT).toFloat() / span * (bottom - top)
+            fun x(i: Int) = (i + 0.5f) * size.width / n
+            for ((vals, col) in listOf(days.map { it.max } to HiOrange, days.map { it.min } to LoBlue)) {
+                val p = Path()
+                vals.forEachIndexed { i, t -> if (i == 0) p.moveTo(x(i), y(t)) else p.lineTo(x(i), y(t)) }
+                drawPath(p, col, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                vals.forEachIndexed { i, t -> drawCircle(col, 3.dp.toPx(), Offset(x(i), y(t))) }
+            }
+            days.forEachIndexed { i, d ->
+                val h = hiL[i]; val l = loL[i]
+                drawText(h, topLeft = Offset(x(i) - h.size.width / 2f, y(d.max) - h.size.height - 2.dp.toPx()))
+                drawText(l, topLeft = Offset(x(i) - l.size.width / 2f, y(d.min) + 3.dp.toPx()))
             }
         }
     }
