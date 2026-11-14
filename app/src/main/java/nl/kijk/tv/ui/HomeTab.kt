@@ -34,6 +34,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -117,7 +118,21 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
             WeatherBlock(vm, frame)
         }
         // ---- rijen
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // zacht verloop aan boven- en onderrand zodra er iets onder het welkomstblok of de lichtkrant verdwijnt
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        LazyColumn(
+            Modifier.weight(1f)
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val fade = 22.dp.toPx()
+                    if (listState.canScrollBackward) drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black), startY = 0f, endY = fade),
+                        size = Size(size.width, fade), blendMode = BlendMode.DstIn)
+                    if (listState.canScrollForward) drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - fade, endY = size.height),
+                        topLeft = Offset(0f, size.height - fade), size = Size(size.width, fade), blendMode = BlendMode.DstIn)
+                },
+            state = listState, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             if (favs.isNotEmpty()) item {
                 HomeRow("Nu op je favorieten") {
                     items(favs) { ch ->
