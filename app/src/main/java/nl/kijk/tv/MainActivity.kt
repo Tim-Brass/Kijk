@@ -39,6 +39,7 @@ import nl.kijk.tv.phone.PhoneServer
 import nl.kijk.tv.ui.ConfirmScreen
 import nl.kijk.tv.ui.GitHubSyncScreen
 import nl.kijk.tv.ui.EpgChannelsScreen
+import nl.kijk.tv.ui.SportChannelScreen
 import nl.kijk.tv.ui.EpgLinkScreen
 import nl.kijk.tv.ui.GroupsScreen
 import nl.kijk.tv.ui.HomeScreen
@@ -103,6 +104,7 @@ sealed interface Screen {
     data class Vod(val items: List<Playable>, val index: Int, val start: Long, val showId: String?) : Screen { override val id = "vod" }
     data class Groups(val kind: String) : Screen { override val id = "groups:$kind" }
     data object EpgChannels : Screen { override val id = "epgchans" }
+    data class SportChannel(val football: Boolean) : Screen { override val id = "sportchan$football" }
     data class EpgLink(val channel: Channel) : Screen { override val id = "epglink:${channel.key}" }
     data object OsConfig : Screen { override val id = "osconfig" }
     data object SyncPair : Screen { override val id = "syncpair" }
@@ -197,6 +199,7 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.Vod -> VodPlayer(vm, nav, screen.items, screen.index, screen.start, screen.showId)
             is Screen.Groups -> GroupsScreen(vm, nav, screen.kind)
             Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
+            is Screen.SportChannel -> { BackHandler { nav.pop() }; SportChannelScreen(vm, nav, screen.football) }
             is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
             Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
             Screen.SyncPair -> { BackHandler { nav.pop() }; SyncPairScreen(vm, nav) }

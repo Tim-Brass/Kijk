@@ -62,7 +62,7 @@ class Sync(private val ctx: Context) {
     // ------------------------------------------------------------------ wat wordt gedeeld
 
     private val SCALARS = listOf("playlistUrl", "epgUrl", "refreshPlaylist", "refreshEpg", "epgOffset", "pinHash", "lockOn",
-        "subLang", "subSize", "subBg", "subPos", "softAudio", "autoSubs", "osKey", "osUser", "osPass")
+        "subLang", "subSize", "subBg", "subPos", "softAudio", "autoSubs", "osKey", "osUser", "osPass", "sportF1", "sportFoot")
     private val SETS = listOf("favs", "hidden", "hiddenM", "hiddenS")
     private val MAPS = listOf("epgLinks", "lastEp")
     private val LISTS = listOf("recent", "vodFavs", "reminders")

@@ -103,6 +103,8 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                 1 -> {
                     item { tick.hashCode(); SettingRow("Zendergroepen", "${vm.groups.size} van ${vm.allGroups.size} zichtbaar") { nav.push(Screen.Groups("live")) } }
                     item { tick.hashCode(); SettingRow("Gids koppelen per zender", "${s.epgLinks.size} handmatig gekoppeld") { nav.push(Screen.EpgChannels) } }
+                    item { tick.hashCode(); SettingRow("Zender voor Formule 1", vm.store.sportF1Channel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(false)) } }
+                    item { tick.hashCode(); SettingRow("Zender voor voetbal (PSV en Oranje)", vm.store.sportFootballChannel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(true)) } }
                     item { tick.hashCode(); SettingRow("Tijdverschuiving gids", if (vm.epgOffsetMinutes == 0) "Geen" else "%+d min".format(vm.epgOffsetMinutes)) { vm.setEpgOffset(next(OFFSETS, vm.epgOffsetMinutes)) } }
                 }
                 2 -> {
@@ -517,6 +519,41 @@ fun GitHubSyncScreen(vm: AppViewModel, nav: Nav) {
                 Spacer(Modifier.height(60.dp))
                 Box(Modifier.background(Color.White, RoundedCornerShape(16.dp)).padding(14.dp)) { QrCode(code.uri, Modifier.size(240.dp)) }
                 Label("Werkt tot ${Format.time(code.expiresAt)}", Modifier.padding(top = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)
+            }
+        }
+    }
+}
+
+
+/** Vaste reservezender voor de sporttegels kiezen (gebruikt als de gids niets vindt). */
+@Composable
+fun SportChannelScreen(vm: AppViewModel, nav: Nav, football: Boolean) {
+    var q by remember { mutableStateOf("") }
+    val current = if (football) vm.store.sportFootballChannel else vm.store.sportF1Channel
+    val shown = remember(q, vm.dataVersion) {
+        val all = vm.channels.filter { q.isBlank() || q.trim().lowercase() in it.name.lowercase() }
+        (all.filter { it.key in vm.favorites } + all.filter { it.key !in vm.favorites }).take(400)
+    }
+    Column(Modifier.fillMaxSize().background(Kijk.Background).padding(horizontal = Kijk.SafeH + 40.dp, vertical = Kijk.SafeV)) {
+        Label(if (football) "Zender voor voetbal" else "Zender voor Formule 1", size = Kijk.LargeTitle, weight = Kijk.Bold)
+        Label("Kijk zoekt eerst in de gids. Vindt hij daar niets, dan gebruikt hij deze zender voor de sporttegel op Thuis.", size = Kijk.Caption, color = Kijk.Secondary, maxLines = 2)
+        Spacer(Modifier.height(10.dp))
+        Field("", q, { q = it }, placeholder = "Zender zoeken…", modifier = Modifier.width(360.dp), last = true)
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+            item {
+                FocusCard(onClick = { vm.setSportChannel(football, ""); nav.pop() }, modifier = Modifier.fillMaxWidth(), selected = current.isEmpty(), focusedScale = 1.01f) { _ ->
+                    Label("Geen: alleen zoeken in de gids", Modifier.padding(horizontal = 14.dp, vertical = 12.dp), weight = Kijk.Medium)
+                }
+            }
+            items(shown) { ch ->
+                FocusCard(onClick = { vm.setSportChannel(football, ch.key); nav.pop() }, modifier = Modifier.fillMaxWidth(), selected = ch.key == current, focusedScale = 1.01f) { _ ->
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ChannelLogo(ch.logo, ch.name, Modifier.size(52.dp, 32.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Label(ch.name, Modifier.weight(1f), weight = Kijk.Medium)
+                        if (ch.key in vm.favorites) Label("★", color = Kijk.Accent)
+                    }
+                }
             }
         }
     }

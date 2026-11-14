@@ -46,6 +46,9 @@ class Store(ctx: Context) {
     var guideFav: Boolean get() = sp.getBoolean("guideFav", false); set(v) = putBool("guideFav", v)
     var lastTab: Int get() = sp.getInt("tab", 0); set(v) = putInt("tab", v)
     var searchKind: Int get() = sp.getInt("searchKind", 0); set(v) = putInt("searchKind", v)
+    /** Vaste zender (sleutel) als reserve voor de sporttegels, als de gids niets vindt. */
+    var sportF1Channel: String get() = str("sportF1"); set(v) = put("sportF1", v)
+    var sportFootballChannel: String get() = str("sportFoot"); set(v) = put("sportFoot", v)
 
     // ---- kinderslot
     var pinHash: String get() = str("pinHash"); set(v) = put("pinHash", v)

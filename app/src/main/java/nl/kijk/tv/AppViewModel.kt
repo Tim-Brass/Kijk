@@ -51,6 +51,9 @@ data class LoadProgress(val label: String, val done: Long = 0, val total: Long =
 
 /** Stap op het laadscherm: 0 wacht, 1 bezig, 2 klaar, 3 niet nodig, 4 mislukt. */
 data class Step(val label: String, val state: Int = 0, val done: Long = 0, val total: Long = 0, val note: String? = null)
+/** Waar een sportmoment te zien is. programme = null: alleen de vaste reservezender. */
+data class SportTv(val channel: Channel, val programme: Programme?)
+
 data class SearchResult(
     val channels: List<Channel>,
     val programmes: List<Pair<Channel, Programme>>,
@@ -749,9 +752,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var f1 by mutableStateOf<nl.kijk.tv.data.F1Weekend?>(null); private set
     var psvMatch by mutableStateOf<nl.kijk.tv.data.Match?>(null); private set
     var eredivisie by mutableStateOf<nl.kijk.tv.data.Table?>(null); private set
-    /** Waar het in de gids staat (zender + programma), als het gevonden is. */
-    var f1Tv by mutableStateOf<Pair<Channel, Programme>?>(null); private set
-    var psvTv by mutableStateOf<Pair<Channel, Programme>?>(null); private set
+    /** Waar het te zien is: zender + programma uit de gids (of alleen de vaste reservezender). */
+    var f1Tv by mutableStateOf<SportTv?>(null); private set
+    var psvTv by mutableStateOf<SportTv?>(null); private set
+    private var sportWakeJob: Job? = null
     private var sportsAt = 0L
     private var sportsJob: Job? = null
 
@@ -760,7 +764,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (sportsJob?.isActive == true) return
         val now = System.currentTimeMillis()
         val passed = (f1?.sessions?.lastOrNull()?.start ?: Long.MAX_VALUE) + 3 * HOUR < now || (psvMatch?.start ?: Long.MAX_VALUE) + 2 * HOUR < now
-        if (now - sportsAt < 3 * HOUR && !passed) { findSportOnTv(); return }
+        if (now - sportsAt < 3 * HOUR && !passed) return   // niet tussendoor zoeken: dat gebeurt bij ophalen en op het begintijdstip
         sportsJob = viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching { sports.f1() }.getOrNull()?.let { f1 = it }
@@ -772,16 +776,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Zoek de eerstvolgende sessie/wedstrijd in de gids, zodat OK de zender kan aanzetten. */
-    private fun findSportOnTv() {
+    /** Zoek de eerstvolgende sessie/wedstrijd in de gids (of neem de vaste zender), zodat OK de zender kan aanzetten. */
+    fun findSportOnTv() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             f1?.let { w ->
                 val next = w.sessions.firstOrNull { it.start + 2 * HOUR > now }
-                f1Tv = next?.let { s -> findOnTv(listOf("formule 1", "formula 1", "grand prix", "f1"), s.start) }
+                f1Tv = next?.let { s ->
+                    findOnTv(listOf("formule 1", "formula 1", "grand prix", "f1"), s.start)?.let { SportTv(it.first, it.second) }
+                        ?: channelByKey(store.sportF1Channel)?.let { SportTv(it, null) }
+                }
             }
-            psvMatch?.let { m -> psvTv = findOnTv(if (m.team == "PSV") listOf("psv") else listOf("nederland", "oranje"), m.start) }
+            psvMatch?.let { m ->
+                psvTv = findOnTv(if (m.team == "PSV") listOf("psv") else listOf("nederland", "oranje"), m.start)?.let { SportTv(it.first, it.second) }
+                    ?: channelByKey(store.sportFootballChannel)?.let { SportTv(it, null) }
+            }
+            scheduleSportWake()
         }
+    }
+
+    /** Op het begintijdstip van de volgende sessie/wedstrijd nog één keer in de gids kijken (niet tussendoor). */
+    private fun scheduleSportWake() {
+        sportWakeJob?.cancel()
+        val now = System.currentTimeMillis()
+        val next = (f1?.sessions.orEmpty().map { it.start } + listOfNotNull(psvMatch?.start)).filter { it > now }.minOrNull() ?: return
+        sportWakeJob = viewModelScope.launch { delay(next - now + 30_000); findSportOnTv() }
+    }
+
+    private fun channelByKey(key: String): Channel? = key.takeIf { it.isNotEmpty() }?.let { k -> allChannels.firstOrNull { it.key == k } }
+
+    /** Herinnering voor een sporttegel: met het programma uit de gids, of zelf gemaakt voor de vaste zender. */
+    fun toggleSportReminder(tv: SportTv, start: Long, title: String) {
+        val p = tv.programme
+        if (p != null) { toggleReminder(tv.channel, p); return }
+        val has = reminders.any { it.channelKey == tv.channel.key && it.start == start }
+        reminders = if (has) reminders.filter { !(it.channelKey == tv.channel.key && it.start == start) }
+        else reminders + nl.kijk.tv.data.Reminder(tv.channel.key, tv.channel.name, start, start + 2 * HOUR, title)
+        store.reminders = reminders
+        notice = if (!has) "🔔 Herinnering gezet: $title om ${Format.time(start)}" else "Herinnering verwijderd"
+    }
+    fun hasSportReminder(tv: SportTv?, start: Long) = tv != null && reminders.any { it.channelKey == tv.channel.key && it.start == (tv.programme?.start ?: start) }
+
+    fun setSportChannel(football: Boolean, key: String) {
+        if (football) store.sportFootballChannel = key else store.sportF1Channel = key
+        findSportOnTv()
     }
 
     private suspend fun findOnTv(words: List<String>, start: Long): Pair<Channel, Programme>? {

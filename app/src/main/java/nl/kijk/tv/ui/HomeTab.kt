@@ -131,15 +131,21 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
             val f1 = vm.f1; val psv = vm.psvMatch; val table = vm.eredivisie
             if (f1 != null || psv != null || table != null) item {
                 HomeRow("Sport") {
-                    fun play(tv: Pair<Channel, nl.kijk.tv.data.Programme>?) {
-                        val ch = tv?.first ?: return
-                        if (!tv.second.isLive(vm.now)) return   // nog niet begonnen: niets doen
-                        val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
-                        if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
+                    // OK: bezig → zender aan; nog niet begonnen → herinnering; niets gevonden → uitleg
+                    fun act(tv: nl.kijk.tv.SportTv?, start: Long, live: Boolean, title: String) {
+                        if (tv == null) { vm.notice = "Niet gevonden in de gids. Kies een vaste zender in Instellingen › Zenders en gids."; return }
+                        if (live) {
+                            val list = if (tv.channel in vm.channels) vm.channels else listOf(tv.channel)
+                            val idx = list.indexOf(tv.channel).coerceAtLeast(0)
+                            if (onPlay != null) onPlay(list, idx) else nav.push(Screen.Live(list, idx))
+                        } else if (vm.now < start) vm.toggleSportReminder(tv, start, title)
                     }
-                    if (f1 != null) item { F1Card(vm, f1, vm.f1Tv) { play(vm.f1Tv) } }
+                    if (f1 != null) item {
+                        val next = f1.sessions.firstOrNull { it.start + 2 * 3600_000L > vm.now }
+                        F1Card(vm, f1, vm.f1Tv) { if (next != null) act(vm.f1Tv, next.start, sportLive(vm.f1Tv, next.start, next.name, vm.now), "F1: ${next.name}") }
+                    }
                     if (table != null) item { TableCard(table) }
-                    if (psv != null) item { MatchCard(vm, psv, vm.psvTv) { play(vm.psvTv) } }
+                    if (psv != null) item { MatchCard(vm, psv, vm.psvTv) { act(vm.psvTv, psv.start, sportLive(vm.psvTv, psv.start, "Wedstrijd", vm.now), "${psv.home} – ${psv.away}") } }
                 }
             }
             if (newest.isNotEmpty()) item {
@@ -402,22 +408,39 @@ private fun countdown(start: Long, now: Long, liveFor: Long): String {
 private val Grey = Color(0xFF8E8E93)
 private val DividerC = Color(0xFF2A2A31)
 
-/** Onderregel van een sporttegel: dunne lijn, klokje, aftelling (blauw) en "· op zender" (grijs). */
+/** Is het nu bezig? Volgens de gids als die het programma heeft, anders volgens de verwachte duur. */
+private fun sportLive(tv: nl.kijk.tv.SportTv?, start: Long, name: String, now: Long): Boolean {
+    tv?.programme?.let { return it.isLive(now) }
+    val dur = when { name == "Race" || name == "Wedstrijd" -> 2 * 3600_000L; name == "Sprint" -> 45 * 60_000L; else -> 3600_000L }
+    return now in start until start + dur
+}
+
+/** Onderregel van een sporttegel: dunne lijn en dan óf LIVE + zender, óf klokje + aftelling (+ 🔔 als er een herinnering staat). */
 @Composable
-private fun SportFooter(countdown: String, channel: String?, accent: Color = Kijk.Accent) {
+private fun SportFooter(live: Boolean, countdown: String, channel: String?, accent: Color, reminder: Boolean) {
     Column {
         Box(Modifier.fillMaxWidth().height(1.dp).background(DividerC))
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Canvas(Modifier.size(16.dp)) {
-                val st = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx(), cap = StrokeCap.Round)
-                drawCircle(accent, size.minDimension / 2 - st.width / 2, style = st)
-                val c = Offset(size.width / 2, size.height / 2)
-                drawLine(accent, c, Offset(c.x, size.height * 0.24f), st.width, StrokeCap.Round)
-                drawLine(accent, c, Offset(size.width * 0.72f, c.y), st.width, StrokeCap.Round)
+            if (live) {
+                Box(Modifier.background(Color(0xFFFF3B30), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                    Label("LIVE", size = 11.sp, weight = Kijk.Bold, color = Color.White)
+                }
+                Spacer(Modifier.width(8.dp))
+                Label(if (channel != null) "Nu op $channel" else "Nu bezig", size = 13.sp, weight = Kijk.Semibold, color = Color.White, maxLines = 1)
+                if (channel != null) Label(" · OK om te kijken", size = 13.sp, color = Color(0xFFC7C7CC), maxLines = 1)
+            } else {
+                Canvas(Modifier.size(16.dp)) {
+                    val st = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx(), cap = StrokeCap.Round)
+                    drawCircle(accent, size.minDimension / 2 - st.width / 2, style = st)
+                    val c = Offset(size.width / 2, size.height / 2)
+                    drawLine(accent, c, Offset(c.x, size.height * 0.24f), st.width, StrokeCap.Round)
+                    drawLine(accent, c, Offset(size.width * 0.72f, c.y), st.width, StrokeCap.Round)
+                }
+                Spacer(Modifier.width(8.dp))
+                Label(countdown, size = 13.sp, weight = Kijk.Semibold, color = accent, maxLines = 1)
+                if (channel != null) Label(" · op $channel", Modifier.weight(1f, fill = false), size = 13.sp, color = Color(0xFFC7C7CC), maxLines = 1)
+                if (reminder) Label("  🔔", size = 13.sp)
             }
-            Spacer(Modifier.width(8.dp))
-            Label(countdown, size = 13.sp, weight = Kijk.Semibold, color = accent, maxLines = 1)
-            if (channel != null) Label(" · op $channel", size = 13.sp, color = Color(0xFFC7C7CC), maxLines = 1)
         }
     }
 }
@@ -437,7 +460,7 @@ private val PsvRed = Color(0xFFED1C24)
 private val KnvbOrange = Color(0xFFFF7A00)
 
 @Composable
-private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: Pair<Channel, nl.kijk.tv.data.Programme>?, onClick: () -> Unit) {
+private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.tv.SportTv?, onClick: () -> Unit) {
     val now = vm.now
     val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
     FocusCard(onClick = onClick, modifier = Modifier.width(CardW).height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
@@ -474,7 +497,8 @@ private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: Pair<Chan
                     for (r in 0..2) for (c in 0..2) drawRect(if ((r + c) % 2 == 0) Color.White else Color.Black, Offset(ox + c * cs, oy + r * cs), Size(cs, cs))
                 }
             }
-            if (next != null) SportFooter("${next.name.replace("Vrije training", "VT")} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}", tv?.first?.name, F1Red)
+            if (next != null) SportFooter(sportLive(tv, next.start, next.name, now), "${next.name.replace("Vrije training", "VT")} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}",
+                tv?.channel?.name, F1Red, vm.hasSportReminder(tv, next.start))
         }
     }
 }
@@ -535,7 +559,7 @@ private fun TableCard(t: nl.kijk.tv.data.Table) {
 }
 
 @Composable
-private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: Pair<Channel, nl.kijk.tv.data.Programme>?, onClick: () -> Unit) {
+private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv.SportTv?, onClick: () -> Unit) {
     val now = vm.now
     val accent = if (m.team == "PSV") PsvRed else KnvbOrange
     FocusCard(onClick = onClick, modifier = Modifier.width(CardW).height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
@@ -554,7 +578,7 @@ private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: Pair<Chann
             Label(dayDateTime(m.start), Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp), size = 17.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             Label(listOfNotNull(m.venue, if (m.psvHome) "Thuis" else "Uit").joinToString(" · "), Modifier.align(Alignment.CenterHorizontally), size = 12.sp, color = Grey, maxLines = 1)
             Spacer(Modifier.weight(1f))
-            SportFooter(countdown(m.start, now, 2 * 3600_000L), tv?.first?.name, accent)
+            SportFooter(sportLive(tv, m.start, "Wedstrijd", now), countdown(m.start, now, 2 * 3600_000L), tv?.channel?.name, accent, vm.hasSportReminder(tv, m.start))
         }
     }
 }
