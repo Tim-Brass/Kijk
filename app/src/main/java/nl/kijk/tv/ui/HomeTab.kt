@@ -336,6 +336,9 @@ private fun DrawScope.drawSky(sky: Sky, night: Boolean, t: Float, animate: Boole
 
 // ---------------------------------------------------------------- lichtkrant
 
+/** Het eigen site-icoon van nos.nl (via de favicon-dienst van Google), als de feed geen logo meegeeft. */
+private const val NOS_ICON = "https://www.google.com/s2/favicons?domain=nos.nl&sz=128"
+
 /** NOS-lichtkrant over de volle schermbreedte (onderaan Thuis, buiten de marges). */
 @Composable
 fun NewsTicker(vm: AppViewModel) {
@@ -354,7 +357,12 @@ fun NewsTicker(vm: AppViewModel) {
     ) {
         // logo van de NOS uit de nieuwsfeed zelf; lukt dat niet, dan de tekst
         Box(Modifier.padding(start = 28.dp)) {
-            LogoOr(news.logo, Modifier.height(20.dp).width(44.dp)) { Label("NOS", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White) }
+            // eerst het logo uit de feed; geeft de feed er geen, dan het eigen site-icoon van nos.nl; anders de tekst
+            var src by remember(news.logo) { mutableStateOf(news.logo ?: NOS_ICON) }
+            var failed by remember(news.logo) { mutableStateOf(false) }
+            if (failed) Label("NOS", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
+            else coil.compose.AsyncImage(src, "NOS", Modifier.height(22.dp).width(44.dp), contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                alignment = Alignment.CenterStart, onError = { if (src != NOS_ICON) src = NOS_ICON else failed = true })
         }
         Label(Format.time(news.fetched), Modifier.padding(start = 6.dp, end = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)
         Canvas(Modifier.weight(1f).fillMaxHeight().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
