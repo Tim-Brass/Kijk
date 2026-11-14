@@ -48,11 +48,14 @@ fun FocusCard(
     shape: Shape = RoundedCornerShape(Kijk.Corner),
     focusedScale: Float = 1.03f,
     focusRing: Boolean = false,   // dun blauw randje om het geselecteerde item (posters)
+    darkFocus: Boolean = false,   // tegel blijft donker bij focus, met een wit randje (sporttegels)
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     Surface(
-        border = if (focusRing) ClickableSurfaceDefaults.border(
+        border = if (darkFocus) ClickableSurfaceDefaults.border(
+            focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(3.dp, Color.White), shape = shape),
+        ) else if (focusRing) ClickableSurfaceDefaults.border(
             focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Kijk.Accent), inset = 3.dp, shape = shape),
         ) else ClickableSurfaceDefaults.border(),
         onClick = onClick,
@@ -66,10 +69,10 @@ fun FocusCard(
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = focusedScale),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) Kijk.FillSelected else Kijk.Fill,
+            containerColor = if (darkFocus) Color(0xFF16161C) else if (selected) Kijk.FillSelected else Kijk.Fill,
             contentColor = Color.White,
-            focusedContainerColor = Kijk.Focused,
-            focusedContentColor = Color.Black,
+            focusedContainerColor = if (darkFocus) Color(0xFF1B1B23) else Kijk.Focused,
+            focusedContentColor = if (darkFocus) Color.White else Color.Black,
             pressedContainerColor = Color(0xFFD1D1D6),
             pressedContentColor = Color.Black,
         ),

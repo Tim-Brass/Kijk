@@ -24,6 +24,8 @@ data class Match(
     val start: Long, val venue: String?, val psvHome: Boolean,
     /** "PSV" of "Oranje" (voor het zoeken in de gids) */
     val team: String = "PSV",
+    val competitionLogo: String? = null,
+    val slug: String = "",
 )
 
 /**
@@ -32,6 +34,11 @@ data class Match(
  * - PSV: ESPN (geen sleutel, niet-officieel; bij een fout blijft de kaart gewoon weg).
  */
 class Sports(private val dir: File) {
+    companion object {
+        /** Officieel F1-logo zoals ESPN het op zijn F1-pagina's gebruikt (wordt geladen, niet nagetekend). */
+        const val F1_LOGO = "https://a.espncdn.com/i/teamlogos/leagues/500/f1.png"
+    }
+
     // ---------------------------------------------------------------- F1
     fun f1(now: Long = System.currentTimeMillis()): F1Weekend? {
         val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
@@ -103,8 +110,20 @@ class Sports(private val dir: File) {
             "uefa.europa.conf" to "Conference League", "ned.cup" to "KNVB Beker"))
         val oranje = team("449", "Oranje", now, listOf("uefa.nations" to "Nations League", "fifa.worldq.uefa" to "WK-kwalificatie",
             "fifa.world" to "WK", "uefa.euroq" to "EK-kwalificatie", "uefa.euro" to "EK", "fifa.friendly" to "Oefenwedstrijd"))
-        return listOfNotNull(psv, oranje).minByOrNull { it.start }
+        val m = listOfNotNull(psv, oranje).minByOrNull { it.start } ?: return null
+        return m.copy(competitionLogo = leagueLogo(m.slug))
     }
+
+    /** Logo van de competitie (uit dezelfde bron), of null. */
+    private fun leagueLogo(slug: String): String? = runCatching {
+        val o = JSONObject(get("https://site.api.espn.com/apis/site/v2/sports/soccer/$slug/scoreboard") ?: return@runCatching null)
+        val l = o.optJSONArray("leagues")?.optJSONObject(0) ?: return@runCatching null
+        val logos = l.optJSONArray("logos") ?: return@runCatching null
+        // liefst het logo voor een donkere achtergrond
+        (0 until logos.length()).map { logos.getJSONObject(it) }
+            .sortedByDescending { lg -> lg.optJSONArray("rel")?.let { r -> (0 until r.length()).any { r.optString(it) == "dark" } } == true }
+            .firstOrNull()?.optString("href")?.ifEmpty { null }
+    }.getOrNull()
 
     private fun team(id: String, team: String, now: Long, leagues: List<Pair<String, String>>): Match? {
         var best: Match? = null
@@ -127,7 +146,7 @@ class Sports(private val dir: File) {
                 fun logo(c: JSONObject) = c.optJSONObject("team")?.let { t -> t.optJSONArray("logos")?.optJSONObject(0)?.optString("href")?.ifEmpty { null } ?: t.optString("logo").ifEmpty { null } }
                 val ourHome = home.optJSONObject("team")?.optString("id") == id
                 best = Match(label, name(home), name(away), logo(home), logo(away), start,
-                    comp.optJSONObject("venue")?.optString("fullName")?.ifEmpty { null }, ourHome, team)
+                    comp.optJSONObject("venue")?.optString("fullName")?.ifEmpty { null }, ourHome, team, slug = slug)
             }
         }
         return best

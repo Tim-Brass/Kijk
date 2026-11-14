@@ -397,40 +397,76 @@ private fun countdown(start: Long, now: Long, liveFor: Long): String {
     }
 }
 
+private val Grey = Color(0xFF8E8E93)
+private val DividerC = Color(0xFF2A2A31)
+
+/** Onderregel van een sporttegel: dunne lijn, klokje, aftelling (blauw) en "· op zender" (grijs). */
+@Composable
+private fun SportFooter(countdown: String, channel: String?) {
+    Column {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DividerC))
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(16.dp)) {
+                val st = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx(), cap = StrokeCap.Round)
+                drawCircle(Kijk.Accent, size.minDimension / 2 - st.width / 2, style = st)
+                val c = Offset(size.width / 2, size.height / 2)
+                drawLine(Kijk.Accent, c, Offset(c.x, size.height * 0.24f), st.width, StrokeCap.Round)
+                drawLine(Kijk.Accent, c, Offset(size.width * 0.72f, c.y), st.width, StrokeCap.Round)
+            }
+            Spacer(Modifier.width(8.dp))
+            Label(countdown, size = 14.sp, weight = Kijk.Semibold, color = Kijk.Accent, maxLines = 1)
+            if (channel != null) Label(" · op $channel", size = 14.sp, color = Color(0xFFC7C7CC), maxLines = 1)
+        }
+    }
+}
+
+/** Logo laden (officieel plaatje van de bron); lukt dat niet, dan de vervanger tonen. */
+@Composable
+private fun LogoOr(url: String?, modifier: Modifier, fallback: @Composable () -> Unit) {
+    var failed by remember(url) { mutableStateOf(url == null) }
+    if (failed) fallback()
+    else coil.compose.AsyncImage(url, null, modifier = modifier, contentScale = androidx.compose.ui.layout.ContentScale.Fit, onError = { failed = true })
+}
+
 @Composable
 private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: Pair<Channel, nl.kijk.tv.data.Programme>?, onClick: () -> Unit) {
     val now = vm.now
     val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
-    FocusCard(onClick = onClick, modifier = Modifier.width(400.dp).height(206.dp), focusedScale = 1.04f, focusRing = true) { f ->
-        // vorm van het circuit op de achtergrond
-        if (w.outline.size > 2) Canvas(Modifier.align(Alignment.CenterEnd).padding(end = 10.dp).size(170.dp)) {
-            val p = Path().apply {
-                w.outline.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x * size.width, y * size.height) else lineTo(x * size.width, y * size.height) }
-            }
-            drawPath(p, OutlineBlue.copy(alpha = if (f) 0.5f else 0.32f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = StrokeCap.Round))
+    FocusCard(onClick = onClick, modifier = Modifier.width(430.dp).height(214.dp), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+        // circuit rechts, met geblokte vlag bij start/finish
+        if (w.outline.size > 2) Canvas(Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 14.dp).size(150.dp)) {
+            val p = Path().apply { w.outline.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x * size.width, y * size.height) else lineTo(x * size.width, y * size.height) } }
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(3.5.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = StrokeCap.Round)
+            drawPath(p, Kijk.Accent.copy(alpha = 0.85f), style = stroke)
             val (sx, sy) = w.outline.first()
-            drawCircle(OutlineBlue.copy(alpha = 0.7f), 4.dp.toPx(), Offset(sx * size.width, sy * size.height))
+            val cs = 3.dp.toPx(); val ox = sx * size.width - cs * 1.5f; val oy = sy * size.height - cs * 1.5f
+            for (r in 0..2) for (c in 0..2) drawRect(if ((r + c) % 2 == 0) Color.White else Color.Black, Offset(ox + c * cs, oy + r * cs), Size(cs, cs))
         }
-        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.background(F1Red, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 1.dp)) { Label("F1", size = 12.sp, weight = Kijk.Bold, color = Color.White) }
+                LogoOr(nl.kijk.tv.data.Sports.F1_LOGO, Modifier.height(22.dp).width(44.dp)) {
+                    Box(Modifier.background(Color(0xFFE10600), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 1.dp)) { Label("F1", size = 13.sp, weight = Kijk.Bold, color = Color.White) }
+                }
                 Spacer(Modifier.width(8.dp))
-                Label(w.name, size = Kijk.Body, weight = Kijk.Semibold, color = if (f) Color.Black else Color.White, maxLines = 1)
+                Label(w.name, size = 19.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             }
-            Label("${w.circuit} · ronde ${w.round} van ${w.rounds}", Modifier.padding(top = 2.dp, bottom = 6.dp), size = 12.sp, color = secondary(f), maxLines = 1)
-            w.sessions.forEach { s ->
-                val past = s.start + 2 * 3600_000L < now
-                val isNext = s == next
-                Row(Modifier.width(250.dp).padding(vertical = 1.dp)) {
-                    Label(s.name, Modifier.weight(1f), size = 13.sp, weight = if (isNext) Kijk.Semibold else null,
-                        color = when { isNext -> if (f) Color(0xFF0050A0) else Kijk.Accent; past -> secondary(f).copy(alpha = 0.6f); f -> Color.Black; else -> Color(0xFFD1D1D6) })
-                    Label(dayTime(s.start), size = 13.sp, weight = if (isNext) Kijk.Semibold else null,
-                        color = when { isNext -> if (f) Color(0xFF0050A0) else Kijk.Accent; past -> secondary(f).copy(alpha = 0.6f); f -> Color.Black; else -> Color.White })
+            Label("${w.circuit} · ronde ${w.round} van ${w.rounds}", Modifier.padding(top = 2.dp, bottom = 6.dp), size = 12.sp, color = Grey, maxLines = 1)
+            Column(Modifier.width(250.dp)) {
+                w.sessions.forEach { s ->
+                    val past = s.start + 2 * 3600_000L < now
+                    val isNext = s == next
+                    Row(
+                        Modifier.fillMaxWidth().then(if (isNext) Modifier.background(Kijk.Accent, RoundedCornerShape(50)) else Modifier)
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
+                    ) {
+                        val c = when { isNext -> Color.White; past -> Grey.copy(alpha = 0.55f); else -> Color(0xFFC7C7CC) }
+                        Label(s.name, Modifier.weight(1f), size = 13.sp, weight = if (isNext) Kijk.Bold else null, color = c, maxLines = 1)
+                        Label(dayTime(s.start), size = 13.sp, weight = if (isNext) Kijk.Bold else null, color = c)
+                    }
                 }
             }
             Spacer(Modifier.weight(1f))
-            if (next != null) Label("${next.name} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}" + (tv?.let { " · op ${it.first.name}" } ?: ""),
-                size = 12.sp, weight = Kijk.Semibold, color = if (f) Color(0xFF0050A0) else Kijk.Accent, maxLines = 1)
+            if (next != null) SportFooter("${next.name} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}", tv?.first?.name)
         }
     }
 }
@@ -438,30 +474,32 @@ private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: Pair<Chan
 @Composable
 private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: Pair<Channel, nl.kijk.tv.data.Programme>?, onClick: () -> Unit) {
     val now = vm.now
-    FocusCard(onClick = onClick, modifier = Modifier.width(330.dp).height(206.dp), focusedScale = 1.04f, focusRing = true) { f ->
-        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Label(m.competition, size = 12.sp, color = secondary(f), maxLines = 1)
-            Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TeamBadge(m.home, m.homeLogo, f, Modifier.weight(1f))
-                Label("–", size = 18.sp, color = secondary(f))
-                TeamBadge(m.away, m.awayLogo, f, Modifier.weight(1f))
+    FocusCard(onClick = onClick, modifier = Modifier.width(350.dp).height(214.dp), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LogoOr(m.competitionLogo, Modifier.size(24.dp)) { }
+                if (m.competitionLogo != null) Spacer(Modifier.width(8.dp))
+                Label(m.competition, size = 18.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             }
-            Label(dayDateTime(m.start), size = Kijk.Body, weight = Kijk.Semibold, color = if (f) Color.Black else Color.White)
-            Label(listOfNotNull(m.venue, if (m.psvHome) "thuis" else "uit").joinToString(" · "), size = 12.sp, color = secondary(f), maxLines = 1)
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                TeamBadge(m.home, m.homeLogo, Modifier.weight(1f))
+                Label("–", size = 22.sp, weight = Kijk.Bold, color = Color(0xFFC7C7CC))
+                TeamBadge(m.away, m.awayLogo, Modifier.weight(1f))
+            }
+            Label(dayDateTime(m.start), Modifier.align(Alignment.CenterHorizontally).padding(top = 2.dp), size = 22.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+            Label(listOfNotNull(m.venue, if (m.psvHome) "Thuis" else "Uit").joinToString(" · "), Modifier.align(Alignment.CenterHorizontally), size = 12.sp, color = Grey, maxLines = 1)
             Spacer(Modifier.weight(1f))
-            Label(countdown(m.start, now, 2 * 3600_000L) + (tv?.let { " · op ${it.first.name}" } ?: ""), size = 12.sp, weight = Kijk.Semibold,
-                color = if (f) Color(0xFF0050A0) else Kijk.Accent, maxLines = 1)
+            SportFooter(countdown(m.start, now, 2 * 3600_000L), tv?.first?.name)
         }
     }
 }
 
 @Composable
-private fun TeamBadge(name: String, logo: String?, focused: Boolean, modifier: Modifier) {
+private fun TeamBadge(name: String, logo: String?, modifier: Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-            if (logo != null) coil.compose.AsyncImage(logo, name, modifier = Modifier.fillMaxSize())
-            else Box(Modifier.size(44.dp).background(Color(0x22FFFFFF), RoundedCornerShape(50)))
+        Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+            LogoOr(logo, Modifier.fillMaxSize()) { Box(Modifier.size(48.dp).background(Color(0x22FFFFFF), RoundedCornerShape(50))) }
         }
-        Label(name, Modifier.padding(top = 4.dp), size = 13.sp, weight = Kijk.Semibold, color = if (focused) Color.Black else Color.White, maxLines = 1)
+        Label(name, Modifier.padding(top = 4.dp), size = 14.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
     }
 }
