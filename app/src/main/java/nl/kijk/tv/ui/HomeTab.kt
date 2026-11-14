@@ -92,7 +92,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
     LaunchedEffect(focusItem, newest) {
         val it = focusItem ?: newest.firstOrNull() ?: run { hs.backdrop = null; return@LaunchedEffect }
         delay(600)
-        hs.backdrop = when (it) { is Movie -> vm.movieInfo(it)?.backdrop ?: it.poster; is Show -> it.poster; else -> null }
+        hs.backdrop = when (it) { is Movie -> vm.movieInfo(it)?.backdrop ?: vm.knownPoster(it) ?: it.poster; is Show -> vm.knownPoster(it) ?: it.poster; else -> null }
     }
 
     fun openMovie(m: Movie, resume: Boolean) {

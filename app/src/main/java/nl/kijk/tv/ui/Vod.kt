@@ -96,8 +96,8 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
         val it = focusItem ?: return@LaunchedEffect
         delay(600)
         hs?.backdrop = when (it) {
-            is Movie -> vm.movieInfo(it)?.backdrop ?: it.poster
-            is Show -> it.poster
+            is Movie -> vm.movieInfo(it)?.backdrop ?: vm.knownPoster(it) ?: it.poster
+            is Show -> vm.knownPoster(it) ?: it.poster
             else -> null
         }
     }
@@ -253,11 +253,20 @@ private fun Backdrop(url: String?) {
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Kijk.Background), startY = 500f)))
 }
 
+/** Grote poster op de detailpagina; gebruikt net als de lijst een vervangende poster als het origineel ontbreekt of niet laadt. */
 @Composable
-private fun Poster(url: String?, title: String, w: Int, h: Int) {
+private fun Poster(url: String?, title: String, w: Int, h: Int, known: String? = null, fallback: (suspend () -> String?)? = null) {
+    var alt by remember(url, known) { mutableStateOf(known) }
+    var needAlt by remember(url, known) { mutableStateOf(url == null && known == null) }
+    val shown = alt ?: url
+    var failed by remember(shown) { mutableStateOf(shown == null) }
+    LaunchedEffect(needAlt) {
+        if (needAlt && fallback != null) alt = runCatching { fallback() }.getOrNull()?.takeIf { it.isNotBlank() && it != url }
+    }
     Box(Modifier.size(w.dp, h.dp).clip(RoundedCornerShape(12.dp)).background(Kijk.Elevated), contentAlignment = Alignment.Center) {
-        if (url != null) AsyncImage(url, title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else Label(title, Modifier.padding(12.dp), size = Kijk.Headline, weight = Kijk.Semibold, maxLines = 4)
+        if (failed) Label(title, Modifier.padding(12.dp), size = Kijk.Headline, weight = Kijk.Semibold, maxLines = 4)
+        if (shown != null) AsyncImage(shown, title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+            onError = { failed = true; if (alt == null) needAlt = true }, onSuccess = { failed = false })
     }
 }
 
@@ -271,10 +280,11 @@ fun MovieDetailScreen(vm: AppViewModel, nav: Nav, movie: Movie) {
     LaunchedEffect(Unit) { delay(80); runCatching { first.requestFocus() } }
     fun play(start: Long) = nav.push(Screen.Vod(listOf(moviePlayable(movie, info)), 0, start, null))
 
+    var alt by remember(movie.id) { mutableStateOf(vm.knownPoster(movie)) }
     Box(Modifier.fillMaxSize().background(Kijk.Background)) {
-        Backdrop(info?.backdrop ?: movie.poster)
+        Backdrop(info?.backdrop ?: alt ?: movie.poster)
         Row(Modifier.fillMaxSize().padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV + 20.dp)) {
-            Poster(movie.poster, movie.name, 210, 315)
+            Poster(movie.poster, movie.name, 210, 315, known = alt, fallback = { vm.posterFallback(movie).also { if (it != null) alt = it } })
             Spacer(Modifier.width(36.dp))
             Column(Modifier.weight(1f)) {
                 Label(movie.name, size = Kijk.LargeTitle, weight = Kijk.Bold, maxLines = 2)
@@ -306,6 +316,7 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
         vm.markSeen(show)
         details = try { vm.showDetails(show) } catch (e: Exception) { error = "Afleveringen laden mislukt: ${e.message ?: e.javaClass.simpleName}"; null }
     }
+    var alt by remember(show.id) { mutableStateOf(vm.knownPoster(show)) }
     val eps = details?.episodes.orEmpty()
     val seasons = remember(eps) { eps.map { it.season }.distinct() }
     val lastKey = vm.store.lastEpisodes[show.id]
@@ -323,12 +334,12 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
     }
 
     Box(Modifier.fillMaxSize().background(Kijk.Background)) {
-        Backdrop(details?.backdrop ?: show.poster)
+        Backdrop(details?.backdrop ?: alt ?: show.poster)
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = Kijk.SafeH, vertical = Kijk.SafeV + 12.dp)) {
             item(key = "header") {
                 Row(Modifier.padding(bottom = 12.dp)) {
-                    Poster(show.poster, show.name, 150, 225)
+                    Poster(show.poster, show.name, 150, 225, known = alt, fallback = { vm.posterFallback(show).also { if (it != null) alt = it } })
                     Spacer(Modifier.width(30.dp))
                     Column(Modifier.weight(1f)) {
                         Label(show.name, size = Kijk.LargeTitle, weight = Kijk.Bold, maxLines = 2)
