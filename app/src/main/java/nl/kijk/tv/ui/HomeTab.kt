@@ -469,7 +469,7 @@ private fun LogoOr(url: String?, modifier: Modifier, fallback: @Composable () ->
 }
 
 private val CardW = 268.dp
-private val CardH = 204.dp
+private val CardH = 186.dp
 private val F1Red = Color(0xFFE10600)
 private val PsvRed = Color(0xFFED1C24)
 private val KnvbOrange = Color(0xFFFF7A00)
