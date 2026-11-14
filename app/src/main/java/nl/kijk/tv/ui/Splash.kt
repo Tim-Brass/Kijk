@@ -137,16 +137,14 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
     val tilt = -8f
     val oval = Rect(Offset(cx - rx, cy - ry), Size(rx * 2, ry * 2))
     rotate(tilt, Offset(cx, cy)) {
-        if (!front) {
-            drawOval(OrbitDim, oval.topLeft, oval.size, style = Stroke(1.5.dp.toPx()))
-            // een helder stuk dat langzaam meedraait
-            drawArc(OrbitBright, (t * 20f) % 360f, 70f, false, oval.topLeft, oval.size, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
-        }
+        // één baan, overal even dik
+        if (!front) drawOval(OrbitBright.copy(alpha = 0.75f), oval.topLeft, oval.size, style = Stroke(2.dp.toPx()))
     }
     val rad = tilt * PI.toFloat() / 180f
     val tile = 46.dp.toPx()
-    for (i in 0 until 4) {
-        val a = t * 0.35f + i * PI.toFloat() / 2f
+    val n = 5
+    for (i in 0 until n) {
+        val a = t * 0.35f + i * 2f * PI.toFloat() / n
         val x = cos(a) * rx; val y = sin(a) * ry
         val px = cx + x * cos(rad) - y * sin(rad); val py = cy + x * sin(rad) + y * cos(rad)
         val inFront = sin(a) > 0f
@@ -162,33 +160,50 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
     }
 }
 
-/** Eenvoudige platte iconen: 0 tv, 1 klapbord, 2 afspelen, 3 filmrol. */
+/** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken. */
 private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
-    val st = Stroke(s * 0.055f, cap = StrokeCap.Round)
+    val st = Stroke(s * 0.055f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
     val c = IconBlue
     when (kind) {
-        0 -> {
-            drawRoundRect(c, Offset(s * 0.22f, s * 0.26f), Size(s * 0.56f, s * 0.38f), CornerRadius(s * 0.05f), style = st, alpha = alpha)
-            drawLine(c, Offset(s * 0.5f, s * 0.64f), Offset(s * 0.5f, s * 0.73f), st.width, StrokeCap.Round, alpha = alpha)
-            drawLine(c, Offset(s * 0.38f, s * 0.74f), Offset(s * 0.62f, s * 0.74f), st.width, StrokeCap.Round, alpha = alpha)
-        }
-        1 -> {
+        0 -> {   // filmklapper
             drawRoundRect(c, Offset(s * 0.24f, s * 0.42f), Size(s * 0.52f, s * 0.32f), CornerRadius(s * 0.04f), style = st, alpha = alpha)
             val top = Path().apply { moveTo(s * 0.24f, s * 0.40f); lineTo(s * 0.72f, s * 0.27f); lineTo(s * 0.75f, s * 0.36f); lineTo(s * 0.27f, s * 0.49f); close() }
             drawPath(top, c, style = st, alpha = alpha)
             for (k in 0..2) { val x = s * (0.36f + 0.12f * k); drawLine(c, Offset(x, s * 0.43f - k * s * 0.03f), Offset(x + s * 0.05f, s * 0.33f - k * s * 0.03f), st.width * 0.8f, StrokeCap.Round, alpha = alpha) }
         }
-        2 -> {
+        1 -> {   // voetbal
+            val ctr = Offset(s * 0.5f, s * 0.5f); val r = s * 0.25f
+            drawCircle(c, r, ctr, style = st, alpha = alpha)
+            val pent = Path(); val pr = r * 0.38f
+            for (k in 0 until 5) {
+                val a = -PI.toFloat() / 2 + k * 2 * PI.toFloat() / 5
+                val p = Offset(ctr.x + cos(a) * pr, ctr.y + sin(a) * pr)
+                if (k == 0) pent.moveTo(p.x, p.y) else pent.lineTo(p.x, p.y)
+                drawLine(c, p, Offset(ctr.x + cos(a) * r, ctr.y + sin(a) * r), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
+            }
+            pent.close(); drawPath(pent, c, alpha = alpha)
+        }
+        2 -> {   // krant
+            drawRoundRect(c, Offset(s * 0.24f, s * 0.26f), Size(s * 0.52f, s * 0.48f), CornerRadius(s * 0.05f), style = st, alpha = alpha)
+            drawLine(c, Offset(s * 0.32f, s * 0.36f), Offset(s * 0.68f, s * 0.36f), st.width * 1.3f, StrokeCap.Round, alpha = alpha)
+            drawRect(c, Offset(s * 0.32f, s * 0.44f), Size(s * 0.14f, s * 0.12f), alpha = alpha)
+            drawLine(c, Offset(s * 0.52f, s * 0.46f), Offset(s * 0.68f, s * 0.46f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
+            drawLine(c, Offset(s * 0.52f, s * 0.54f), Offset(s * 0.68f, s * 0.54f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
+            drawLine(c, Offset(s * 0.32f, s * 0.64f), Offset(s * 0.68f, s * 0.64f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
+        }
+        3 -> {   // afspelen
             val p = Path().apply { moveTo(s * 0.38f, s * 0.28f); lineTo(s * 0.38f, s * 0.72f); lineTo(s * 0.74f, s * 0.5f); close() }
             drawPath(p, c, alpha = alpha)
         }
-        else -> {
-            drawCircle(c, s * 0.25f, Offset(s * 0.5f, s * 0.5f), style = st, alpha = alpha)
-            for (k in 0 until 4) {
-                val a = k * PI.toFloat() / 2f + PI.toFloat() / 4f
-                drawCircle(c, s * 0.055f, Offset(s * 0.5f + cos(a) * s * 0.13f, s * 0.5f + sin(a) * s * 0.13f), alpha = alpha)
-            }
-            drawCircle(c, s * 0.03f, Offset(s * 0.5f, s * 0.5f), alpha = alpha)
+        else -> {   // terugkijken: pijl tegen de klok in rond een klokje
+            val r = s * 0.24f; val ctr = Offset(s * 0.5f, s * 0.52f)
+            drawArc(c, -60f, -290f, false, Offset(ctr.x - r, ctr.y - r), Size(r * 2, r * 2), style = st, alpha = alpha)
+            val a = Math.toRadians(-60.0).toFloat()
+            val tip = Offset(ctr.x + cos(a) * r, ctr.y + sin(a) * r)
+            val head = Path().apply { moveTo(tip.x - s * 0.02f, tip.y - s * 0.11f); lineTo(tip.x + s * 0.03f, tip.y + s * 0.01f); lineTo(tip.x - s * 0.10f, tip.y + s * 0.02f); close() }
+            drawPath(head, c, alpha = alpha)
+            drawLine(c, ctr, Offset(ctr.x, ctr.y - r * 0.55f), st.width, StrokeCap.Round, alpha = alpha)
+            drawLine(c, ctr, Offset(ctr.x + r * 0.4f, ctr.y + r * 0.2f), st.width, StrokeCap.Round, alpha = alpha)
         }
     }
 }
