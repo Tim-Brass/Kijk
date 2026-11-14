@@ -554,7 +554,7 @@ private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.t
             Label("${w.circuit.removeSuffix(" Circuit").removeSuffix(" International")} · ronde ${w.round}/${w.rounds}", Modifier.padding(top = 1.dp, bottom = 4.dp), size = 12.sp, color = Grey, maxLines = 1)
             // sessies links, circuit rechts: allebei boven de lijn
             Row(Modifier.fillMaxWidth().weight(1f)) {
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.width(158.dp)) {
                     w.sessions.forEach { s ->
                         val past = s.start + 2 * 3600_000L < now
                         val isNext = s == next
@@ -568,12 +568,17 @@ private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.t
                         }
                     }
                 }
-                if (w.outline.size > 2) Canvas(Modifier.padding(start = 6.dp, top = 2.dp, bottom = 4.dp).size(66.dp).align(Alignment.CenterVertically)) {
-                    val p = Path().apply { w.outline.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x * size.width, y * size.height) else lineTo(x * size.width, y * size.height) } }
+                // circuit gebruikt alle ruimte rechts van de sessies
+                if (w.outline.size > 2) Canvas(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, top = 2.dp, bottom = 6.dp)) {
+                    // zo groot mogelijk binnen het vlak, met behoud van de vorm, en gecentreerd
+                    val mx = w.outline.maxOf { it.first }.coerceAtLeast(0.01f); val my = w.outline.maxOf { it.second }.coerceAtLeast(0.01f)
+                    val side = minOf(size.width / mx, size.height / my)
+                    val dx = (size.width - mx * side) / 2f; val dy = (size.height - my * side) / 2f
+                    val p = Path().apply { w.outline.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(dx + x * side, dy + y * side) else lineTo(dx + x * side, dy + y * side) } }
                     drawPath(p, F1Red, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = StrokeCap.Round))
                     val (sx, sy) = w.outline.first()
-                    val cs = 2.5.dp.toPx(); val ox = sx * size.width - cs * 1.5f; val oy = sy * size.height - cs * 1.5f
-                    for (r in 0..2) for (c in 0..2) drawRect(if ((r + c) % 2 == 0) Color.White else Color.Black, Offset(ox + c * cs, oy + r * cs), Size(cs, cs))
+                    val cs = 2.5.dp.toPx(); val fx = dx + sx * side - cs * 1.5f; val fy = dy + sy * side - cs * 1.5f
+                    for (r in 0..2) for (c in 0..2) drawRect(if ((r + c) % 2 == 0) Color.White else Color.Black, Offset(fx + c * cs, fy + r * cs), Size(cs, cs))
                 }
             }
             if (next != null) SportFooter(sportLive(tv, next.start, next.name, now), "${next.name.replace("Vrije training", "VT")} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}",
