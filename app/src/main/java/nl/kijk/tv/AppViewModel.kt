@@ -748,6 +748,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val sports = nl.kijk.tv.data.Sports(getApplication<Application>().filesDir)
     var f1 by mutableStateOf<nl.kijk.tv.data.F1Weekend?>(null); private set
     var psvMatch by mutableStateOf<nl.kijk.tv.data.Match?>(null); private set
+    var eredivisie by mutableStateOf<nl.kijk.tv.data.Table?>(null); private set
     /** Waar het in de gids staat (zender + programma), als het gevonden is. */
     var f1Tv by mutableStateOf<Pair<Channel, Programme>?>(null); private set
     var psvTv by mutableStateOf<Pair<Channel, Programme>?>(null); private set
@@ -764,6 +765,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.IO) {
                 runCatching { sports.f1() }.getOrNull()?.let { f1 = it }
                 runCatching { sports.nextMatch() }.getOrNull()?.let { psvMatch = it }
+                runCatching { sports.eredivisie() }.getOrNull()?.let { eredivisie = it }
             }
             sportsAt = System.currentTimeMillis()
             findSportOnTv()

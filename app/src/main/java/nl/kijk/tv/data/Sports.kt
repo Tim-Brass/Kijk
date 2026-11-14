@@ -28,6 +28,9 @@ data class Match(
     val slug: String = "",
 )
 
+data class TableRow(val rank: Int, val team: String, val logo: String?, val played: Int, val points: Int, val isPsv: Boolean)
+data class Table(val competition: String, val logo: String?, val rows: List<TableRow>)
+
 /**
  * Sportgegevens voor Thuis:
  * - F1: Jolpica (openbare opvolger van Ergast, geen sleutel); circuitvormen uit bacinger/f1-circuits (MIT), één keer opgehaald en bewaard.
@@ -113,6 +116,31 @@ class Sports(private val dir: File) {
         val m = listOfNotNull(psv, oranje).minByOrNull { it.start } ?: return null
         return m.copy(competitionLogo = leagueLogo(m.slug))
     }
+
+    /** Huidige stand van de Eredivisie (ESPN). */
+    fun eredivisie(): Table? = runCatching {
+        val o = JSONObject(get("https://site.api.espn.com/apis/v2/sports/soccer/ned.1/standings") ?: return@runCatching null)
+        val entries = (o.optJSONArray("children")?.optJSONObject(0)?.optJSONObject("standings") ?: o.optJSONObject("standings"))
+            ?.optJSONArray("entries") ?: return@runCatching null
+        val rows = (0 until entries.length()).mapNotNull { i ->
+            val e = entries.getJSONObject(i)
+            val t = e.optJSONObject("team") ?: return@mapNotNull null
+            val stats = e.optJSONArray("stats") ?: return@mapNotNull null
+            fun stat(vararg names: String): Int? {
+                for (k in 0 until stats.length()) {
+                    val st = stats.getJSONObject(k)
+                    if (st.optString("name") in names || st.optString("type") in names) return st.optDouble("value").takeIf { !it.isNaN() }?.toInt()
+                }
+                return null
+            }
+            TableRow(
+                rank = stat("rank") ?: (i + 1), team = t.optString("shortDisplayName").ifEmpty { t.optString("displayName") },
+                logo = t.optJSONArray("logos")?.optJSONObject(0)?.optString("href")?.ifEmpty { null },
+                played = stat("gamesPlayed", "gamesplayed") ?: 0, points = stat("points") ?: 0, isPsv = t.optString("id") == "148",
+            )
+        }.sortedBy { it.rank }
+        if (rows.isEmpty()) null else Table("Eredivisie", leagueLogo("ned.1"), rows)
+    }.getOrNull()
 
     /** Logo van de competitie (uit dezelfde bron), of null. */
     private fun leagueLogo(slug: String): String? = runCatching {

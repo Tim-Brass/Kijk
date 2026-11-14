@@ -89,6 +89,7 @@ fun Label(
     weight: FontWeight? = null,
     color: Color = Color.Unspecified,
     maxLines: Int = 1,
+    align: androidx.compose.ui.text.style.TextAlign? = null,
 ) {
     Text(
         text = text,
@@ -97,6 +98,7 @@ fun Label(
         fontWeight = weight,
         color = color,
         maxLines = maxLines,
+        textAlign = align,
         overflow = TextOverflow.Ellipsis,
     )
 }
