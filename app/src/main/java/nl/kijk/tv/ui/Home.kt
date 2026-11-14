@@ -146,7 +146,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 MenuLogo(still = false, modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 6.dp), height = 36.dp)
                 Row(Modifier.align(Alignment.BottomEnd), verticalAlignment = Alignment.CenterVertically) {
                     vm.update?.let { u ->
-                        SmallPill("⬆  Nieuwe versie 0.1.${u.build}", Modifier.padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
+                        SmallPill("⬆  Nieuwe versie ${nl.kijk.tv.Versions.name(u.build)}", Modifier.padding(bottom = 6.dp), selected = true) { vm.installUpdate(ctx) }
                         Spacer(Modifier.width(14.dp))
                     }
                     if (hs.tab != TAB_HOME) {   // op Thuis staat de tijd al groot

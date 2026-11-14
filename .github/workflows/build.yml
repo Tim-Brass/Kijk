@@ -21,6 +21,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
+      - name: Versienaam
+        run: |
+          n=${{ github.run_number }}
+          if [ "$n" -ge 111 ]; then echo "KIJK_VERSION=0.2.$((n-111))" >> $GITHUB_ENV; else echo "KIJK_VERSION=0.1.$n" >> $GITHUB_ENV; fi
       - name: Build
         run: gradle --no-daemon assembleRelease
       - name: Rename APK
@@ -33,5 +37,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Kijk 0.1.${{ github.run_number }}
+          name: Kijk ${{ env.KIJK_VERSION }}
           files: Kijk.apk

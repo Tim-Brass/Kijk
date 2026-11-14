@@ -15,7 +15,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = if (buildNumber >= 111) "0.2.${buildNumber - 111}" else "0.1.$buildNumber"   // vanaf build 111: 0.2.0
     }
 
     // Vaste sleutel, zodat nieuwe versies over de oude heen geïnstalleerd kunnen worden.

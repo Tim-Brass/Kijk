@@ -557,8 +557,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val assets = j.optJSONArray("assets")
                 val url = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
                     .firstOrNull { it.optString("name").endsWith(".apk") }?.optString("browser_download_url")
-                if (n > BuildConfig.VERSION_CODE && url != null) { update = UpdateInfo(n, url); updateStatus = "Versie 0.1.$n staat klaar · OK om bij te werken" }
-                else if (manual) updateStatus = "Je hebt de nieuwste versie (0.1.${BuildConfig.VERSION_CODE})"
+                if (n > BuildConfig.VERSION_CODE && url != null) { update = UpdateInfo(n, url); updateStatus = "Versie ${Versions.name(n)} staat klaar · OK om bij te werken" }
+                else if (manual) updateStatus = "Je hebt de nieuwste versie (${BuildConfig.VERSION_NAME})"
             } catch (e: Exception) { if (manual) updateStatus = "Controleren mislukt: ${e.message ?: e.javaClass.simpleName}" }
         }
     }
