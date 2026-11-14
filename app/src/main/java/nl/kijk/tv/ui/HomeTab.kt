@@ -145,7 +145,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
             }
             val f1 = vm.f1; val psv = vm.psvMatch; val table = vm.eredivisie
             if (f1 != null || psv != null || table != null) item {
-                HomeRow("Sport") {
+                HomeRow("Sport", center = true) {
                     // OK: bezig → zender aan; nog niet begonnen → herinnering; niets gevonden → uitleg
                     fun act(tv: nl.kijk.tv.SportTv?, start: Long, live: Boolean, title: String) {
                         if (tv == null) { vm.notice = "Niet gevonden in de gids. Kies een vaste zender in Instellingen › Zenders en gids."; return }
@@ -184,7 +184,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 }
 
 @Composable
-private fun HomeRow(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+private fun HomeRow(title: String, center: Boolean = false, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
         Label(title, Modifier.padding(start = 12.dp, bottom = 0.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
         // zacht verloop links/rechts zodra er kaarten buiten beeld schuiven (net als boven/onder)
@@ -198,7 +198,7 @@ private fun HomeRow(title: String, content: androidx.compose.foundation.lazy.Laz
                 if (st.canScrollForward) drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
                     topLeft = Offset(size.width - fade, 0f), size = Size(fade, size.height), blendMode = BlendMode.DstIn)
             },
-            state = st, horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content,
+            state = st, horizontalArrangement = if (center) Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content,
         )
     }
 }
@@ -370,7 +370,7 @@ fun NewsTicker(vm: AppViewModel) {
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.nos_logo), "NOS",
                 Modifier.height(18.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillHeight)
         }
-        Label(Format.time(news.fetched), Modifier.padding(start = 6.dp, end = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)
+        Spacer(Modifier.width(12.dp))
         Canvas(Modifier.weight(1f).fillMaxHeight().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
             val gap = 18.dp.toPx(); val eyeW = 22.dp.toPx()
             val item = layouts.map { it.size.width + gap * 2 + eyeW }
