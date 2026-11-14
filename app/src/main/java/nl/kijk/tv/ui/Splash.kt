@@ -142,7 +142,7 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
     }
     val rad = tilt * PI.toFloat() / 180f
     val tile = 46.dp.toPx()
-    val n = 5
+    val n = 6
     for (i in 0 until n) {
         val a = t * 0.35f + i * 2f * PI.toFloat() / n
         val x = cos(a) * rx; val y = sin(a) * ry
@@ -160,7 +160,7 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
     }
 }
 
-/** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken. */
+/** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken, 5 raceauto. */
 private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
     val st = Stroke(s * 0.055f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
     val c = IconBlue
@@ -194,6 +194,20 @@ private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
         3 -> {   // afspelen
             val p = Path().apply { moveTo(s * 0.38f, s * 0.28f); lineTo(s * 0.38f, s * 0.72f); lineTo(s * 0.74f, s * 0.5f); close() }
             drawPath(p, c, alpha = alpha)
+        }
+        5 -> {   // raceauto (zijaanzicht, formule-wagen)
+            val body = Path().apply {
+                moveTo(s * 0.16f, s * 0.58f); lineTo(s * 0.30f, s * 0.52f); lineTo(s * 0.44f, s * 0.52f); lineTo(s * 0.50f, s * 0.44f)
+                lineTo(s * 0.60f, s * 0.44f); lineTo(s * 0.64f, s * 0.52f); lineTo(s * 0.80f, s * 0.54f); lineTo(s * 0.84f, s * 0.60f)
+                lineTo(s * 0.16f, s * 0.62f); close()
+            }
+            drawPath(body, c, alpha = alpha)
+            drawLine(c, Offset(s * 0.78f, s * 0.40f), Offset(s * 0.86f, s * 0.40f), st.width * 1.2f, StrokeCap.Round, alpha = alpha)   // achtervleugel
+            drawLine(c, Offset(s * 0.82f, s * 0.40f), Offset(s * 0.80f, s * 0.54f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
+            drawCircle(c, s * 0.075f, Offset(s * 0.30f, s * 0.64f), alpha = alpha)
+            drawCircle(c, s * 0.085f, Offset(s * 0.72f, s * 0.63f), alpha = alpha)
+            drawCircle(TileBg, s * 0.03f, Offset(s * 0.30f, s * 0.64f), alpha = alpha)
+            drawCircle(TileBg, s * 0.035f, Offset(s * 0.72f, s * 0.63f), alpha = alpha)
         }
         else -> {   // terugkijken: pijl tegen de klok in rond een klokje
             val r = s * 0.24f; val ctr = Offset(s * 0.5f, s * 0.52f)

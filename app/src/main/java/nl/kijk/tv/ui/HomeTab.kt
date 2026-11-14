@@ -145,7 +145,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
             }
             val f1 = vm.f1; val psv = vm.psvMatch; val table = vm.eredivisie
             if (f1 != null || psv != null || table != null) item {
-                HomeRow("Sport", center = true) {
+                SportRow {
                     // OK: bezig → zender aan; nog niet begonnen → herinnering; niets gevonden → uitleg
                     fun act(tv: nl.kijk.tv.SportTv?, start: Long, live: Boolean, title: String) {
                         if (tv == null) { vm.notice = "Niet gevonden in de gids. Kies een vaste zender in Instellingen › Zenders en gids."; return }
@@ -155,12 +155,12 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                             if (onPlay != null) onPlay(list, idx) else nav.push(Screen.Live(list, idx))
                         } else if (vm.now < start) vm.toggleSportReminder(tv, start, title)
                     }
-                    if (f1 != null) item {
+                    if (f1 != null) {
                         val next = f1.sessions.firstOrNull { it.start + 2 * 3600_000L > vm.now }
-                        F1Card(vm, f1, vm.f1Tv) { if (next != null) act(vm.f1Tv, next.start, sportLive(vm.f1Tv, next.start, next.name, vm.now), "F1: ${next.name}") }
+                        F1Card(vm, f1, vm.f1Tv, Modifier.weight(1f)) { if (next != null) act(vm.f1Tv, next.start, sportLive(vm.f1Tv, next.start, next.name, vm.now), "F1: ${next.name}") }
                     }
-                    if (table != null) item { TableCard(table) }
-                    if (psv != null) item { MatchCard(vm, psv, vm.psvTv) { act(vm.psvTv, psv.start, sportLive(vm.psvTv, psv.start, "Wedstrijd", vm.now), "${psv.home} – ${psv.away}") } }
+                    if (table != null) TableCard(table, Modifier.weight(1f))
+                    if (psv != null) MatchCard(vm, psv, vm.psvTv, Modifier.weight(1f)) { act(vm.psvTv, psv.start, sportLive(vm.psvTv, psv.start, "Wedstrijd", vm.now), "${psv.home} – ${psv.away}") }
                 }
             }
             if (newest.isNotEmpty()) item {
@@ -180,6 +180,15 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     Modifier.padding(12.dp), color = Kijk.Secondary)
             }
         }
+    }
+}
+
+/** Rij met de sportkaarten: verdelen de volle breedte gelijk, met gelijke tussenruimte. */
+@Composable
+private fun SportRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Column {
+        Label("Sport", Modifier.padding(start = 12.dp, bottom = 0.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), content = content)
     }
 }
 
@@ -490,10 +499,10 @@ private val PsvRed = Color(0xFFED1C24)
 private val KnvbOrange = Color(0xFFFF7A00)
 
 @Composable
-private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.tv.SportTv?, onClick: () -> Unit) {
+private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.tv.SportTv?, modifier: Modifier, onClick: () -> Unit) {
     val now = vm.now
     val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
-    FocusCard(onClick = onClick, modifier = Modifier.width(CardW).height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
         Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(nl.kijk.tv.data.Sports.F1_LOGO, Modifier.height(26.dp).width(52.dp)) {
@@ -535,12 +544,12 @@ private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.t
 
 /** Stand van de Eredivisie: top 5 (PSV erbij als die lager staat); elke rij is een balkje naar het aantal punten. */
 @Composable
-private fun TableCard(t: nl.kijk.tv.data.Table) {
+private fun TableCard(t: nl.kijk.tv.data.Table, modifier: Modifier) {
     val max = t.rows.maxOfOrNull { it.points }?.coerceAtLeast(1) ?: 1
     val psv = t.rows.firstOrNull { it.isPsv }
     val shown = if (psv == null || psv.rank <= 5) t.rows.take(5) else t.rows.take(4) + psv
     val round = t.rows.maxOfOrNull { it.played } ?: 0
-    FocusCard(onClick = {}, modifier = Modifier.width(CardW).height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+    FocusCard(onClick = {}, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(t.logo, Modifier.size(26.dp)) { }
@@ -589,10 +598,10 @@ private fun TableCard(t: nl.kijk.tv.data.Table) {
 }
 
 @Composable
-private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv.SportTv?, onClick: () -> Unit) {
+private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv.SportTv?, modifier: Modifier, onClick: () -> Unit) {
     val now = vm.now
     val accent = if (m.team == "PSV") PsvRed else KnvbOrange
-    FocusCard(onClick = onClick, modifier = Modifier.width(CardW).height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
         Box(Modifier.fillMaxWidth().height(4.dp).background(accent))   // gekleurde streep bovenaan
         Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
