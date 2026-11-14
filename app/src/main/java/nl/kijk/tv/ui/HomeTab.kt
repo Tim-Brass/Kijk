@@ -117,7 +117,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
             WeatherBlock(vm, frame)
         }
         // ---- rijen
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (favs.isNotEmpty()) item {
                 HomeRow("Nu op je favorieten") {
                     items(favs) { ch ->
@@ -171,8 +171,8 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 @Composable
 private fun HomeRow(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
-        Label(title, Modifier.padding(start = 12.dp, bottom = 4.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), content = content)
+        Label(title, Modifier.padding(start = 12.dp, bottom = 0.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content)
     }
 }
 
