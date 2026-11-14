@@ -744,6 +744,54 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         ok
     } catch (_: Exception) { false }
 
+    // ---------------------------------------------------------------- sport op Thuis (F1 en PSV)
+    private val sports = nl.kijk.tv.data.Sports(getApplication<Application>().filesDir)
+    var f1 by mutableStateOf<nl.kijk.tv.data.F1Weekend?>(null); private set
+    var psvMatch by mutableStateOf<nl.kijk.tv.data.Match?>(null); private set
+    /** Waar het in de gids staat (zender + programma), als het gevonden is. */
+    var f1Tv by mutableStateOf<Pair<Channel, Programme>?>(null); private set
+    var psvTv by mutableStateOf<Pair<Channel, Programme>?>(null); private set
+    private var sportsAt = 0L
+    private var sportsJob: Job? = null
+
+    /** Hooguit eens per 3 uur ophalen (en direct na een afgelopen sessie/wedstrijd); op de achtergrond. */
+    fun refreshSports() {
+        if (sportsJob?.isActive == true) return
+        val now = System.currentTimeMillis()
+        val passed = (f1?.sessions?.lastOrNull()?.start ?: Long.MAX_VALUE) + 3 * HOUR < now || (psvMatch?.start ?: Long.MAX_VALUE) + 2 * HOUR < now
+        if (now - sportsAt < 3 * HOUR && !passed) { findSportOnTv(); return }
+        sportsJob = viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { sports.f1() }.getOrNull()?.let { f1 = it }
+                runCatching { sports.psv() }.getOrNull()?.let { psvMatch = it }
+            }
+            sportsAt = System.currentTimeMillis()
+            findSportOnTv()
+        }
+    }
+
+    /** Zoek de eerstvolgende sessie/wedstrijd in de gids, zodat OK de zender kan aanzetten. */
+    private fun findSportOnTv() {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            f1?.let { w ->
+                val next = w.sessions.firstOrNull { it.start + 2 * HOUR > now }
+                f1Tv = next?.let { s -> findOnTv(listOf("formule 1", "formula 1", "grand prix", "f1"), s.start) }
+            }
+            psvMatch?.let { m -> psvTv = findOnTv(listOf("psv"), m.start) }
+        }
+    }
+
+    private suspend fun findOnTv(words: List<String>, start: Long): Pair<Channel, Programme>? {
+        for (w in words) {
+            val hit = runCatching { search(w).programmes }.getOrDefault(emptyList())
+                .filter { (_, p) -> p.start <= start + 20 * MINUTE && p.stop > start }
+                .minByOrNull { (_, p) -> kotlin.math.abs(p.start - start) }
+            if (hit != null) return hit
+        }
+        return null
+    }
+
     // ---------------------------------------------------------------- posters van buiten (TVmaze / TMDB)
     val posters = nl.kijk.tv.data.Posters(getApplication<Application>().filesDir) { github.tmdbKey }
 
@@ -854,6 +902,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var homeJob: Job? = null
     /** Weer en nieuws ophalen; hooguit eens per half uur. */
     fun refreshHome() {
+        refreshSports()
         if (homeJob?.isActive == true) return
         val w = weather; val n = news
         val stale = 30 * MINUTE

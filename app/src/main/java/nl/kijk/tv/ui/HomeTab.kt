@@ -128,6 +128,19 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     }
                 }
             }
+            val f1 = vm.f1; val psv = vm.psvMatch
+            if (f1 != null || psv != null) item {
+                HomeRow("Sport") {
+                    fun play(tv: Pair<Channel, nl.kijk.tv.data.Programme>?) {
+                        val ch = tv?.first ?: return
+                        if (!tv.second.isLive(vm.now)) return   // nog niet begonnen: niets doen
+                        val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
+                        if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
+                    }
+                    if (f1 != null) item { F1Card(vm, f1, vm.f1Tv) { play(vm.f1Tv) } }
+                    if (psv != null) item { MatchCard(vm, psv, vm.psvTv) { play(vm.psvTv) } }
+                }
+            }
             if (newest.isNotEmpty()) item {
                 HomeRow("Nieuwste films en series") {
                     items(newest) { item ->
@@ -361,4 +374,94 @@ private fun DrawScope.miniEyes(x: Float, cy: Float, t: Float, seed: Int) {
 
 private fun Modifier.drawTopLine(): Modifier = this.drawBehind {
     drawRect(Color(0xFF2A2A31), size = Size(size.width, 1.dp.toPx()))
+}
+
+
+// ---------------------------------------------------------------- sport
+
+private val F1Red = Color(0xFFE10600)
+private val OutlineBlue = Color(0xFF5B8CFF)
+
+private fun dayTime(t: Long) = SimpleDateFormat("EEE HH:mm", NL).format(t).replace(".", "")
+private fun dayDateTime(t: Long) = SimpleDateFormat("EEE d MMM · HH:mm", NL).format(t).replace(".", "")
+
+/** "over 1 dag 4 uur", "over 25 min", "nu bezig". */
+private fun countdown(start: Long, now: Long, liveFor: Long): String {
+    val d = start - now
+    if (d <= 0) return if (now < start + liveFor) "Nu bezig" else "Afgelopen"
+    val m = d / 60_000; val h = m / 60; val days = h / 24
+    return when {
+        days >= 1 -> "over $days ${if (days == 1L) "dag" else "dagen"}" + if (h % 24 > 0) " ${h % 24} uur" else ""
+        h >= 1 -> "over $h uur" + if (m % 60 > 0) " ${m % 60} min" else ""
+        else -> "over ${m.coerceAtLeast(1)} min"
+    }
+}
+
+@Composable
+private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: Pair<Channel, nl.kijk.tv.data.Programme>?, onClick: () -> Unit) {
+    val now = vm.now
+    val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
+    FocusCard(onClick = onClick, modifier = Modifier.width(400.dp).height(206.dp), focusedScale = 1.04f, focusRing = true) { f ->
+        // vorm van het circuit op de achtergrond
+        if (w.outline.size > 2) Canvas(Modifier.align(Alignment.CenterEnd).padding(end = 10.dp).size(170.dp)) {
+            val p = Path().apply {
+                w.outline.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x * size.width, y * size.height) else lineTo(x * size.width, y * size.height) }
+            }
+            drawPath(p, OutlineBlue.copy(alpha = if (f) 0.5f else 0.32f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = StrokeCap.Round))
+            val (sx, sy) = w.outline.first()
+            drawCircle(OutlineBlue.copy(alpha = 0.7f), 4.dp.toPx(), Offset(sx * size.width, sy * size.height))
+        }
+        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.background(F1Red, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 1.dp)) { Label("F1", size = 12.sp, weight = Kijk.Bold, color = Color.White) }
+                Spacer(Modifier.width(8.dp))
+                Label(w.name, size = Kijk.Body, weight = Kijk.Semibold, color = if (f) Color.Black else Color.White, maxLines = 1)
+            }
+            Label("${w.circuit} · ronde ${w.round} van ${w.rounds}", Modifier.padding(top = 2.dp, bottom = 6.dp), size = 12.sp, color = secondary(f), maxLines = 1)
+            w.sessions.forEach { s ->
+                val past = s.start + 2 * 3600_000L < now
+                val isNext = s == next
+                Row(Modifier.width(250.dp).padding(vertical = 1.dp)) {
+                    Label(s.name, Modifier.weight(1f), size = 13.sp, weight = if (isNext) Kijk.Semibold else null,
+                        color = when { isNext -> if (f) Color(0xFF0050A0) else Kijk.Accent; past -> secondary(f).copy(alpha = 0.6f); f -> Color.Black; else -> Color(0xFFD1D1D6) })
+                    Label(dayTime(s.start), size = 13.sp, weight = if (isNext) Kijk.Semibold else null,
+                        color = when { isNext -> if (f) Color(0xFF0050A0) else Kijk.Accent; past -> secondary(f).copy(alpha = 0.6f); f -> Color.Black; else -> Color.White })
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            if (next != null) Label("${next.name} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}" + (tv?.let { " · op ${it.first.name}" } ?: ""),
+                size = 12.sp, weight = Kijk.Semibold, color = if (f) Color(0xFF0050A0) else Kijk.Accent, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: Pair<Channel, nl.kijk.tv.data.Programme>?, onClick: () -> Unit) {
+    val now = vm.now
+    FocusCard(onClick = onClick, modifier = Modifier.width(330.dp).height(206.dp), focusedScale = 1.04f, focusRing = true) { f ->
+        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Label(m.competition, size = 12.sp, color = secondary(f), maxLines = 1)
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TeamBadge(m.home, m.homeLogo, f, Modifier.weight(1f))
+                Label("–", size = 18.sp, color = secondary(f))
+                TeamBadge(m.away, m.awayLogo, f, Modifier.weight(1f))
+            }
+            Label(dayDateTime(m.start), size = Kijk.Body, weight = Kijk.Semibold, color = if (f) Color.Black else Color.White)
+            Label(listOfNotNull(m.venue, if (m.psvHome) "thuis" else "uit").joinToString(" · "), size = 12.sp, color = secondary(f), maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            Label(countdown(m.start, now, 2 * 3600_000L) + (tv?.let { " · op ${it.first.name}" } ?: ""), size = 12.sp, weight = Kijk.Semibold,
+                color = if (f) Color(0xFF0050A0) else Kijk.Accent, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun TeamBadge(name: String, logo: String?, focused: Boolean, modifier: Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+            if (logo != null) coil.compose.AsyncImage(logo, name, modifier = Modifier.fillMaxSize())
+            else Box(Modifier.size(44.dp).background(Color(0x22FFFFFF), RoundedCornerShape(50)))
+        }
+        Label(name, Modifier.padding(top = 4.dp), size = 13.sp, weight = Kijk.Semibold, color = if (focused) Color.Black else Color.White, maxLines = 1)
+    }
 }
