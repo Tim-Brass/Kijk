@@ -187,7 +187,19 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 private fun HomeRow(title: String, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
     Column {
         Label(title, Modifier.padding(start = 12.dp, bottom = 0.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content)
+        // zacht verloop links/rechts zodra er kaarten buiten beeld schuiven (net als boven/onder)
+        val st = androidx.compose.foundation.lazy.rememberLazyListState()
+        LazyRow(
+            Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+                drawContent()
+                val fade = 28.dp.toPx()
+                if (st.canScrollBackward) drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+                    size = Size(fade, size.height), blendMode = BlendMode.DstIn)
+                if (st.canScrollForward) drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
+                    topLeft = Offset(size.width - fade, 0f), size = Size(fade, size.height), blendMode = BlendMode.DstIn)
+            },
+            state = st, horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), content = content,
+        )
     }
 }
 
