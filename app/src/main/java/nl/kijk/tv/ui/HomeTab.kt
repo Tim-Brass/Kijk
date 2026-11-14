@@ -348,11 +348,12 @@ fun NewsTicker(vm: AppViewModel) {
     val layouts = remember(news) { news.headlines.map { tm.measure(it, style) } }
     val start = remember(news) { frame.longValue }
     Row(
-        Modifier.fillMaxWidth().height(34.dp).background(Color(0xFF141419)).drawTopLine(),
+        // strook loopt door tot de onderrand, maar de tekst staat iets hoger: valt ook op tv's met overscan (Xiaomi) niet weg
+        Modifier.fillMaxWidth().background(Color(0xFF141419)).drawTopLine().padding(bottom = 14.dp).height(34.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // logo van de NOS uit de nieuwsfeed zelf; lukt dat niet, dan de tekst
-        Box(Modifier.padding(start = Kijk.SafeH)) {
+        Box(Modifier.padding(start = 28.dp)) {
             LogoOr(news.logo, Modifier.height(20.dp).width(44.dp)) { Label("NOS", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White) }
         }
         Label(Format.time(news.fetched), Modifier.padding(start = 6.dp, end = 10.dp), size = Kijk.Caption, color = Kijk.Secondary)

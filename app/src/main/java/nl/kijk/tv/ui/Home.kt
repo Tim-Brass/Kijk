@@ -161,7 +161,9 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
             }
-            Column(Modifier.weight(1f).padding(start = Kijk.SafeH, end = Kijk.SafeH, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
+            // Thuis: iets smallere zijmarges, zodat er meer op past
+            val side = if (hs.tab == TAB_HOME) 28.dp else Kijk.SafeH
+            Column(Modifier.weight(1f).padding(start = side, end = side, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f)) {
                 FadeIn(hs.tab) {
