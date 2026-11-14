@@ -162,7 +162,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 }
             }
             // Thuis: iets smallere zijmarges, zodat er meer op past
-            val side = if (hs.tab == TAB_HOME) 28.dp else Kijk.SafeH
+            val side = 28.dp   // op alle tabbladen dezelfde, iets smallere zijmarges als op Thuis
             Column(Modifier.weight(1f).padding(start = side, end = side, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f)) {
