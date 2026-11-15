@@ -308,6 +308,7 @@ fun MovieDetailScreen(vm: AppViewModel, nav: Nav, movie: Movie) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
     var details by remember { mutableStateOf<ShowDetails?>(null) }
@@ -335,6 +336,9 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
 
     Box(Modifier.fillMaxSize().background(Kijk.Background)) {
         Backdrop(details?.backdrop ?: alt ?: show.poster)
+        // Op Android TV schuift een lijst het geselecteerde item standaard naar ~30% van de hoogte;
+        // daardoor viel de bovenkant (titel/poster) weg. Hier alleen schuiven als iets echt buiten beeld valt.
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides MinimalScroll) {
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = Kijk.SafeH, vertical = Kijk.SafeV + 12.dp)) {
             item(key = "header") {
@@ -377,6 +381,21 @@ fun ShowDetailScreen(vm: AppViewModel, nav: Nav, show: Show) {
                 }
             }
             items(eps.filter { it.season == season }) { ep -> EpisodeRow(vm, ep) { play(ep) } }
+        }
+        }
+    }
+}
+
+/** Alleen zoveel schuiven als nodig om het geselecteerde in beeld te krijgen (geen vaste "pivot"). */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private val MinimalScroll = object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val trailing = offset + size
+        return when {
+            offset >= 0f && trailing <= containerSize -> 0f        // staat al helemaal in beeld
+            offset < 0f && trailing > containerSize -> 0f          // groter dan het scherm: laten staan
+            offset < 0f -> offset                                  // valt boven weg: omlaag schuiven
+            else -> if (size <= containerSize) trailing - containerSize else offset
         }
     }
 }
