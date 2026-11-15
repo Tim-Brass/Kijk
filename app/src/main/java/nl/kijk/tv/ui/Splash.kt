@@ -142,7 +142,7 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
     }
     val rad = tilt * PI.toFloat() / 180f
     val tile = 46.dp.toPx()
-    val n = 6
+    val n = 7
     for (i in 0 until n) {
         val a = t * 0.35f + i * 2f * PI.toFloat() / n
         val x = cos(a) * rx; val y = sin(a) * ry
@@ -160,7 +160,7 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
     }
 }
 
-/** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken, 5 raceauto. */
+/** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken, 5 raceauto, 6 weer. */
 private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
     val st = Stroke(s * 0.055f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
     val c = IconBlue
@@ -208,6 +208,22 @@ private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
             drawCircle(c, s * 0.085f, Offset(s * 0.72f, s * 0.63f), alpha = alpha)
             drawCircle(TileBg, s * 0.03f, Offset(s * 0.30f, s * 0.64f), alpha = alpha)
             drawCircle(TileBg, s * 0.035f, Offset(s * 0.72f, s * 0.63f), alpha = alpha)
+        }
+        6 -> {   // weer: zonnetje half achter een wolk
+            val sc = Offset(s * 0.42f, s * 0.40f); val sr = s * 0.11f
+            drawCircle(c, sr, sc, style = st, alpha = alpha)
+            for (k in 0 until 6) {
+                val a = (-200f + k * 40f) * PI.toFloat() / 180f
+                drawLine(c, Offset(sc.x + cos(a) * sr * 1.5f, sc.y + sin(a) * sr * 1.5f), Offset(sc.x + cos(a) * sr * 2.1f, sc.y + sin(a) * sr * 2.1f), st.width * 0.9f, StrokeCap.Round, alpha = alpha)
+            }
+            // wolk (gevuld met tegelkleur, zodat hij voor de zon ligt)
+            val cloud = Path().apply {
+                addOval(Rect(Offset(s * 0.36f, s * 0.46f), Size(s * 0.20f, s * 0.20f)))
+                addOval(Rect(Offset(s * 0.48f, s * 0.40f), Size(s * 0.24f, s * 0.24f)))
+                addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(Offset(s * 0.30f, s * 0.54f), Size(s * 0.48f, s * 0.16f)), CornerRadius(s * 0.08f)))
+            }
+            drawPath(cloud, TileBg, alpha = alpha)
+            drawPath(cloud, c, style = st, alpha = alpha)
         }
         else -> {   // terugkijken: pijl tegen de klok in rond een klokje
             val r = s * 0.24f; val ctr = Offset(s * 0.5f, s * 0.52f)
