@@ -199,6 +199,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Voor het afsluiten: nog even wegschrijven (hooguit een paar seconden). */
+    /** Kijk wordt afgesloten: alleen nog het afscheidsscherm, spelers zijn dan al gestopt. */
+    var quitting by mutableStateOf(false)
+
     suspend fun githubFlush() {
         if (!github.connected) return
         kotlinx.coroutines.withTimeoutOrNull(6_000) { githubMutex.withLock { withContext(Dispatchers.IO) { runCatching { github.syncOnce() } } } }

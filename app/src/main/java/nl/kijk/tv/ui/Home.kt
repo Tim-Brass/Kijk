@@ -115,7 +115,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             overlay != null -> overlay.onClose()
             hs.tab != TAB_HOME -> { hs.tab = TAB_HOME; runCatching { tabFocus[TAB_HOME].requestFocus() } }
             else -> nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
-                quitApp(activity) { vm.githubFlush() }
+                quitApp(activity, vm)
             }
         }
     }
@@ -156,7 +156,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     // afsluiten
                     LineItem(onClick = {
                         nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
-                            quitApp(activity) { vm.githubFlush() }
+                            quitApp(activity, vm)
                         }
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
@@ -258,13 +258,30 @@ fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: 
 }
 
 /** Kijk echt afsluiten: scherm dicht, uit de recente apps, en het proces stoppen (geen stream of server meer op de achtergrond). */
-fun quitApp(activity: android.app.Activity?, beforeQuit: (suspend () -> Unit)? = null) {
+fun quitApp(activity: android.app.Activity?, vm: nl.kijk.tv.AppViewModel) {
     activity ?: return
-    activity.finishAndRemoveTask()
-    // eerst nog wegschrijven (bv. naar GitHub), dan echt stoppen
+    if (vm.quitting) return
+    vm.quitting = true   // eerst alles uit beeld (en uit de luidspreker): alleen nog "Tot Kijk!"
     kotlinx.coroutines.MainScope().launch {
-        delay(400)
-        beforeQuit?.invoke()
+        val t0 = System.currentTimeMillis()
+        // ondertussen nog wegschrijven naar GitHub, maar nooit lang
+        kotlinx.coroutines.withTimeoutOrNull(2_500) { vm.githubFlush() }
+        delay((1_300 - (System.currentTimeMillis() - t0)).coerceAtLeast(0))
+        activity.finishAndRemoveTask()
+        @Suppress("DEPRECATION") activity.overridePendingTransition(0, 0)   // zonder animatie weg
+        delay(300)
         android.os.Process.killProcess(android.os.Process.myPid())
+    }
+}
+
+/** Afscheid bij het afsluiten. */
+@Composable
+fun GoodbyeScreen() {
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            EyesLogo(done = true, modifier = Modifier.height(96.dp))
+            Spacer(Modifier.height(22.dp))
+            Label("Tot Kijk!", size = Kijk.LargeTitle, color = Color.White)
+        }
     }
 }

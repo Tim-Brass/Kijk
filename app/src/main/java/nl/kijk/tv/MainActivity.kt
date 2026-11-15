@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
     }
     // GitHub: bijwerken bij het openen van Kijk en wegschrijven bij het verlaten (niet tussendoor)
     override fun onStart() { super.onStart(); vm.githubSyncNow(quiet = true) }
-    override fun onStop() { super.onStop(); vm.githubSyncNow(quiet = true) }
+    override fun onStop() { super.onStop(); if (!vm.quitting) vm.githubSyncNow(quiet = true) }
 }
 
 /** Alle schermen. Een nieuw scherm komt bovenop de stapel; Terug haalt het eraf. */
@@ -162,6 +162,8 @@ private fun KijkApp(vm: AppViewModel) {
         if (f.exists()) { crash = runCatching { f.readText() }.getOrNull(); f.delete() }
     }
 
+    // afsluiten: alleen nog "Tot Kijk!" (spelers verdwijnen, dus ook geen geluid meer)
+    if (vm.quitting) { nl.kijk.tv.ui.GoodbyeScreen(); return }
     if (!vm.startupDone && crash == null) { nl.kijk.tv.ui.SplashScreen(vm); return }
 
     val screen = nav.top
