@@ -217,11 +217,12 @@ private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
                 drawLine(c, Offset(sc.x + cos(a) * sr * 1.5f, sc.y + sin(a) * sr * 1.5f), Offset(sc.x + cos(a) * sr * 2.1f, sc.y + sin(a) * sr * 2.1f), st.width * 0.9f, StrokeCap.Round, alpha = alpha)
             }
             // wolk (gevuld met tegelkleur, zodat hij voor de zon ligt)
-            val cloud = Path().apply {
-                addOval(Rect(Offset(s * 0.36f, s * 0.46f), Size(s * 0.20f, s * 0.20f)))
-                addOval(Rect(Offset(s * 0.48f, s * 0.40f), Size(s * 0.24f, s * 0.24f)))
-                addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(Offset(s * 0.30f, s * 0.54f), Size(s * 0.48f, s * 0.16f)), CornerRadius(s * 0.08f)))
-            }
+            // één omtrek: de drie vormen samengevoegd (anders zie je de binnenlijnen)
+            val a1 = Path().apply { addOval(Rect(Offset(s * 0.36f, s * 0.46f), Size(s * 0.20f, s * 0.20f))) }
+            val a2 = Path().apply { addOval(Rect(Offset(s * 0.48f, s * 0.40f), Size(s * 0.24f, s * 0.24f))) }
+            val a3 = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(Offset(s * 0.30f, s * 0.54f), Size(s * 0.48f, s * 0.16f)), CornerRadius(s * 0.08f))) }
+            val a12 = Path().apply { op(a1, a2, androidx.compose.ui.graphics.PathOperation.Union) }
+            val cloud = Path().apply { op(a12, a3, androidx.compose.ui.graphics.PathOperation.Union) }
             drawPath(cloud, TileBg, alpha = alpha)
             drawPath(cloud, c, style = st, alpha = alpha)
         }
