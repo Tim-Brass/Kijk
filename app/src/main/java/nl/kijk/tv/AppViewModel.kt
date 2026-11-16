@@ -1025,6 +1025,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         hyVars.forEach { appendLine("${it.name} (${it.type}) = ${it.value}") }
     }
 
+    /** Weergave-offset voor de thermostaat (alleen in Kijk; Homey ziet de echte waarden). */
+    val hyOffset: Double get() { hyVer; return store.homey("toffset").replace(',', '.').toDoubleOrNull() ?: 0.0 }
+    fun hyNextOffset() {
+        val steps = (-4..6).map { it * 0.5 }
+        val i = steps.indexOfFirst { kotlin.math.abs(it - hyOffset) < 0.01 }
+        hySetChoice("toffset", steps[(i + 1).mod(steps.size)].toString())
+    }
+    /** gemeten / ingestelde temperatuur van de thermostaat, met offset */
+    fun hyShown(d: HDevice?, cap: String): Double? = d?.num(cap)?.let { it + hyOffset }
+
     fun hyChoice(slot: String) = store.homey(slot)
     fun hySetChoice(slot: String, v: String) { store.setHomey(slot, v); hyVer++ }
 

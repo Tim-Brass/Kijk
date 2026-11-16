@@ -175,6 +175,8 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                     pick("Afval-app", "afval", vm.hyAfval?.name)
                     pick("Deurbel", "bell", vm.hyBell?.name)
                     pick("Flow: nieuwe snapshot", "snap", vm.hySnapFlow?.name)
+                    item { tick.hashCode(); val o = vm.hyOffset
+                        SettingRow("Temperatuur-offset (thermostaat)", (if (o > 0) "+" else "") + String.format(java.util.Locale("nl"), "%.1f°", o) + " · alleen wat de tv toont; OK = volgende stap") { vm.hyNextOffset(); changed() } }
                     item { SettingRow("Ruimtes verbergen", vm.hyHidden.joinToString(", ").ifEmpty { "Geen" }) { nav.push(Screen.HomeyPick("hide")) } }
                     item { SettingRow("Melding bij aanbellen", "Homey-flow: Als er wordt aangebeld → HTTP GET http://${PhoneServer.address() ?: "<tv>:8080"}/homey/deurbel") { } }
                 }

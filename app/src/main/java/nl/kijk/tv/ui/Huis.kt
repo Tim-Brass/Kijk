@@ -118,8 +118,8 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
     HuisCard(modifier, onClick) {
         CardHead("Temperatuur", TempC)
         Row(verticalAlignment = Alignment.Bottom) {
-            Label(deg(t?.num("measure_temperature")), size = 30.sp, weight = Kijk.Bold, color = Color.White)
-            if (t?.num("target_temperature") != null) Label("  → ${deg(t.num("target_temperature"))}", Modifier.padding(bottom = 5.dp), size = 13.sp, color = GreyH)
+            Label(deg(vm.hyShown(t, "measure_temperature")), size = 30.sp, weight = Kijk.Bold, color = Color.White)
+            if (t?.num("target_temperature") != null) Label("  → ${deg(vm.hyShown(t, "target_temperature"))}", Modifier.padding(bottom = 5.dp), size = 13.sp, color = GreyH)
         }
         listOfNotNull(vm.hyAirco1, vm.hyAirco2).forEach { a ->
             Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
@@ -129,7 +129,7 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
             }
         }
         Spacer(Modifier.weight(1f))
-        CardFoot(if (t == null) "Geen thermostaat gevonden" else "Comfort ${deg(t.num("target_temperature"))} · OK")
+        CardFoot(if (t == null) "Geen thermostaat gevonden" else "Comfort ${deg(vm.hyShown(t, "target_temperature"))} · OK")
     }
 }
 
@@ -527,8 +527,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.tempPanel(vm: AppView
     val t = vm.hyThermostat
     if (t == null) { item { Label("Geen thermostaat gevonden in Homey.", size = Kijk.Body, color = GreyH) }; return }
     item(key = "comfort") {
-        PanelRow("Comfort-temperatuur", deg(t.num("target_temperature")), Modifier.focusRequester(first), TempC,
-            sub = "nu ${deg(t.num("measure_temperature"))} · geldt tot het volgende programmamoment",
+        PanelRow("Comfort-temperatuur", deg(vm.hyShown(t, "target_temperature")), Modifier.focusRequester(first), TempC,
+            sub = "nu ${deg(vm.hyShown(t, "measure_temperature"))} · geldt tot het volgende programmamoment",
             onLeft = { vm.hyTarget(t, -0.5) }, onRight = { vm.hyTarget(t, 0.5) })
     }
     if (vm.hyResume != null) item(key = "resume") {
