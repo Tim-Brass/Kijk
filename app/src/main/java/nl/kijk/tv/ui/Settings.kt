@@ -158,11 +158,12 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                 7 -> {
                     item { tick.hashCode()
                         SettingRow("Homey", when {
-                            !vm.homeyReady -> "Geen sleutel: zet \"homeyKey\" in kijk-sleutels.json (privé repo) en synchroniseer via GitHub."
+                            !vm.github.connected -> "Deze tv is niet met GitHub verbonden (zie Synchroniseren). Daar komt de sleutel vandaan."
+                            !vm.homeyReady -> "Geen sleutel gevonden. " + vm.github.keysStatus.ifEmpty { "kijk-sleutels.json nog niet gelezen." } + " · OK = opnieuw ophalen"
                             vm.hyError != null -> "Niet bereikbaar: ${vm.hyError}"
                             vm.hyDevices.isEmpty() -> "Zoeken… (OK om opnieuw te proberen)"
                             else -> "Verbonden · ${vm.hyDevices.size} apparaten · ${vm.homey.base.removePrefix("http://")}"
-                        }) { vm.refreshHomey(force = true, meta = true) }
+                        }) { if (vm.homeyReady) vm.refreshHomey(force = true, meta = true) else vm.githubSyncNow() }
                     }
                     fun pick(t: String, slot: String, cur: String?) {
                         item { SettingRow(t, (if (vm.hyChoice(slot).isEmpty()) "Automatisch: " else "") + (cur ?: "niets gevonden")) { nav.push(Screen.HomeyPick(slot)) } }

@@ -36,7 +36,7 @@ class GitHubSync(ctx: Context, private val sync: Sync) {
 
     private fun fetchKeys() {
         val (code, body) = api("GET", "https://api.github.com/repos/$login/$REPO_NAME/contents/kijk-sleutels.json", token, allow404 = true)
-        if (code != 200) return
+        if (code != 200) { keysInfo("kijk-sleutels.json niet gevonden in $login/$REPO_NAME (code $code)"); return }
         val raw = String(Base64.decode(JSONObject(body).optString("content").replace("\n", ""), Base64.DEFAULT), Charsets.UTF_8)
         // telefoons maken van " vaak “ ” (krulletjes): die eerst rechtzetten
         val fixed = raw.replace('\u201C', '"').replace('\u201D', '"').replace('\u201E', '"').replace('\u2018', '\'').replace('\u2019', '\'')
@@ -49,14 +49,27 @@ class GitHubSync(ctx: Context, private val sync: Sync) {
             ?: Regex("""\b[0-9a-f]{32}\b""").find(fixed)?.value
             ?: ""
         sp.edit().putString("tmdb", k).apply()
-        // Homey: IP en API-sleutel (ook alleen lokaal bewaard)
-        runCatching {
-            val o = JSONObject(fixed)
-            fun pick(vararg names: String) = names.firstNotNullOfOrNull { o.optString(it).trim().takeIf { v -> v.isNotEmpty() } } ?: ""
-            sp.edit().putString("homeyIp", pick("homeyIp", "homey_ip", "homeyIP", "homey"))
-                .putString("homeyKey", pick("homeyKey", "homey_key", "homeyToken", "homeyApiKey")).apply()
+        // Homey: IP en API-sleutel (ook alleen lokaal bewaard). Lukt JSON niet (bv. komma vergeten), dan per veld zoeken.
+        fun field(vararg names: String): String {
+            val o = runCatching { JSONObject(fixed) }.getOrNull()
+            names.forEach { n -> o?.optString(n)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it } }
+            names.forEach { n -> Regex("\"" + Regex.escape(n) + "\"\\s*:\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE).find(fixed)?.let { return it.groupValues[1].trim() } }
+            return ""
         }
+        val hk = field("homeyKey", "homey_key", "homeyToken", "homeyApiKey", "homeykey")
+        val hi = field("homeyIp", "homey_ip", "homeyIP", "homey")
+        sp.edit().putString("homeyIp", hi).putString("homeyKey", hk).apply()
+        val json = runCatching { JSONObject(fixed); "geldige JSON" }.getOrDefault("geen geldige JSON (komma of aanhalingsteken?)")
+        val names = Regex("\"([A-Za-z_]+)\"\\s*:").findAll(fixed).map { it.groupValues[1] }.toList().distinct()
+        keysInfo("kijk-sleutels.json gelezen · $json · velden: ${names.joinToString(", ").ifEmpty { "geen" }}" +
+            (if (hk.isEmpty()) " · homeyKey ontbreekt of is leeg" else ""))
     }
+
+    private fun keysInfo(t: String) {
+        sp.edit().putString("keysInfo", "$t (${java.text.SimpleDateFormat("HH:mm", java.util.Locale("nl")).format(System.currentTimeMillis())})").apply()
+    }
+    /** Wat er de laatste keer met kijk-sleutels.json gebeurde (zonder de sleutels zelf). */
+    val keysStatus: String get() = sp.getString("keysInfo", "") ?: ""
 
     val homeyIp: String get() = sp.getString("homeyIp", "") ?: ""
     val homeyKey: String get() = sp.getString("homeyKey", "") ?: ""
