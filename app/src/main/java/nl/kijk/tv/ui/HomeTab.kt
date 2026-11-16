@@ -218,14 +218,15 @@ private fun HomeRow(title: String, center: Boolean = false, content: androidx.co
 @Composable
 private fun FavChannelCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit) {
     val cur = vm.nowNext(ch).firstOrNull()?.takeIf { it.isLive(vm.now) }
-    FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.06f) { f ->
+    // zelfde stijl als de andere kaarten: donker blijven, blauw randje bij selectie
+    FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.06f, darkFocus = true) { _ ->
         Row(Modifier.fillMaxSize().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            ChannelLogo(ch.logo, ch.name, Modifier.size(width = 56.dp, height = 36.dp))
+            ChannelLogo(ch.logo, ch.name, Modifier.size(width = 56.dp, height = 36.dp), plate = false)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Label("${ch.number} · ${ch.name}", size = Kijk.Caption, weight = Kijk.Semibold, color = if (f) Color.Black else Color.White)
-                Label(cur?.title ?: "Geen gidsinformatie", Modifier.padding(top = 2.dp), size = Kijk.Caption, color = secondary(f))
-                if (cur != null) ProgressBar(cur.progress(vm.now), Modifier.fillMaxWidth().padding(top = 6.dp), focused = f, height = 3.dp)
+                Label("${ch.number} · ${ch.name}", size = Kijk.Caption, weight = Kijk.Semibold, color = Color.White)
+                Label(cur?.title ?: "Geen gidsinformatie", Modifier.padding(top = 2.dp), size = Kijk.Caption, color = Kijk.Secondary)
+                if (cur != null) ProgressBar(cur.progress(vm.now), Modifier.fillMaxWidth().padding(top = 6.dp), focused = false, height = 3.dp)
             }
         }
     }
