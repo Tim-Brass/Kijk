@@ -132,7 +132,7 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
             }
         }
         Spacer(Modifier.weight(1f))
-        CardFoot(if (t == null) "Geen thermostaat gevonden" else "Comfort ${deg(vm.hyShown(t, "target_temperature"))} · OK")
+        CardFoot(if (t == null) "Geen thermostaat gevonden" else "Comfort ${deg(vm.hyShown(t, "target_temperature"))}")
     }
 }
 
@@ -157,7 +157,7 @@ private fun LightCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
             }
         }
         Spacer(Modifier.weight(1f))
-        CardFoot(if (rooms.isEmpty()) "Geen lampen gevonden" else "${rooms.size} ruimtes · OK om te bedienen")
+        CardFoot(if (rooms.isEmpty()) "Geen lampen gevonden" else "${rooms.size} ruimtes")
     }
 }
 
@@ -357,6 +357,7 @@ fun WasteIcon(type: String, size: androidx.compose.ui.unit.Dp) {
 }
 
 private val dayFmt get() = SimpleDateFormat("EEE d MMM", Locale("nl"))
+private val shortDay get() = SimpleDateFormat("EEE d", Locale("nl"))
 
 @Composable
 private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
@@ -369,18 +370,18 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
             Label(if (vm.hyAfval == null && vm.hyAfvalSettings == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
         } else {
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                WasteIcon(next.type, 40.dp)
-                Spacer(Modifier.width(8.dp))
+                WasteIcon(next.type, 34.dp)
+                Spacer(Modifier.width(7.dp))
                 Column {
-                    Label(next.date?.let { dayFmt.format(it) } ?: next.text, size = 20.sp, weight = Kijk.Bold, color = Color.White)
-                    Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6))
+                    Label(next.date?.let { dayFmt.format(it) } ?: next.text, size = 17.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+                    Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6), maxLines = 1)
                 }
             }
             items.filter { it.type != next.type }.distinctBy { it.type }.take(2).forEach {
                 Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                     WasteIcon(it.type, 16.dp)
                     Spacer(Modifier.width(5.dp))
-                    Label("${it.date?.let { d -> dayFmt.format(d) } ?: it.text} · ${it.type}", size = 12.sp, color = GreyH)
+                    Label("${it.date?.let { d -> shortDay.format(d) } ?: it.text} · ${it.type}", size = 12.sp, color = GreyH, maxLines = 1)
                 }
             }
         }
