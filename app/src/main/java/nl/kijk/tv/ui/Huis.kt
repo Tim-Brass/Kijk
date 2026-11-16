@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
@@ -576,7 +578,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.afvalPanel(vm: AppVie
     if (items.isEmpty()) { item { Label("Geen ophaaldagen gevonden. Kies de afval-app in Instellingen › Huis.", size = Kijk.Body, color = GreyH, maxLines = 3) }; return }
     items.forEachIndexed { i, it ->
         item(key = "af$i") {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // rijen kunnen focus krijgen (alleen om te scrollen); Terug sluit
+            var f by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                .onFocusChanged { st -> f = st.isFocused }.focusable()
+                .background(if (f) Color(0x1FFFFFFF) else Color.Transparent, RoundedCornerShape(10.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 WasteIcon(it.type, 26.dp)
                 Spacer(Modifier.width(10.dp))
                 Label(it.type, Modifier.weight(1f), size = Kijk.Body, color = Color.White)
@@ -584,8 +591,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.afvalPanel(vm: AppVie
             }
         }
     }
-    // het paneel moet iets hebben dat focus kan krijgen, anders werkt Terug niet altijd
-    item(key = "close") { Box(Modifier.padding(top = 10.dp)) { PanelRow("Sluiten", "", Modifier.focusRequester(first)) { } } }
 }
 
 // ---------------------------------------------------------------- instellingen: Homey-keuzes
