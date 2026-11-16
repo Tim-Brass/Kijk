@@ -109,6 +109,7 @@ sealed interface Screen {
     data object OsConfig : Screen { override val id = "osconfig" }
     data object SyncPair : Screen { override val id = "syncpair" }
     data object GitHub : Screen { override val id = "github" }
+    data class HomeyPick(val slot: String) : Screen { override val id = "homeypick:$slot" }
     data class SubSearch(val item: Playable, val onPick: (Long) -> Unit) : Screen { override val id = "subsearch" }
     data class Pin(val title: String, val sub: String, val check: (String) -> Boolean, val onResult: (String?) -> Unit) : Screen { override val id = "pin:$title" }
     data class Confirm(val title: String, val text: String, val yes: String, val onResult: (Boolean) -> Unit) : Screen { override val id = "confirm" }
@@ -202,6 +203,7 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.Groups -> GroupsScreen(vm, nav, screen.kind)
             Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
             is Screen.SportChannel -> { BackHandler { nav.pop() }; SportChannelScreen(vm, nav, screen.football) }
+            is Screen.HomeyPick -> { BackHandler { nav.pop() }; nl.kijk.tv.ui.HomeyPickScreen(vm, nav, screen.slot) }
             is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
             Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
             Screen.SyncPair -> { BackHandler { nav.pop() }; SyncPairScreen(vm, nav) }
@@ -238,6 +240,8 @@ private fun KijkApp(vm: AppViewModel) {
             }
         }
     }
+    // deurbel: melding rechtsboven, ook tijdens het kijken
+    nl.kijk.tv.ui.BellAlert(vm, Modifier.align(Alignment.TopEnd).padding(top = 24.dp, end = 40.dp))
     vm.notice?.let { n ->
         Box(Modifier.align(Alignment.TopCenter).padding(top = 24.dp).background(Color(0xF21C1C22), RoundedCornerShape(14.dp)).padding(horizontal = 24.dp, vertical = 12.dp)) {
             nl.kijk.tv.ui.Label(n, size = nl.kijk.tv.ui.Kijk.Headline, weight = nl.kijk.tv.ui.Kijk.Semibold, color = if (n.startsWith("✕")) nl.kijk.tv.ui.Kijk.Live else Color.White)

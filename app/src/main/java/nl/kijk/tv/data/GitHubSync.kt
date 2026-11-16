@@ -49,7 +49,17 @@ class GitHubSync(ctx: Context, private val sync: Sync) {
             ?: Regex("""\b[0-9a-f]{32}\b""").find(fixed)?.value
             ?: ""
         sp.edit().putString("tmdb", k).apply()
+        // Homey: IP en API-sleutel (ook alleen lokaal bewaard)
+        runCatching {
+            val o = JSONObject(fixed)
+            fun pick(vararg names: String) = names.firstNotNullOfOrNull { o.optString(it).trim().takeIf { v -> v.isNotEmpty() } } ?: ""
+            sp.edit().putString("homeyIp", pick("homeyIp", "homey_ip", "homeyIP", "homey"))
+                .putString("homeyKey", pick("homeyKey", "homey_key", "homeyToken", "homeyApiKey")).apply()
+        }
     }
+
+    val homeyIp: String get() = sp.getString("homeyIp", "") ?: ""
+    val homeyKey: String get() = sp.getString("homeyKey", "") ?: ""
 
     // ---------------------------------------------------------------- inloggen (device flow)
     data class DeviceCode(val deviceCode: String, val userCode: String, val uri: String, val interval: Int, val expiresAt: Long)

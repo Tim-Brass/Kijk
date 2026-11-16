@@ -69,7 +69,7 @@ private fun <T> next(list: List<T>, cur: T) = list[(list.indexOf(cur) + 1).mod(l
 
 private val SETTING_CATS = listOf(
     "Bron en playlist", "Zenders en gids", "Films en series", "Ondertitels en geluid",
-    "Kinderslot", "Synchroniseren", "Kijkgeschiedenis", "Over Kijk",
+    "Kinderslot", "Synchroniseren", "Kijkgeschiedenis", "Huis (Homey)", "Over Kijk",
 )
 
 /** Instellingen: links de categorieën, rechts wat erbij hoort (zoals op een Apple TV). */
@@ -154,6 +154,29 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                     listOf("live" to "Laatst bekeken zenders wissen", "movie" to "Films: voortgang wissen", "show" to "Series: voortgang wissen", "all" to "Alles wissen").forEach { (k, t) ->
                         item { tick.hashCode(); SettingRow(t, "") { nav.confirm(t, "Dit kan niet ongedaan worden gemaakt.") { vm.clearHistory(k); changed() } } }
                     }
+                }
+                7 -> {
+                    item { tick.hashCode()
+                        SettingRow("Homey", when {
+                            !vm.homey.configured -> "Geen sleutel: zet \"homeyKey\" in kijk-sleutels.json (privé repo) en synchroniseer via GitHub."
+                            vm.hyError != null -> "Niet bereikbaar: ${vm.hyError}"
+                            vm.hyDevices.isEmpty() -> "Zoeken… (OK om opnieuw te proberen)"
+                            else -> "Verbonden · ${vm.hyDevices.size} apparaten · ${vm.homey.base.removePrefix("http://")}"
+                        }) { vm.refreshHomey(force = true, meta = true) }
+                    }
+                    fun pick(t: String, slot: String, cur: String?) {
+                        item { SettingRow(t, (if (vm.hyChoice(slot).isEmpty()) "Automatisch: " else "") + (cur ?: "niets gevonden")) { nav.push(Screen.HomeyPick(slot)) } }
+                    }
+                    pick("Thermostaat", "thermo", vm.hyThermostat?.name)
+                    pick("Airco 1", "airco1", vm.hyAirco1?.name)
+                    pick("Airco 2", "airco2", vm.hyAirco2?.name)
+                    pick("Comfort-temperatuur", "comfort", vm.hyComfort?.name)
+                    pick("Flow: hervat schema", "resume", vm.hyResume?.name)
+                    pick("Afval-app", "afval", vm.hyAfval?.name)
+                    pick("Deurbel", "bell", vm.hyBell?.name)
+                    pick("Flow: nieuwe snapshot", "snap", vm.hySnapFlow?.name)
+                    item { SettingRow("Ruimtes verbergen", vm.hyHidden.joinToString(", ").ifEmpty { "Geen" }) { nav.push(Screen.HomeyPick("hide")) } }
+                    item { SettingRow("Melding bij aanbellen", "Homey-flow: Als er wordt aangebeld → HTTP GET http://${PhoneServer.address() ?: "<tv>:8080"}/homey/deurbel") { } }
                 }
                 else -> {
                     item {

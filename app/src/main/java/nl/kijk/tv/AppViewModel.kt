@@ -40,6 +40,10 @@ import nl.kijk.tv.data.Xtream
 import nl.kijk.tv.data.HomeInfo
 import nl.kijk.tv.data.News
 import nl.kijk.tv.data.Weather
+import nl.kijk.tv.data.HDevice
+import nl.kijk.tv.data.HZone
+import nl.kijk.tv.data.HVar
+import nl.kijk.tv.data.HFlow
 import org.json.JSONObject
 import nl.kijk.tv.phone.PhoneServer
 import java.io.File
@@ -131,6 +135,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun startSync() {
+        PhoneServer.doorbellHandler = { mainHandler.post { doorbellRang() } }
         PhoneServer.syncHandler = { path, o, from ->
             sync.handle(path, o, from, PhoneServer.port,
                 onChanged = { ch -> mainHandler.post { reloadFromStore(ch); if ("playlistUrl" in ch && configured) imports++; peersVersion++ } },
@@ -944,6 +949,181 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var news by mutableStateOf<News?>(null); private set
     private var homeJob: Job? = null
     /** Weer en nieuws ophalen; hooguit eens per half uur. */
+    // ---------------------------------------------------------------- Homey (rij "Huis" op Thuis)
+    private val hyPrefs = getApplication<Application>().getSharedPreferences("kijk_homey", 0)
+    val homey = nl.kijk.tv.data.Homey({ github.homeyIp }, { github.homeyKey },
+        { hyPrefs.getString("ip", "") ?: "" }, { hyPrefs.edit().putString("ip", it).apply() })
+    var hyDevices by mutableStateOf<List<HDevice>>(emptyList()); private set
+    var hyZones by mutableStateOf<Map<String, HZone>>(emptyMap()); private set
+    var hyVars by mutableStateOf<List<HVar>>(emptyList()); private set
+    var hyFlows by mutableStateOf<List<HFlow>>(emptyList()); private set
+    var hyError by mutableStateOf<String?>(null); private set
+    var hyAt by mutableStateOf(0L); private set
+    var hySnapBusy by mutableStateOf(false); private set
+    private var hySnapAt = 0L
+    var bellAlert by mutableStateOf<Long?>(null)
+    var hyRings by mutableStateOf(hyPrefs.getString("rings", "")!!.split(',').mapNotNull { it.toLongOrNull() }); private set
+    private var hyMetaAt = 0L
+    private var hyJob: Job? = null
+    private var hyVer by mutableStateOf(0)
+
+    /** Hooguit eens per minuut (of direct met [force]); alleen aangeroepen terwijl Thuis in beeld is. */
+    fun refreshHomey(force: Boolean = false, meta: Boolean = false) {
+        if (!homey.configured) return
+        if (hyJob?.isActive == true) return
+        val now = System.currentTimeMillis()
+        if (!force && !meta && now - hyAt < 55_000) return
+        hyJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (meta || hyZones.isEmpty() || now - hyMetaAt > 30 * MINUTE) {
+                    hyZones = homey.zones()
+                    hyFlows = homey.flows()
+                    hyMetaAt = now
+                }
+                hyVars = runCatching { homey.variables() }.getOrDefault(hyVars)
+                hyDevices = homey.devices()
+                hyError = null
+            } catch (e: Exception) { hyError = e.message ?: e.javaClass.simpleName }
+            hyAt = System.currentTimeMillis()
+        }
+    }
+
+    fun hyChoice(slot: String) = store.homey(slot)
+    fun hySetChoice(slot: String, v: String) { store.setHomey(slot, v); hyVer++ }
+
+    private fun hyDev(id: String) = if (id.isEmpty()) null else hyDevices.firstOrNull { it.id == id }
+    private fun HDevice.has(vararg w: String) = name.lowercase().let { n -> w.any { it in n } }
+    private val HDevice.isAirco get() = has("airco", "airconditioning", "warmtepomp") || cls == "airconditioning" || cls == "heatpump"
+    private val tempDevs get() = hyDevices.filter { "target_temperature" in it.caps }
+
+    val hyThermostat: HDevice? get() { hyVer
+        return hyDev(store.homey("thermo")) ?: tempDevs.filter { !it.isAirco }.let { l -> l.firstOrNull { it.has("remeha", "thermostaat", "cv") } ?: l.firstOrNull() }
+    }
+    private val autoAircos get() = tempDevs.filter { it.isAirco && it.id != hyThermostat?.id }.sortedBy { if (it.has("zolder")) 1 else 0 }
+    val hyAirco1: HDevice? get() { hyVer; return hyDev(store.homey("airco1")) ?: autoAircos.firstOrNull() }
+    val hyAirco2: HDevice? get() { hyVer; return hyDev(store.homey("airco2")) ?: autoAircos.firstOrNull { it.id != hyAirco1?.id } }
+    val hyComfort: HVar? get() { hyVer
+        val id = store.homey("comfort")
+        return hyVars.firstOrNull { it.id == id } ?: hyVars.firstOrNull { it.type == "number" && "comfort" in it.name.lowercase() }
+    }
+    val hyResume: HFlow? get() { hyVer
+        val id = store.homey("resume")
+        return hyFlows.firstOrNull { it.id == id } ?: hyFlows.firstOrNull { "hervat" in it.name.lowercase() }
+    }
+    val hyAfval: HDevice? get() { hyVer
+        return hyDev(store.homey("afval")) ?: hyDevices.firstOrNull { it.has("afval", "trash", "waste", "garbage", "vuilnis", "container") }
+    }
+    val hyBell: HDevice? get() { hyVer
+        return hyDev(store.homey("bell")) ?: hyDevices.filter { it.image != null }.let { l -> l.firstOrNull { it.has("deurbel", "doorbell", "ring") } ?: l.firstOrNull { it.cls == "doorbell" } }
+    }
+    val hySnapFlow: HFlow? get() { hyVer
+        val id = store.homey("snap")
+        return hyFlows.firstOrNull { it.id == id } ?: hyFlows.firstOrNull { "snapshot" in it.name.lowercase() }
+    }
+    val hyHidden: Set<String> get() { hyVer
+        return runCatching { org.json.JSONArray(store.homey("hide")).let { a -> (0 until a.length()).map { a.getString(it).lowercase() }.toSet() } }.getOrDefault(emptySet())
+    }
+    fun hyToggleHidden(zone: String) {
+        val n = zone.lowercase(); val cur = hyHidden
+        hySetChoice("hide", org.json.JSONArray((if (n in cur) cur - n else cur + n).toList()).toString())
+    }
+
+    data class HRoom(val zone: HZone, val floor: String, val floorRank: Int, val lights: List<HDevice>) {
+        val on get() = lights.count { it.bool("onoff") == true }
+        val dimmable get() = lights.any { "dim" in it.caps }
+        val dim get() = lights.filter { it.bool("onoff") == true }.mapNotNull { it.num("dim") }.maxOrNull()
+    }
+
+    /** Lampen per ruimte, per verdieping (volgens de zones in Homey), zonder de verborgen ruimtes. */
+    val hyRooms: List<HRoom> get() {
+        val zones = hyZones; val hidden = hyHidden
+        fun chain(id: String): List<HZone> { val out = mutableListOf<HZone>(); var z = zones[id]; var n = 0
+            while (z != null && n++ < 12) { out += z; z = z.parent?.let { zones[it] } }; return out }
+        return hyDevices.filter { it.isLight }.groupBy { it.zone }.mapNotNull { (zid, lights) ->
+            val ch = chain(zid); val zone = ch.firstOrNull() ?: return@mapNotNull null
+            if (ch.any { it.name.lowercase() in hidden }) return@mapNotNull null
+            // verdieping = de zone direct onder "Huis" (de bovenste zone)
+            val floor = if (ch.size >= 3) ch[ch.size - 2] else zone
+            val f = floor.name.lowercase()
+            val rank = when { listOf("begane", "beneden", "bg").any { it in f } -> 0; listOf("1e", "eerste").any { it in f } -> 1
+                listOf("2e", "tweede", "zolder").any { it in f } -> 2; listOf("tuin", "buiten").any { it in f } -> 3; else -> 4 }
+            HRoom(zone, floor.name, rank, lights.sortedBy { it.name })
+        }.sortedWith(compareBy({ it.floorRank }, { it.floor }, { it.zone.name }))
+    }
+
+    private fun patch(id: String, cap: String, v: Any) {
+        hyDevices = hyDevices.map { d -> if (d.id != id) d else d.copy(caps = d.caps + (cap to (d.caps[cap]?.copy(value = v) ?: nl.kijk.tv.data.HCap(cap, cap, v, "", 0L)))) }
+    }
+    private fun hyDo(label: String, block: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try { block() } catch (e: Exception) { notice = "✕ $label: ${e.message ?: "mislukt"}" }
+            delay(1_500); refreshHomey(force = true)
+        }
+    }
+    fun hyToggleRoom(r: HRoom) {
+        val on = r.on == 0
+        r.lights.forEach { patch(it.id, "onoff", on) }
+        hyDo("Licht") { r.lights.forEach { homey.setCapability(it.id, "onoff", on) } }
+    }
+    fun hyDimRoom(r: HRoom, delta: Double) {
+        val ls = r.lights.filter { "dim" in it.caps }
+        if (ls.isEmpty()) return
+        val v = ((r.dim ?: 0.0) + delta).coerceIn(0.05, 1.0)
+        ls.forEach { patch(it.id, "dim", v); patch(it.id, "onoff", true) }
+        hyDo("Dimmen") { ls.forEach { homey.setCapability(it.id, "dim", v) } }
+    }
+    fun hyAllOff() {
+        val ls = hyRooms.flatMap { it.lights }.filter { it.bool("onoff") == true }
+        ls.forEach { patch(it.id, "onoff", false) }
+        hyDo("Licht") { ls.forEach { homey.setCapability(it.id, "onoff", false) } }
+    }
+    fun hyTarget(d: HDevice, delta: Double) {
+        val v = Math.round(((d.num("target_temperature") ?: 20.0) + delta) * 2) / 2.0
+        patch(d.id, "target_temperature", v)
+        hyDo("Temperatuur") { homey.setCapability(d.id, "target_temperature", v) }
+    }
+    fun hyToggle(d: HDevice) {
+        val on = d.bool("onoff") != true
+        patch(d.id, "onoff", on)
+        hyDo("Aan/uit") { homey.setCapability(d.id, "onoff", on) }
+    }
+    fun hyNextMode(d: HDevice) {
+        val modes = listOf("heat", "cool", "auto")
+        val cur = d.caps["thermostat_mode"]?.value as? String ?: return
+        val next = modes[(modes.indexOf(cur) + 1).mod(modes.size)]
+        patch(d.id, "thermostat_mode", next)
+        hyDo("Modus") { homey.setCapability(d.id, "thermostat_mode", next) }
+    }
+    fun hyComfortBy(delta: Double) {
+        val v = hyComfort ?: return
+        val n = Math.round((((v.value as? Number)?.toDouble() ?: 20.0) + delta) * 2) / 2.0
+        hyVars = hyVars.map { if (it.id == v.id) it.copy(value = n) else it }
+        hyDo("Comfort") { homey.setVariable(v.id, n) }
+    }
+    fun hyResumeSchedule() {
+        val f = hyResume ?: run { notice = "Geen flow \"Hervat schema\" gevonden. Kies hem in Instellingen › Huis."; return }
+        hyDo("Schema") { homey.trigger(f); notice = "Schema hervat" }
+    }
+    /** Nieuwe snapshot: start de snapshot-flow (als die er is) en haal daarna het beeld opnieuw op. */
+    fun hySnapshot() {
+        val now = System.currentTimeMillis()
+        if (hySnapBusy || now - hySnapAt < 20_000) { notice = "Even wachten, net vernieuwd"; return }
+        hySnapAt = now; hySnapBusy = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try { hySnapFlow?.let { homey.trigger(it) } } catch (e: Exception) { notice = "✕ Snapshot: ${e.message ?: "mislukt"}" }
+            delay(if (hySnapFlow != null) 5_000 else 300)
+            hyJob?.join(); refreshHomey(force = true); hyJob?.join()
+            hySnapBusy = false
+        }
+    }
+    fun doorbellRang() {
+        val now = System.currentTimeMillis()
+        hyRings = (listOf(now) + hyRings).take(12)
+        hyPrefs.edit().putString("rings", hyRings.joinToString(",")).apply()
+        bellAlert = now
+        viewModelScope.launch { delay(3_500); refreshHomey(force = true); delay(6_000); refreshHomey(force = true) }
+    }
+
     fun refreshHome() {
         refreshSports()
         if (homeJob?.isActive == true) return

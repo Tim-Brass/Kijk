@@ -60,6 +60,8 @@ object PhoneServer {
     @Volatile private var filesDir: java.io.File? = null
     /** Verzoeken tussen Kijk-apparaten (instellingen delen); wordt ingesteld door de app. */
     @Volatile var syncHandler: ((String, JSONObject, String) -> JSONObject)? = null
+    /** Homey-flow "deurbel" → GET/POST http://<tv>:8080/homey/deurbel */
+    @Volatile var doorbellHandler: (() -> Unit)? = null
 
     fun start(ctx: Context, onImport: (JSONObject) -> Unit) {
         filesDir = ctx.filesDir
@@ -117,6 +119,11 @@ object PhoneServer {
             method == "GET" && path == "/crash" -> send("200 OK", "text/plain; charset=utf-8",
                 (filesDir?.let { java.io.File(it, "crash_last.txt") }?.takeIf { it.exists() }?.readText() ?: "Geen crash bewaard.").toByteArray())
             method == "GET" && path == "/log" -> send("200 OK", "text/plain; charset=utf-8", nl.kijk.tv.data.ImageLog.text().toByteArray())
+            (method == "GET" || method == "POST") && path == "/homey/deurbel" -> {
+                val h = doorbellHandler
+                if (h == null) json("503 Service Unavailable", JSONObject().put("error", "Kijk staat niet open"))
+                else { h(); json("200 OK", JSONObject().put("ok", true)) }
+            }
             method == "GET" && path == "/status" -> json("200 OK", JSONObject().put("app", "Kijk").put("ok", true).put("open", listener != null))
             method == "POST" && path.startsWith("/sync/") -> {
                 val o = try { JSONObject(String(body, Charsets.UTF_8).ifBlank { "{}" }) } catch (_: Exception) { JSONObject() }

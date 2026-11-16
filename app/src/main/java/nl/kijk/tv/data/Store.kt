@@ -49,6 +49,9 @@ class Store(ctx: Context) {
     /** Vaste zender (sleutel) als reserve voor de sporttegels, als de gids niets vindt. */
     var sportF1Channel: String get() = str("sportF1"); set(v) = put("sportF1", v)
     var sportFootballChannel: String get() = str("sportFoot"); set(v) = put("sportFoot", v)
+    /** Homey-keuzes (apparaat/variabele/flow-id per plek op de Huis-kaarten); leeg = automatisch. */
+    fun homey(slot: String): String = str("hy_$slot", if (slot == "hide") "[\"kelderkast\",\"toilet\"]" else "")
+    fun setHomey(slot: String, v: String) = put("hy_$slot", v)
 
     // ---- kinderslot
     var pinHash: String get() = str("pinHash"); set(v) = put("pinHash", v)

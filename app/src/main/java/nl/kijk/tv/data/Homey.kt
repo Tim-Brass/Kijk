@@ -1,0 +1,176 @@
+package nl.kijk.tv.data
+
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
+
+/** Eén waarde van een Homey-apparaat (bv. measure_temperature). */
+data class HCap(val id: String, val title: String, val value: Any?, val units: String, val updated: Long)
+
+data class HDevice(
+    val id: String, val name: String, val zone: String, val cls: String,
+    val caps: Map<String, HCap>, val image: String?, val imageAt: Long,
+) {
+    fun num(c: String): Double? = (caps[c]?.value as? Number)?.toDouble()
+    fun bool(c: String): Boolean? = caps[c]?.value as? Boolean
+    val isLight get() = "onoff" in caps && (cls == "light" || "light_hue" in caps || "light_temperature" in caps)
+}
+
+data class HZone(val id: String, val name: String, val parent: String?)
+data class HVar(val id: String, val name: String, val type: String, val value: Any?)
+data class HFlow(val id: String, val name: String, val advanced: Boolean)
+
+/**
+ * Homey Pro via de lokale Web API (alleen in je eigen netwerk, geen cloud).
+ * IP en API-sleutel komen uit kijk-sleutels.json in de privé repo en blijven alleen op de tv.
+ */
+class Homey(
+    private val ipOf: () -> String, private val keyOf: () -> String,
+    private val lastOf: () -> String, private val saveLast: (String) -> Unit,
+) {
+    /** Alleen de sleutel is nodig: het adres zoekt Kijk zo nodig zelf in het netwerk. */
+    val configured get() = keyOf().isNotBlank()
+    val key: String get() = keyOf().trim()
+    private val host: String get() = lastOf().ifBlank { ipOf() }.trim().trimEnd('/').removePrefix("http://")
+    val base: String get() = "http://$host"
+
+    private class Unreachable(e: Exception) : IOException(e.message, e)
+
+    private fun call(method: String, path: String, body: String? = null): String = try {
+        if (host.isBlank()) throw Unreachable(IOException("adres onbekend"))
+        callAt(host, method, path, body)
+    } catch (e: Unreachable) {
+        // niet bereikbaar op het bekende adres: in het netwerk zoeken en nog één keer proberen
+        val found = discover() ?: throw IOException("Homey niet gevonden in het netwerk")
+        callAt(found, method, path, body)
+    }
+
+    /** Zoekt de Homey: eerst het opgegeven IP, dan het eigen subnet (alleen een antwoord op de juiste sleutel telt). */
+    @Volatile private var failedAt = 0L
+
+    @Synchronized fun discover(): String? {
+        if (System.currentTimeMillis() - failedAt < 10 * 60_000L) return null   // niet elke minuut het hele netwerk af
+        fun ok(h: String) = runCatching { callAt(h, "GET", "/api/manager/zones/zone/", null, quick = true).trim().startsWith("{") }.getOrDefault(false)
+        ipOf().trim().removePrefix("http://").trimEnd('/').takeIf { it.isNotBlank() && it != lastOf() && ok(it) }?.let { saveLast(it); return it }
+        val me = java.net.NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }.firstOrNull { it is java.net.Inet4Address && it.isSiteLocalAddress }?.hostAddress ?: run { failedAt = System.currentTimeMillis(); return null }
+        val prefix = me.substringBeforeLast('.')
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(32)
+        try {
+            val cs = java.util.concurrent.ExecutorCompletionService<String?>(pool)
+            val hosts = (1..254).map { "$prefix.$it" }.filter { it != me && it != lastOf() }
+            hosts.forEach { h -> cs.submit { if (ok(h)) h else null } }
+            repeat(hosts.size) {
+                val r = cs.poll(8, java.util.concurrent.TimeUnit.SECONDS)?.get() ?: return@repeat
+                saveLast(r); return r
+            }
+        } finally { pool.shutdownNow() }
+        failedAt = System.currentTimeMillis()
+        return null
+    }
+
+    private fun callAt(h: String, method: String, path: String, body: String?, quick: Boolean = false): String {
+        val c = URL("http://$h$path").openConnection() as HttpURLConnection
+        try {
+            c.requestMethod = method
+            c.connectTimeout = if (quick) 700 else 3_000; c.readTimeout = if (quick) 2_000 else 6_000
+            c.setRequestProperty("Authorization", "Bearer $key")
+            c.setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                c.doOutput = true
+                c.setRequestProperty("Content-Type", "application/json")
+                try { c.outputStream.use { it.write(body.toByteArray()) } }
+                catch (e: java.net.ConnectException) { throw Unreachable(e) } catch (e: java.net.SocketTimeoutException) { throw Unreachable(e) }
+            }
+            val code = try { c.responseCode } catch (e: java.net.SocketTimeoutException) { throw Unreachable(e) }
+                catch (e: java.net.ConnectException) { throw Unreachable(e) } catch (e: java.net.NoRouteToHostException) { throw Unreachable(e) }
+            val txt = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+            if (code !in 200..299) throw IOException("Homey antwoordt $code ${txt.take(100)}")
+            return txt
+        } finally { c.disconnect() }
+    }
+
+    fun devices(): List<HDevice> {
+        val o = JSONObject(call("GET", "/api/manager/devices/device/"))
+        return o.keys().asSequence().mapNotNull { id ->
+            val d = o.optJSONObject(id) ?: return@mapNotNull null
+            val capsObj = d.optJSONObject("capabilitiesObj")
+            val caps = mutableMapOf<String, HCap>()
+            capsObj?.keys()?.forEach { k ->
+                val c = capsObj.optJSONObject(k) ?: return@forEach
+                val v = c.opt("value").takeIf { it != JSONObject.NULL }
+                caps[k] = HCap(k, c.optString("title", k), v, c.optString("units", "").takeIf { it != "null" } ?: "", ts(c.opt("lastUpdated")))
+            }
+            var img: String? = null; var imgAt = 0L
+            d.optJSONArray("images")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val im = a.optJSONObject(i) ?: continue
+                    val io = im.optJSONObject("imageObj")
+                    val url = io?.optString("url")?.takeIf { it.isNotBlank() && it != "null" }
+                        ?: io?.optString("id")?.takeIf { it.isNotBlank() }?.let { "/api/image/$it" }
+                        ?: im.optString("imageId").takeIf { it.isNotBlank() }?.let { "/api/image/$it" }
+                    if (url != null) { img = url; imgAt = ts(io?.opt("lastUpdated")); break }
+                }
+            }
+            HDevice(id, d.optString("name"), d.optString("zone"), d.optString("virtualClass").takeIf { it.isNotBlank() && it != "null" } ?: d.optString("class"),
+                caps, img, imgAt)
+        }.toList()
+    }
+
+    fun zones(): Map<String, HZone> {
+        val o = JSONObject(call("GET", "/api/manager/zones/zone/"))
+        return o.keys().asSequence().mapNotNull { id ->
+            val z = o.optJSONObject(id) ?: return@mapNotNull null
+            id to HZone(id, z.optString("name"), z.optString("parent").takeIf { it.isNotBlank() && it != "null" })
+        }.toMap()
+    }
+
+    fun variables(): List<HVar> {
+        val o = JSONObject(call("GET", "/api/manager/logic/variable/"))
+        return o.keys().asSequence().mapNotNull { id ->
+            val v = o.optJSONObject(id) ?: return@mapNotNull null
+            HVar(id, v.optString("name"), v.optString("type"), v.opt("value"))
+        }.toList()
+    }
+
+    fun flows(): List<HFlow> {
+        fun read(path: String, adv: Boolean) = runCatching {
+            val o = JSONObject(call("GET", path))
+            o.keys().asSequence().mapNotNull { id -> o.optJSONObject(id)?.let { HFlow(id, it.optString("name"), adv) } }.toList()
+        }.getOrDefault(emptyList())
+        return (read("/api/manager/flow/flow/", false) + read("/api/manager/flow/advancedflow/", true)).sortedBy { it.name.lowercase() }
+    }
+
+    fun setCapability(device: String, cap: String, value: Any) {
+        call("PUT", "/api/manager/devices/device/$device/capability/$cap", JSONObject().put("value", value).toString())
+    }
+
+    fun setVariable(id: String, value: Any) {
+        try { call("PUT", "/api/manager/logic/variable/$id", JSONObject().put("variable", JSONObject().put("value", value)).toString()) }
+        catch (e: IOException) { call("PUT", "/api/manager/logic/variable/$id", JSONObject().put("value", value).toString()) }
+    }
+
+    /** Werkt voor flows die beginnen met "Deze flow is gestart". */
+    fun trigger(f: HFlow) {
+        call("POST", if (f.advanced) "/api/manager/flow/advancedflow/${f.id}/trigger" else "/api/manager/flow/flow/${f.id}/trigger", "{}")
+    }
+
+    fun imageUrl(path: String) = if (path.startsWith("http")) path else base + path
+
+    companion object {
+        private val iso = listOf("yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX")
+        fun ts(v: Any?): Long = when (v) {
+            is Number -> v.toLong()
+            is String -> iso.firstNotNullOfOrNull { p ->
+                runCatching { SimpleDateFormat(p, Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.parse(v)?.time }.getOrNull()
+            } ?: 0L
+            else -> 0L
+        }
+        @Suppress("unused") private fun JSONArray.objs() = (0 until length()).mapNotNull { optJSONObject(it) }
+    }
+}
