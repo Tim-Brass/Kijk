@@ -86,7 +86,7 @@ fun HuisRow(vm: AppViewModel) {
 }
 
 @Composable
-private fun HuisCard(modifier: Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun HuisCard(modifier: Modifier, onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 9.dp)) { content() }
     }
@@ -353,7 +353,7 @@ private fun PanelRow(
 }
 
 @Composable
-private fun PanelHeader(text: String) {
+private fun HuisHeader(text: String) {
     Label(text, Modifier.padding(start = 4.dp, top = 10.dp, bottom = 2.dp), size = 12.sp, weight = Kijk.Semibold, color = GreyH)
 }
 
@@ -366,7 +366,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.tempPanel(vm: AppView
         item(key = "comfort") { PanelRow("Comfort-temperatuur", deg((c.value as? Number)?.toDouble()), m, TempC, sub = "geldt voor je flows",
             onLeft = { vm.hyComfortBy(-0.5) }, onRight = { vm.hyComfortBy(0.5) }) }
     }
-    item(key = "h1") { PanelHeader("Apparaten") }
+    item(key = "h1") { HuisHeader("Apparaten") }
     vm.hyThermostat?.let { t ->
         val m = fm()
         item(key = "t") { PanelRow(t.name, deg(t.num("target_temperature")), m, TempC, sub = "nu ${deg(t.num("measure_temperature"))}",
@@ -394,7 +394,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.lightPanel(vm: AppVie
     if (rooms.isEmpty()) { item { Label("Geen lampen gevonden in Homey.", size = Kijk.Body, color = GreyH) }; return }
     var firstUsed = false
     rooms.groupBy { it.floor }.forEach { (floor, rs) ->
-        item(key = "f$floor") { PanelHeader(floor) }
+        item(key = "f$floor") { HuisHeader(floor) }
         rs.forEach { r ->
             val m = if (!firstUsed) { firstUsed = true; Modifier.focusRequester(first) } else Modifier
             item(key = r.zone.id) {
