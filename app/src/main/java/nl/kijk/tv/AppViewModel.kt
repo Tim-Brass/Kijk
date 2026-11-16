@@ -136,6 +136,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startSync() {
         PhoneServer.doorbellHandler = { mainHandler.post { doorbellRang() } }
+        PhoneServer.homeyDump = { homeyDump() }
         PhoneServer.syncHandler = { path, o, from ->
             sync.handle(path, o, from, PhoneServer.port,
                 onChanged = { ch -> mainHandler.post { reloadFromStore(ch); if ("playlistUrl" in ch && configured) imports++; peersVersion++ } },
@@ -988,6 +989,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) { hyError = e.message ?: e.javaClass.simpleName }
             hyAt = System.currentTimeMillis()
         }
+    }
+
+    private fun homeyDump(): String = buildString {
+        appendLine("Kijk ziet in Homey (${homey.base}) · fout: ${hyError ?: "geen"}")
+        appendLine()
+        appendLine("== Apparaten (naam | zone | klasse | aan/uit | waarden) ==")
+        hyDevices.sortedWith(compareBy({ hyZones[it.zone]?.name ?: "" }, { it.name })).forEach { d ->
+            val caps = d.caps.values.joinToString(", ") { c -> "${c.id}=${c.value}" }
+            appendLine("${d.name} | ${hyZones[d.zone]?.name ?: "?"} | ${d.cls} | ${d.bool("onoff") ?: "-"} | $caps" + (if (d.image != null) " | beeld ${java.util.Date(d.imageAt)}" else ""))
+        }
+        appendLine()
+        appendLine("== Ruimtes op de verlichtingskaart ==")
+        hyRooms.forEach { r -> appendLine("${r.floor} / ${r.zone.name}: ${r.lights.joinToString { "${it.name}=${it.bool("onoff")}" }}") }
+        appendLine()
+        appendLine("== Flows ==")
+        hyFlows.forEach { appendLine(it.name + if (it.advanced) " (geavanceerd)" else "") }
+        appendLine()
+        appendLine("== Variabelen ==")
+        hyVars.forEach { appendLine("${it.name} (${it.type}) = ${it.value}") }
     }
 
     fun hyChoice(slot: String) = store.homey(slot)

@@ -249,9 +249,14 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
         if (path == null) Label("Geen beeld", size = 12.sp, color = GreyH)
         else {
             val url = vm.homey.imageUrl(path)
-            val req = remember(url, imgAt) {
+            // Homey geeft steeds hetzelfde adres voor het beeld: niet op schijf bewaren en bij elke verversing opnieuw ophalen
+            val stamp = "$url@$imgAt@${vm.hyAt}"
+            var shown by remember { mutableStateOf<String?>(null) }
+            val req = remember(stamp) {
                 coil.request.ImageRequest.Builder(ctx).data(url).setHeader("Authorization", "Bearer ${vm.homey.key}")
-                    .memoryCacheKey("$url@$imgAt").diskCacheKey("$url@$imgAt").size(480, 270).crossfade(true).build()
+                    .memoryCacheKey(stamp).placeholderMemoryCacheKey(shown)
+                    .diskCachePolicy(coil.request.CachePolicy.DISABLED).networkCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .size(480, 270).listener(onSuccess = { _, _ -> shown = stamp }).build()
             }
             AsyncImage(req, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
