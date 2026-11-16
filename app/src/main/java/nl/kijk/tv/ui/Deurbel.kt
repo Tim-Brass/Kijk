@@ -187,6 +187,14 @@ fun DoorbellLiveScreen(vm: AppViewModel) {
         if (v == null) null else runCatching { LiveSession(ctx, vm.homey, v, renderer) { playing = true } }
             .onFailure { state = "Live beeld lukt niet: ${it.message}" }.getOrNull()
     }
+    // af en toe een beeld bewaren voor de deurbelkaart
+    LaunchedEffect(playing) {
+        while (playing) {
+            delay(2_000)
+            runCatching { renderer.addFrameListener({ bmp -> if (bmp != null) vm.liveFrame = bmp.copy(bmp.config ?: android.graphics.Bitmap.Config.ARGB_8888, false) to System.currentTimeMillis() }, 0.5f) }
+            delay(8_000)
+        }
+    }
     LaunchedEffect(session) {
         if (bell?.video == null) { state = if (bell == null) "Geen deurbel gevonden" else "Deze deurbel heeft geen live beeld in Homey"; return@LaunchedEffect }
         val s = session ?: return@LaunchedEffect

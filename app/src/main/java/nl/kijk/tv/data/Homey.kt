@@ -192,6 +192,20 @@ class Homey(
     fun appSettings(appId: String): JSONObject? = runCatching { JSONObject(call("GET", "/api/manager/apps/app/$appId/setting/")) }
         .onFailure { ImageLog.add("Homey app-instellingen $appId: ${it.message}") }.getOrNull()
 
+    /** Ophaaldagen van Afval Herinnering 2.0: eerst de eigen app-API, dan de instelling "collectingDays". */
+    fun trashDays(): JSONObject? {
+        for (path in listOf("/api/app/com.trashchecker/trashcollectiondays?recalculate=false",
+            "/api/manager/apps/app/com.trashchecker/setting/collectingDays", "/api/manager/apps/app/com.trashchecker/setting/")) {
+            try {
+                val t = call("GET", path).trim()
+                ImageLog.add("Afval: $path → ${t.take(120)}")
+                val v = org.json.JSONTokener(t).nextValue()
+                return when (v) { is JSONObject -> v; is JSONArray -> JSONObject().put("data", v); is String -> JSONObject().put("data", v); else -> null } ?: continue
+            } catch (e: Exception) { ImageLog.add("Afval: $path mislukt: ${e.message}") }
+        }
+        return null
+    }
+
     fun setCapability(device: String, cap: String, value: Any) {
         call("PUT", "/api/manager/devices/device/$device/capability/$cap", JSONObject().put("value", value).toString())
     }

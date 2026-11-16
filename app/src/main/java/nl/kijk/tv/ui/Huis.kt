@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -304,8 +305,10 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
     val ctx = LocalContext.current
     val path = d?.image
     val imgAt = d?.imageAt ?: 0L
+    val live = vm.liveFrame?.takeIf { it.second > imgAt }
     Box(modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFF22222A)), contentAlignment = Alignment.Center) {
-        if (path == null) Label("Geen beeld", size = 12.sp, color = GreyH)
+        if (live != null) androidx.compose.foundation.Image(remember(live) { live.first.asImageBitmap() }, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else if (path == null) Label("Geen beeld", size = 12.sp, color = GreyH)
         else {
             val url = vm.homey.imageUrl(path)
             // Homey geeft steeds hetzelfde adres voor het beeld: niet op schijf bewaren en bij elke verversing opnieuw ophalen
@@ -331,6 +334,7 @@ private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
         val ring = vm.hyRings.firstOrNull()
         Label(when {
             ring != null -> "Aangebeld ${ringTime(ring, vm.now)}"
+            (vm.liveFrame?.second ?: 0L) > (b?.imageAt ?: 0L) -> "Beeld ${ringTime(vm.liveFrame!!.second, vm.now)}"
             (b?.imageAt ?: 0L) > 0 -> "Beeld ${ringTime(b!!.imageAt, vm.now)}"
             b == null -> "Geen deurbel gevonden"
             else -> "Nog niet aangebeld"

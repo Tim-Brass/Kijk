@@ -969,6 +969,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var hySnapBusy by mutableStateOf(false); private set
     private var hySnapAt = 0L
     var bellAlert by mutableStateOf<Long?>(null)
+    /** laatste beeld uit het live beeld (Ring ververst zijn snapshot alleen bij beweging/aanbellen) */
+    var liveFrame by mutableStateOf<Pair<android.graphics.Bitmap, Long>?>(null)
     var hyRings by mutableStateOf(hyPrefs.getString("rings", "")!!.split(',').mapNotNull { it.toLongOrNull() }); private set
     private var hyMetaAt = 0L
     private var hyJob: Job? = null
@@ -986,7 +988,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     hyZones = homey.zones()
                     hyFlows = homey.flows()
                     hySwitches = runCatching { homey.switchTargets() }.getOrDefault(hySwitches)
-                    homey.appSettings("com.trashchecker")?.let { hyAfvalSettings = it }
+                    homey.trashDays()?.let { hyAfvalSettings = it }
                     hyMetaAt = now
                 }
                 hyVars = runCatching { homey.variables() }.getOrDefault(hyVars)
