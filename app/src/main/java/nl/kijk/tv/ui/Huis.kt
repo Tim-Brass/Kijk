@@ -64,7 +64,7 @@ private fun degShort(v: Double?) = v?.let { if (it % 1.0 == 0.0) "${it.toInt()}Â
 /** Rij "Huis" op Thuis: vier even brede kaarten, net als de sportrij. Alleen als er een Homey-sleutel is. */
 @Composable
 fun HuisRow(vm: AppViewModel) {
-    if (!vm.homey.configured) return
+    if (!vm.homeyReady) return
     // alleen verversen zolang Thuis in beeld is (hooguit eens per minuut)
     LaunchedEffect(Unit) { while (true) { vm.refreshHomey(); delay(60_000) } }
     var panel by remember { mutableStateOf<String?>(null) }

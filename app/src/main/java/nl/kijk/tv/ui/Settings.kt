@@ -158,7 +158,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                 7 -> {
                     item { tick.hashCode()
                         SettingRow("Homey", when {
-                            !vm.homey.configured -> "Geen sleutel: zet \"homeyKey\" in kijk-sleutels.json (privé repo) en synchroniseer via GitHub."
+                            !vm.homeyReady -> "Geen sleutel: zet \"homeyKey\" in kijk-sleutels.json (privé repo) en synchroniseer via GitHub."
                             vm.hyError != null -> "Niet bereikbaar: ${vm.hyError}"
                             vm.hyDevices.isEmpty() -> "Zoeken… (OK om opnieuw te proberen)"
                             else -> "Verbonden · ${vm.hyDevices.size} apparaten · ${vm.homey.base.removePrefix("http://")}"

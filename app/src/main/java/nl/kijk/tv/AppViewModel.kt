@@ -953,6 +953,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val hyPrefs = getApplication<Application>().getSharedPreferences("kijk_homey", 0)
     val homey = nl.kijk.tv.data.Homey({ github.homeyIp }, { github.homeyKey },
         { hyPrefs.getString("ip", "") ?: "" }, { hyPrefs.edit().putString("ip", it).apply() })
+    /** Er is een Homey-sleutel (wordt na elke GitHub-synchronisatie opnieuw bekeken). */
+    val homeyReady: Boolean get() { githubVersion; return homey.configured }
     var hyDevices by mutableStateOf<List<HDevice>>(emptyList()); private set
     var hyZones by mutableStateOf<Map<String, HZone>>(emptyMap()); private set
     var hyVars by mutableStateOf<List<HVar>>(emptyList()); private set

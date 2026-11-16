@@ -165,7 +165,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     if (psv != null) MatchCard(vm, psv, vm.psvTv, Modifier.weight(1f)) { act(vm.psvTv, psv.start, sportLive(vm.psvTv, psv.start, "Wedstrijd", vm.now), "${psv.home} – ${psv.away}") }
                 }
             }
-            if (vm.homey.configured) item(key = "huis") { HuisRow(vm) }
+            if (vm.homeyReady) item(key = "huis") { HuisRow(vm) }
             if (newest.isNotEmpty()) item {
                 HomeRow("Nieuwste films en series") {
                     items(newest) { item ->
