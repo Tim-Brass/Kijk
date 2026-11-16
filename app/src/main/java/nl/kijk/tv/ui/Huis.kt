@@ -195,18 +195,21 @@ fun afvalItems(vm: AppViewModel): List<AfvalItem> {
 
 private val WASTE = listOf("gft", "groen", "papier", "pmd", "plastic", "pbd", "rest", "grof", "textiel", "kca", "glas", "kerst", "snoei", "luier")
 
+/** Vaste, Nederlandse namen per afvalstroom (ook als de app Engelse teksten geeft). */
 private fun wasteName(k: String): String {
-    val l = k.lowercase()
+    val l = k.lowercase().trim()
     return when {
-        "gft" in l || "groen" in l -> "GFT"
-        "papier" in l -> "Papier"
-        "pmd" in l || "plastic" in l || "pbd" in l -> "PMD"
-        "rest" in l -> "Restafval"
-        "grof" in l -> "Grofvuil"
-        "textiel" in l -> "Textiel"
-        "kerst" in l -> "Kerstbomen"
-        "snoei" in l -> "Snoeiafval"
-        else -> k.replaceFirstChar { it.uppercase() }
+        "gft" in l || "groen" in l || l == "green" -> "GFT"
+        "rest" in l || "grey" in l || "gray" in l || "grijs" in l -> "Restafval"
+        "pmd" in l || "plastic" in l || "pbd" in l || "packages" in l || "verpakking" in l -> "PMD"
+        "papier" in l || "paper" in l -> "Oud papier"
+        "textiel" in l || "textile" in l -> "Textiel"
+        "glas" in l || "glass" in l -> "Glas"
+        "grof" in l || "bulky" in l -> "Grofvuil"
+        "snoei" in l || "pruning" in l -> "Snoeiafval"
+        "kerst" in l || "christmas" in l -> "Kerstbomen"
+        "kca" in l || "chemisch" in l || "chemical" in l -> "KCA"
+        else -> k.trim().replaceFirstChar { it.uppercase() }
     }
 }
 
@@ -221,8 +224,9 @@ private fun afvalFromTrashchecker(o: org.json.JSONObject, now: Long): List<Afval
     for (i in 0 until arr.length()) {
         val e = arr.optJSONObject(i) ?: continue
         val type = e.optString("type").takeIf { it.isNotBlank() } ?: continue
-        val name = e.optString("localText").takeIf { it.isNotBlank() && it != "null" } ?: wasteName(type)
-        val color = e.optString("color").takeIf { it.startsWith("#") }?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+        val name = wasteName(type).takeIf { it != type.trim().replaceFirstChar { c -> c.uppercase() } }
+            ?: e.optString("localText").takeIf { it.isNotBlank() && it != "null" }?.let { wasteName(it) } ?: wasteName(type)
+        val color: Color? = null   // vaste Kijk-kleuren per stroom (zie afvalColor)
         val ds = e.optJSONArray("dates") ?: continue
         for (j in 0 until ds.length()) {
             val raw = ds.opt(j)
@@ -279,13 +283,59 @@ fun afvalFromDevice(d: HDevice?, now: Long): List<AfvalItem> {
         .sortedWith(compareBy({ it.date == null }, { it.date ?: Long.MAX_VALUE }))
 }
 
-fun afvalColor(type: String): Color {
-    val t = type.lowercase()
-    return when {
-        "gft" in t || "groen" in t -> AfvalC
-        "papier" in t -> Color(0xFF0A84FF)
-        "pmd" in t || "plastic" in t || "pbd" in t -> Color(0xFFFF9F0A)
-        else -> Color(0xFF8E8E93)
+fun afvalColor(type: String): Color = when (wasteName(type)) {
+    "GFT" -> Color(0xFF30D158)
+    "Restafval" -> Color(0xFF8E8E93)
+    "PMD" -> Color(0xFFFFD60A)
+    "Oud papier" -> Color(0xFF0A84FF)
+    "Textiel" -> Color(0xFFBF5AF2)
+    "Glas" -> Color(0xFF64D2FF)
+    "Grofvuil" -> Color(0xFFAC8E68)
+    "Snoeiafval" -> Color(0xFF248A3D)
+    "Kerstbomen" -> Color(0xFF1E7B34)
+    "KCA" -> Color(0xFFFF453A)
+    else -> Color(0xFF8E8E93)
+}
+
+/** Icoon per afvalstroom in zijn eigen kleur: kliko, zak (PMD), papier, shirt (textiel), fles (glas). */
+@Composable
+fun WasteIcon(type: String, size: androidx.compose.ui.unit.Dp) {
+    val c = afvalColor(type)
+    val kind = wasteName(type)
+    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        when (kind) {
+            "PMD" -> {
+                val bag = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.32f, w * 0.24f); quadraticTo(w * 0.5f, w * 0.12f, w * 0.68f, w * 0.24f)
+                    lineTo(w * 0.80f, w * 0.84f); quadraticTo(w * 0.5f, w * 0.96f, w * 0.20f, w * 0.84f); close()
+                }
+                drawPath(bag, c)
+                drawLine(Color(0xFF16161C), androidx.compose.ui.geometry.Offset(w * 0.40f, w * 0.24f), androidx.compose.ui.geometry.Offset(w * 0.60f, w * 0.24f), w * 0.05f)
+            }
+            "Oud papier" -> {
+                drawRoundRect(c, androidx.compose.ui.geometry.Offset(w * 0.16f, w * 0.20f), androidx.compose.ui.geometry.Size(w * 0.68f, w * 0.62f), androidx.compose.ui.geometry.CornerRadius(w * 0.06f))
+                for (k in 0..2) drawRect(Color(0xFF16161C), androidx.compose.ui.geometry.Offset(w * 0.28f, w * (0.33f + 0.14f * k)), androidx.compose.ui.geometry.Size(if (k == 2) w * 0.26f else w * 0.44f, w * 0.06f))
+            }
+            "Textiel" -> {
+                val shirt = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.34f, w * 0.18f); lineTo(w * 0.16f, w * 0.30f); lineTo(w * 0.24f, w * 0.46f); lineTo(w * 0.32f, w * 0.42f)
+                    lineTo(w * 0.32f, w * 0.84f); lineTo(w * 0.68f, w * 0.84f); lineTo(w * 0.68f, w * 0.42f); lineTo(w * 0.76f, w * 0.46f)
+                    lineTo(w * 0.84f, w * 0.30f); lineTo(w * 0.66f, w * 0.18f); quadraticTo(w * 0.5f, w * 0.30f, w * 0.34f, w * 0.18f); close()
+                }
+                drawPath(shirt, c)
+            }
+            "Glas" -> {
+                drawRoundRect(c, androidx.compose.ui.geometry.Offset(w * 0.32f, w * 0.40f), androidx.compose.ui.geometry.Size(w * 0.36f, w * 0.46f), androidx.compose.ui.geometry.CornerRadius(w * 0.08f))
+                drawRect(c, androidx.compose.ui.geometry.Offset(w * 0.43f, w * 0.14f), androidx.compose.ui.geometry.Size(w * 0.14f, w * 0.30f))
+            }
+            else -> {   // kliko
+                drawRoundRect(c, androidx.compose.ui.geometry.Offset(w * 0.22f, w * 0.30f), androidx.compose.ui.geometry.Size(w * 0.56f, w * 0.54f), androidx.compose.ui.geometry.CornerRadius(w * 0.07f))
+                drawRoundRect(c, androidx.compose.ui.geometry.Offset(w * 0.16f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.68f, w * 0.10f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
+                drawCircle(Color(0xFF16161C), w * 0.05f, androidx.compose.ui.geometry.Offset(w * 0.32f, w * 0.86f))
+                drawCircle(Color(0xFF16161C), w * 0.05f, androidx.compose.ui.geometry.Offset(w * 0.68f, w * 0.86f))
+            }
+        }
     }
 }
 
@@ -301,21 +351,28 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
         if (next == null) {
             Label(if (vm.hyAfval == null && vm.hyAfvalSettings == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
         } else {
-            Label(next.date?.let { dayFmt.format(it) } ?: next.text, Modifier.padding(top = 4.dp), size = 22.sp, weight = Kijk.Bold, color = Color.White)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                Box(Modifier.size(9.dp).background(next.color ?: afvalColor(next.type), RoundedCornerShape(2.dp)))
-                Spacer(Modifier.width(6.dp))
-                Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6))
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                WasteIcon(next.type, 40.dp)
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Label(next.date?.let { dayFmt.format(it) } ?: next.text, size = 20.sp, weight = Kijk.Bold, color = Color.White)
+                    Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6))
+                }
             }
             items.filter { it.type != next.type }.distinctBy { it.type }.take(2).forEach {
-                Label("${it.date?.let { d -> dayFmt.format(d) } ?: it.text} · ${it.type}", Modifier.padding(top = 4.dp), size = 12.sp, color = GreyH)
+                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WasteIcon(it.type, 16.dp)
+                    Spacer(Modifier.width(5.dp))
+                    Label("${it.date?.let { d -> dayFmt.format(d) } ?: it.text} · ${it.type}", size = 12.sp, color = GreyH)
+                }
             }
         }
         Spacer(Modifier.weight(1f))
         val days = next?.date?.let { ((it - today) / 86_400_000L).toInt() }
+        val sameDay = items.filter { it.date == next?.date }.map { it.type }.distinct().joinToString(" en ")
         when (days) {
-            1 -> CardFoot("Vanavond buiten zetten", TempC)
-            0 -> CardFoot("Vandaag", TempC)
+            1 -> CardFoot("Vanavond buiten zetten: $sameDay", TempC)
+            0 -> CardFoot("Vandaag: $sameDay", TempC)
             null -> CardFoot("OK voor meer")
             else -> CardFoot("Over $days dagen")
         }
@@ -507,7 +564,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.afvalPanel(vm: AppVie
     items.forEachIndexed { i, it ->
         item(key = "af$i") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(11.dp).background(it.color ?: afvalColor(it.type), RoundedCornerShape(3.dp)))
+                WasteIcon(it.type, 26.dp)
                 Spacer(Modifier.width(10.dp))
                 Label(it.type, Modifier.weight(1f), size = Kijk.Body, color = Color.White)
                 Label(it.date?.let { d -> dayFmt.format(d) } ?: it.text, size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
