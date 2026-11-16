@@ -704,8 +704,11 @@ private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
             Label("Cupra Leon", Modifier.weight(1f), size = 14.sp, weight = Kijk.Semibold, color = CupraC, maxLines = 1)
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.cupra_logo), "Cupra", Modifier.height(16.dp))
         }
-        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.car_cupra), null,
-            Modifier.fillMaxWidth().weight(1f).padding(vertical = 4.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
+        // hele auto zichtbaar: passend in het vak (niet bijsnijden), midden
+        Box(Modifier.fillMaxWidth().weight(1f).padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.car_cupra), "Cupra Leon",
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.FillWidth)
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             CarBattery(bat, car.target ?: 100, car.charging, Modifier.size(width = 46.dp, height = 22.dp))
             Spacer(Modifier.width(8.dp))
