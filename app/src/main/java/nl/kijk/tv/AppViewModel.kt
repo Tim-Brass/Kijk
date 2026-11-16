@@ -1000,7 +1000,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         appendLine("== Apparaten (naam | zone | klasse | aan/uit | waarden) ==")
         hyDevices.sortedWith(compareBy({ hyZones[it.zone]?.name ?: "" }, { it.name })).forEach { d ->
             val caps = d.caps.values.joinToString(", ") { c -> "${c.id}=${c.value}" }
-            appendLine("${d.name} | ${hyZones[d.zone]?.name ?: "?"} | ${d.cls} | ${d.bool("onoff") ?: "-"} | $caps" + (if (d.image != null) " | beeld ${java.util.Date(d.imageAt)}" else ""))
+            appendLine("${d.name} | ${hyZones[d.zone]?.name ?: "?"} | ${d.cls} | ${d.bool("onoff") ?: "-"} | $caps" + (if (d.image != null) " | beeld ${java.util.Date(d.imageAt)}" else "") + (if (d.video != null) " | live" else ""))
         }
         appendLine()
         appendLine("== Ruimtes op de verlichtingskaart ==")
@@ -1081,11 +1081,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // schakelaars die uitsluitend lampen in één ruimte aansturen, per ruimte
         val roomSwitches = hySwitches.mapNotNull { (sw, targets) ->
             val zs = targets.mapNotNull { byId[it]?.zone }.toSet()
-            if (zs.size == 1 && byId[sw] != null) zs.first() to sw else null
+            // alleen schakelaars die zelf in die ruimte hangen (dus niet bv. "Oppas")
+            if (zs.size == 1 && byId[sw]?.zone == zs.first()) zs.first() to sw else null
         }.groupBy({ it.first }, { it.second })
         return hyDevices.filter { it.isLight && !isSwitch(it) }.groupBy { it.zone }.mapNotNull { (zid, lights) ->
             val ch = chain(zid); val zone = ch.firstOrNull() ?: return@mapNotNull null
-            if (ch.any { it.name.lowercase() in hidden }) return@mapNotNull null
+            if (zone.name.lowercase() in hidden) return@mapNotNull null
             // verdieping = de zone direct onder "Huis" (de bovenste zone)
             val floor = if (ch.size >= 3) ch[ch.size - 2] else zone
             val f = floor.name.lowercase()

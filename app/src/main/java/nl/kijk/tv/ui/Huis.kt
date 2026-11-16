@@ -63,7 +63,7 @@ private fun degShort(v: Double?) = v?.let { if (it % 1.0 == 0.0) "${it.toInt()}�
 
 /** Rij "Huis" op Thuis: vier even brede kaarten, net als de sportrij. Alleen als er een Homey-sleutel is. */
 @Composable
-fun HuisRow(vm: AppViewModel) {
+fun HuisRow(vm: AppViewModel, nav: Nav) {
     if (!vm.homeyReady) return
     // alleen verversen zolang Thuis in beeld is (hooguit eens per minuut)
     LaunchedEffect(Unit) { while (true) { vm.refreshHomey(); delay(60_000) } }
@@ -79,7 +79,7 @@ fun HuisRow(vm: AppViewModel) {
             TempCard(vm, Modifier.weight(1f)) { panel = "temp" }
             LightCard(vm, Modifier.weight(1f)) { panel = "light" }
             AfvalCard(vm, Modifier.weight(1f)) { panel = "afval" }
-            BellCard(vm, Modifier.weight(1f)) { vm.hySnapshot() }
+            BellCard(vm, Modifier.weight(1f)) { if (vm.hyBell?.video != null) nav.push(nl.kijk.tv.Screen.Doorbell) else vm.hySnapshot() }
         }
     }
     panel?.let { p -> HuisPanel(vm, p) { panel = null } }
@@ -276,7 +276,7 @@ private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
             b == null -> "Geen deurbel gevonden"
             else -> "Nog niet aangebeld"
         }, size = 12.sp, color = Color(0xFFD1D1D6))
-        CardFoot(if (vm.hySnapBusy) "Vernieuwen…" else "OK · beeld vernieuwen", if (vm.hySnapBusy) BellC else GreyH)
+        CardFoot(when { b?.video != null -> "OK · live bekijken"; vm.hySnapBusy -> "Vernieuwen…"; else -> "OK · beeld vernieuwen" }, if (vm.hySnapBusy) BellC else GreyH)
     }
 }
 
@@ -298,6 +298,7 @@ fun BellAlert(vm: AppViewModel, modifier: Modifier) {
             Label("Er wordt aangebeld", Modifier.weight(1f), size = Kijk.Headline, weight = Kijk.Semibold, color = Color.White)
             Label(Format.time(t), size = Kijk.Caption, color = GreyH)
         }
+        if (vm.hyBell?.video != null) Label("OK = live bekijken", Modifier.padding(top = 4.dp), size = 12.sp, color = GreyH)
         HomeyImage(vm, vm.hyBell, Modifier.padding(top = 8.dp).fillMaxWidth().height(190.dp))
     }
 }
@@ -405,7 +406,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.lightPanel(vm: AppVie
             item(key = r.zone.id) {
                 val pct = r.dim?.let { " · ${(it * 100).toInt()}%" } ?: ""
                 PanelRow(r.zone.name, if (r.on > 0) "aan$pct" else "uit", m, if (r.on > 0) LightC else GreyH,
-                    sub = when { r.switches.isNotEmpty() -> "via " + r.switches.joinToString(", ") { it.name }; r.total > 1 -> "${r.on} van ${r.total} lampen aan"; else -> null },
+                    sub = if (r.switches.isEmpty() && r.total > 1) "${r.on} van ${r.total} lampen aan" else null,
                     onLeft = if (r.dimmable) ({ vm.hyDimRoom(r, -0.1) }) else null, onRight = if (r.dimmable) ({ vm.hyDimRoom(r, 0.1) }) else null) { vm.hyToggleRoom(r) }
             }
         }

@@ -110,6 +110,7 @@ sealed interface Screen {
     data object SyncPair : Screen { override val id = "syncpair" }
     data object GitHub : Screen { override val id = "github" }
     data class HomeyPick(val slot: String) : Screen { override val id = "homeypick:$slot" }
+    data object Doorbell : Screen { override val id = "doorbell" }
     data class SubSearch(val item: Playable, val onPick: (Long) -> Unit) : Screen { override val id = "subsearch" }
     data class Pin(val title: String, val sub: String, val check: (String) -> Boolean, val onResult: (String?) -> Unit) : Screen { override val id = "pin:$title" }
     data class Confirm(val title: String, val text: String, val yes: String, val onResult: (Boolean) -> Unit) : Screen { override val id = "confirm" }
@@ -185,6 +186,13 @@ private fun KijkApp(vm: AppViewModel) {
             if (e.type == KeyEventType.KeyUp) backDispatcher?.onBackPressed()
             return@onPreviewKeyEvent backDispatcher != null
         }
+        // aangebeld: OK = live beeld
+        if (vm.bellAlert != null && vm.hyBell?.video != null && e.type == KeyEventType.KeyDown &&
+            (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) {
+            vm.bellAlert = null
+            if (nav.top !is Screen.Doorbell) nav.push(Screen.Doorbell)
+            return@onPreviewKeyEvent true
+        }
         val r = vm.dueReminder
         if (r != null && e.type == KeyEventType.KeyDown && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) { openReminder(r); true } else false
     }) {
@@ -203,6 +211,7 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.Groups -> GroupsScreen(vm, nav, screen.kind)
             Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
             is Screen.SportChannel -> { BackHandler { nav.pop() }; SportChannelScreen(vm, nav, screen.football) }
+            Screen.Doorbell -> { BackHandler { nav.pop() }; nl.kijk.tv.ui.DoorbellLiveScreen(vm) }
             is Screen.HomeyPick -> { BackHandler { nav.pop() }; nl.kijk.tv.ui.HomeyPickScreen(vm, nav, screen.slot) }
             is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
             Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }

@@ -14,7 +14,7 @@ data class HCap(val id: String, val title: String, val value: Any?, val units: S
 
 data class HDevice(
     val id: String, val name: String, val zone: String, val cls: String,
-    val caps: Map<String, HCap>, val image: String?, val imageAt: Long,
+    val caps: Map<String, HCap>, val image: String?, val imageAt: Long, val video: String? = null,
 ) {
     fun num(c: String): Double? = (caps[c]?.value as? Number)?.toDouble()
     fun bool(c: String): Boolean? = caps[c]?.value as? Boolean
@@ -117,8 +117,19 @@ class Homey(
                     if (url != null) { img = url; imgAt = ts(io?.opt("lastUpdated")); break }
                 }
             }
+            // live beeld (Homey "videos", WebRTC)
+            var vid: String? = null
+            d.optJSONArray("videos")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val v = a.optJSONObject(i) ?: continue
+                    vid = v.optJSONObject("videoObj")?.optString("id")?.takeIf { it.isNotBlank() && it != "null" }
+                        ?: v.optString("videoId").takeIf { it.isNotBlank() && it != "null" } ?: v.optString("id").takeIf { it.isNotBlank() && it != "null" }
+                    if (vid != null) break
+                }
+            }
+            if (vid == null) d.optJSONObject("video")?.optString("id")?.takeIf { it.isNotBlank() }?.let { vid = it }
             HDevice(id, d.optString("name"), d.optString("zone"), d.optString("virtualClass").takeIf { it.isNotBlank() && it != "null" } ?: d.optString("class"),
-                caps, img, imgAt)
+                caps, img, imgAt, vid)
         }.toList()
     }
 
@@ -189,6 +200,34 @@ class Homey(
     /** Werkt voor flows die beginnen met "Deze flow is gestart". */
     fun trigger(f: HFlow) {
         call("POST", if (f.advanced) "/api/manager/flow/advancedflow/${f.id}/trigger" else "/api/manager/flow/flow/${f.id}/trigger", "{}")
+    }
+
+    /**
+     * WebRTC: stuur ons aanbod (SDP) naar Homey en krijg het antwoord terug. Homey's precieze vorm is niet
+     * gedocumenteerd, dus een paar varianten proberen. Geeft (answerSdp, streamId?) terug.
+     */
+    fun videoOffer(videoId: String, offerSdp: String): Pair<String, String?> {
+        val path = "/api/manager/videos/video/$videoId/offer"
+        var last: Exception? = null
+        for (key in listOf("offerSdp", "sdp", "offer")) {
+            try {
+                val txt = call("POST", path, JSONObject().put(key, offerSdp).toString())
+                ImageLog.add("Homey video offer ($key) → ${txt.take(160)}")
+                val t = txt.trim()
+                if (t.startsWith("v=")) return t to null
+                val o = runCatching { JSONObject(t) }.getOrNull() ?: runCatching { JSONObject().put("answerSdp", org.json.JSONTokener(t).nextValue() as String) }.getOrNull()
+                    ?: throw IOException("onbekend antwoord")
+                val ans = o.optString("answerSdp").ifBlank { o.optString("sdp") }.ifBlank { o.optJSONObject("answer")?.optString("sdp") ?: "" }
+                    .ifBlank { o.optString("answer") }
+                if (ans.isNotBlank()) return ans to (o.optString("streamId").ifBlank { o.optString("id") }.takeIf { it.isNotBlank() })
+                throw IOException("geen antwoord-SDP: ${t.take(80)}")
+            } catch (e: Exception) { last = e; ImageLog.add("Homey video offer ($key) mislukt: ${e.message}") }
+        }
+        throw last ?: IOException("live beeld lukt niet")
+    }
+
+    fun videoKeepAlive(videoId: String, streamId: String) {
+        runCatching { call("POST", "/api/manager/videos/video/$videoId/keepalive", JSONObject().put("streamId", streamId).toString()) }
     }
 
     fun imageUrl(path: String) = if (path.startsWith("http")) path else base + path

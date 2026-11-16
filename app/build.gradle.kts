@@ -78,6 +78,8 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3")
     // Dolby Digital (AC3/E-AC3), DTS e.d. zelf decoderen: veel tv's/boxen geven anders geen geluid
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1")
+    // live beeld van de deurbel via Homey (WebRTC); doet alleen iets als je het live beeld opent
+    implementation("io.getstream:stream-webrtc-android:1.3.9")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-svg:2.7.0")
