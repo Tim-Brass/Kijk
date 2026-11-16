@@ -2,6 +2,7 @@ package nl.kijk.tv.ui
 
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -587,7 +588,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.afvalPanel(vm: AppVie
             var f by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)
                 .onFocusChanged { st -> f = st.isFocused }.focusable()
-                .background(if (f) Color(0x1FFFFFFF) else Color.Transparent, RoundedCornerShape(10.dp))
+                .background(if (f) Color(0xFF1B1B23) else Color.Transparent, RoundedCornerShape(10.dp))
+                .border(2.dp, if (f) Kijk.Accent else Color.Transparent, RoundedCornerShape(10.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 WasteIcon(it.type, 26.dp)
                 Spacer(Modifier.width(10.dp))
@@ -744,7 +746,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.carPanel(vm: AppViewM
             var f by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)
                 .onFocusChanged { st -> f = st.isFocused }.focusable()
-                .background(if (f) Color(0x1FFFFFFF) else Color.Transparent, RoundedCornerShape(10.dp))
+                .background(if (f) Color(0xFF1B1B23) else Color.Transparent, RoundedCornerShape(10.dp))
+                .border(2.dp, if (f) Kijk.Accent else Color.Transparent, RoundedCornerShape(10.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Label(k, Modifier.weight(1f), size = Kijk.Body, color = Color.White)
                 Label(v, size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
