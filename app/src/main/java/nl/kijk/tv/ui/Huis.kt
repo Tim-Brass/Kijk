@@ -1,5 +1,6 @@
 package nl.kijk.tv.ui
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -666,11 +667,11 @@ fun CarBattery(percent: Int, target: Int, charging: Boolean, modifier: Modifier 
     val p = percent.coerceIn(0, 100) / 100f
     val goal = (target.coerceIn(percent, 100)) / 100f
     val anim = if (charging) androidx.compose.animation.core.rememberInfiniteTransition(label = "laden") else null
-    val fill = anim?.animateFloat(p, goal.coerceAtLeast(p + 0.01f), androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+    val fill = anim?.animateFloat(p, goal.coerceAtLeast(p + 0.01f), androidx.compose.animation.core.infiniteRepeatable<Float>(
+        androidx.compose.animation.core.tween<Float>(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
         androidx.compose.animation.core.RepeatMode.Restart), label = "vul")
-    val bolt = anim?.animateFloat(0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable(
-        androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse), label = "bliksem")
+    val bolt = anim?.animateFloat(0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable<Float>(
+        androidx.compose.animation.core.tween<Float>(600), androidx.compose.animation.core.RepeatMode.Reverse), label = "bliksem")
     val col = batteryColor(percent, charging)
     androidx.compose.foundation.Canvas(modifier) {
         val w = size.width; val h = size.height
