@@ -1005,7 +1005,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         appendLine("== Apparaten (naam | zone | klasse | aan/uit | waarden) ==")
         hyDevices.sortedWith(compareBy({ hyZones[it.zone]?.name ?: "" }, { it.name })).forEach { d ->
             val caps = d.caps.values.joinToString(", ") { c -> "${c.id}=${c.value}" }
-            appendLine("${d.name} | ${hyZones[d.zone]?.name ?: "?"} | ${d.cls} | ${d.bool("onoff") ?: "-"} | $caps" + (if (d.image != null) " | beeld ${java.util.Date(d.imageAt)}" else "") + (if (d.video != null) " | live" else ""))
+            appendLine("${d.name} | ${hyZones[d.zone]?.name ?: "?"} | ${d.cls} | ${d.bool("onoff") ?: "-"} | $caps" + (if (d.image != null) " | beeld ${d.image} @ ${if (d.imageAt > 0) java.util.Date(d.imageAt) else "tijd onbekend"}" else "") + (if (d.video != null) " | live" else ""))
         }
         appendLine()
         appendLine("== Ruimtes op de verlichtingskaart ==")

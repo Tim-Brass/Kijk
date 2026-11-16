@@ -114,7 +114,11 @@ class Homey(
                     val url = io?.optString("url")?.takeIf { it.isNotBlank() && it != "null" }
                         ?: io?.optString("id")?.takeIf { it.isNotBlank() }?.let { "/api/image/$it" }
                         ?: im.optString("imageId").takeIf { it.isNotBlank() }?.let { "/api/image/$it" }
-                    if (url != null) { img = url; imgAt = ts(io?.opt("lastUpdated")); break }
+                    if (url != null) {
+                        // meerdere beelden: het nieuwste nemen
+                        val at = listOf(io?.opt("lastUpdated"), im.opt("lastUpdated"), io?.opt("updatedAt"), im.opt("updatedAt")).maxOf { ts(it) }
+                        if (img == null || at > imgAt) { img = url; imgAt = at }
+                    }
                 }
             }
             // live beeld (Homey "videos", WebRTC)
@@ -249,6 +253,9 @@ class Homey(
     }
 
     fun imageUrl(path: String) = if (path.startsWith("http")) path else base + path
+
+    /** Beeld met een versie erachter (zoals de Homey-app doet), zodat er nooit een oude kopie terugkomt. */
+    fun imageUrl(path: String, version: Long) = imageUrl(path).let { u -> u + (if ('?' in u) "&" else "?") + version }
 
     companion object {
         private val iso = listOf("yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX")

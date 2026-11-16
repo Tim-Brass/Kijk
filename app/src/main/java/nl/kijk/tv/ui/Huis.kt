@@ -400,12 +400,13 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
     val ctx = LocalContext.current
     val path = d?.image
     val imgAt = d?.imageAt ?: 0L
-    val live = vm.liveFrame?.takeIf { it.second > imgAt }
+    // beeld uit het live kijken alleen als het nieuwer is dan dat van Homey, en hooguit een kwartier
+    val live = vm.liveFrame?.takeIf { it.second > imgAt && vm.now - it.second < 15 * 60_000L }
     Box(modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFF22222A)), contentAlignment = Alignment.Center) {
         if (live != null) androidx.compose.foundation.Image(remember(live) { live.first.asImageBitmap() }, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else if (path == null) Label("Geen beeld", size = 12.sp, color = GreyH)
         else {
-            val url = vm.homey.imageUrl(path)
+            val url = vm.homey.imageUrl(path, if (imgAt > 0) imgAt else vm.hyAt)
             // Homey geeft steeds hetzelfde adres voor het beeld: niet op schijf bewaren en bij elke verversing opnieuw ophalen
             val stamp = "$url@$imgAt@${vm.hyAt}"
             var shown by remember { mutableStateOf<String?>(null) }
@@ -429,7 +430,7 @@ private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
         val ring = vm.hyRings.firstOrNull()
         Label(when {
             ring != null -> "Aangebeld ${ringTime(ring, vm.now)}"
-            (vm.liveFrame?.second ?: 0L) > (b?.imageAt ?: 0L) -> "Beeld ${ringTime(vm.liveFrame!!.second, vm.now)}"
+            (vm.liveFrame?.second ?: 0L) > (b?.imageAt ?: 0L) && vm.now - vm.liveFrame!!.second < 15 * 60_000L -> "Beeld ${ringTime(vm.liveFrame!!.second, vm.now)}"
             (b?.imageAt ?: 0L) > 0 -> "Beeld ${ringTime(b!!.imageAt, vm.now)}"
             b == null -> "Geen deurbel gevonden"
             else -> "Nog niet aangebeld"
