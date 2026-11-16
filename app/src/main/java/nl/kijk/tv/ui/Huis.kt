@@ -159,7 +159,7 @@ private fun LightCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
 
 // ---------------------------------------------------------------- afval
 
-data class AfvalItem(val type: String, val date: Long?, val text: String)
+data class AfvalItem(val type: String, val date: Long?, val text: String, val color: Color? = null)
 
 private val MONTHS = listOf("jan", "feb", "m", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec")
 
@@ -188,7 +188,7 @@ private fun parseAfvalDate(s: String, now: Long): Long? {
 /** Ophaaldagen: uit de afval-app (instellingen) of anders uit een afval-apparaat. Komende eerst. */
 fun afvalItems(vm: AppViewModel): List<AfvalItem> {
     val now = vm.now
-    val fromApp = vm.hyAfvalSettings?.let { afvalFromSettings(it, now) }.orEmpty()
+    val fromApp = vm.hyAfvalSettings?.let { o -> afvalFromTrashchecker(o, now).ifEmpty { afvalFromSettings(o, now) } }.orEmpty()
     if (fromApp.isNotEmpty()) return fromApp
     return afvalFromDevice(vm.hyAfval, now)
 }
@@ -208,6 +208,30 @@ private fun wasteName(k: String): String {
         "snoei" in l -> "Snoeiafval"
         else -> k.replaceFirstChar { it.uppercase() }
     }
+}
+
+/**
+ * Afval Herinnering 2.0 (com.trashchecker): een lijst van { type: "GFT", localText?, color?, dates: [ISO, …] }.
+ * Datums zijn tijdstippen in UTC (middernacht hier = 23:00 de dag ervoor), dus eerst naar lokale tijd.
+ */
+private fun afvalFromTrashchecker(o: org.json.JSONObject, now: Long): List<AfvalItem> {
+    val arr = o.optJSONArray("data") ?: return emptyList()
+    val today = dayStart(now)
+    val out = mutableListOf<AfvalItem>()
+    for (i in 0 until arr.length()) {
+        val e = arr.optJSONObject(i) ?: continue
+        val type = e.optString("type").takeIf { it.isNotBlank() } ?: continue
+        val name = e.optString("localText").takeIf { it.isNotBlank() && it != "null" } ?: wasteName(type)
+        val color = e.optString("color").takeIf { it.startsWith("#") }?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+        val ds = e.optJSONArray("dates") ?: continue
+        for (j in 0 until ds.length()) {
+            val raw = ds.opt(j)
+            val t = when (raw) { is Number -> raw.toLong(); is String -> nl.kijk.tv.data.Homey.ts(raw).takeIf { it > 0 } ?: parseAfvalDate(raw, now); else -> null } ?: continue
+            val d = dayStart(t)
+            if (d >= today && d < today + 180L * 86_400_000L) out += AfvalItem(name, d, "", color)
+        }
+    }
+    return out.distinctBy { it.type + it.date }.sortedBy { it.date }
 }
 
 /** Zoekt in de app-instellingen naar datums en de soort waar ze bij horen (sleutel of "SOORT;datum;datum"). */
@@ -279,11 +303,11 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
         } else {
             Label(next.date?.let { dayFmt.format(it) } ?: next.text, Modifier.padding(top = 4.dp), size = 22.sp, weight = Kijk.Bold, color = Color.White)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                Box(Modifier.size(9.dp).background(afvalColor(next.type), RoundedCornerShape(2.dp)))
+                Box(Modifier.size(9.dp).background(next.color ?: afvalColor(next.type), RoundedCornerShape(2.dp)))
                 Spacer(Modifier.width(6.dp))
                 Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6))
             }
-            items.filter { it !== next && it.type != next.type }.take(1).forEach {
+            items.filter { it.type != next.type }.distinctBy { it.type }.take(2).forEach {
                 Label("${it.date?.let { d -> dayFmt.format(d) } ?: it.text} · ${it.type}", Modifier.padding(top = 4.dp), size = 12.sp, color = GreyH)
             }
         }
@@ -478,12 +502,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.lightPanel(vm: AppVie
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.afvalPanel(vm: AppViewModel, first: FocusRequester) {
-    val items = afvalItems(vm).take(10)
+    val items = afvalItems(vm).groupBy { it.type }.values.flatMap { it.take(2) }.sortedBy { it.date }
     if (items.isEmpty()) { item { Label("Geen ophaaldagen gevonden. Kies de afval-app in Instellingen › Huis.", size = Kijk.Body, color = GreyH, maxLines = 3) }; return }
     items.forEachIndexed { i, it ->
         item(key = "af$i") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(11.dp).background(afvalColor(it.type), RoundedCornerShape(3.dp)))
+                Box(Modifier.size(11.dp).background(it.color ?: afvalColor(it.type), RoundedCornerShape(3.dp)))
                 Spacer(Modifier.width(10.dp))
                 Label(it.type, Modifier.weight(1f), size = Kijk.Body, color = Color.White)
                 Label(it.date?.let { d -> dayFmt.format(d) } ?: it.text, size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
