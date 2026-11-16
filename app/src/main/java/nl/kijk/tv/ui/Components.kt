@@ -124,11 +124,11 @@ fun ProgressBar(fraction: Float, modifier: Modifier = Modifier, focused: Boolean
 }
 
 @Composable
-fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(width = 64.dp, height = 40.dp)) {
+fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(width = 64.dp, height = 40.dp), plate: Boolean = true) {
     Box(
         modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x14FFFFFF)),
+            .background(if (plate) Color(0x14FFFFFF) else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
         // eerst het verzorgde logo; lukt dat niet, dan dat van de aanbieder; anders de naam
