@@ -302,6 +302,19 @@ fun afvalColor(type: String): Color = when (wasteName(type)) {
 fun WasteIcon(type: String, size: androidx.compose.ui.unit.Dp) {
     val c = afvalColor(type)
     val kind = wasteName(type)
+    val res = when (kind) {
+        "GFT", "Snoeiafval" -> nl.kijk.tv.R.drawable.ic_waste_gft
+        "PMD" -> nl.kijk.tv.R.drawable.ic_waste_pmd
+        "Oud papier" -> nl.kijk.tv.R.drawable.ic_waste_papier
+        "Textiel" -> nl.kijk.tv.R.drawable.ic_waste_textiel
+        "Glas" -> null
+        else -> nl.kijk.tv.R.drawable.ic_waste_rest
+    }
+    if (res != null) {
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(res), null, Modifier.size(size),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(c))
+        return
+    }
     androidx.compose.foundation.Canvas(Modifier.size(size)) {
         val w = this.size.width
         when (kind) {

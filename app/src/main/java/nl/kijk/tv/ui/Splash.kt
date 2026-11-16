@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -78,6 +80,7 @@ fun SplashScreen(vm: AppViewModel) {
     val frame = remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
     val start = remember { System.nanoTime() }
+    val ball = ImageBitmap.imageResource(nl.kijk.tv.R.drawable.ic_football)
 
     val steps = vm.steps
     val done = steps.all { it.state >= 2 }
@@ -100,13 +103,13 @@ fun SplashScreen(vm: AppViewModel) {
             }.focusable(),
     ) {
         // achterste helft van de baan en de iconen die achter het logo langs gaan
-        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = false) }
+        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = false, ball = ball) }
         // logo
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             EyesLogo(done = done, modifier = Modifier.offset(y = (-54).dp).height(118.dp))   // midden van de baan (40% hoogte)
         }
         // voorste helft: iconen die vóór het logo langs gaan
-        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = true) }
+        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = true, ball = ball) }
         // status
         Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 92.dp).width(520.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             val title = when {
@@ -131,7 +134,7 @@ fun SplashScreen(vm: AppViewModel) {
 }
 
 /** De baan (schuine ellips) met vier iconen-tegels. front = alleen wat vóór het logo ligt. */
-private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boolean) {
+private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boolean, ball: ImageBitmap) {
     val t = ((frame.longValue - start).coerceAtLeast(0L)) / 1e9f
     val cx = size.width / 2f; val cy = size.height * 0.40f
     val rx = size.width * 0.30f; val ry = size.height * 0.16f
@@ -156,13 +159,13 @@ private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boo
         translate(px - s / 2, py - s / 2) {
             drawRoundRect(TileBg, Offset.Zero, Size(s, s), CornerRadius(s * 0.24f), alpha = alpha)
             drawRoundRect(TileLine, Offset.Zero, Size(s, s), CornerRadius(s * 0.24f), style = Stroke(1.dp.toPx()), alpha = alpha)
-            drawTileIcon(i, s, alpha)
+            drawTileIcon(i, s, alpha, ball)
         }
     }
 }
 
 /** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken, 5 raceauto, 6 weer, 7 thermometer, 8 lamp. */
-private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
+private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float, ball: ImageBitmap) {
     val st = Stroke(s * 0.055f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
     val c = IconBlue
     when (kind) {
@@ -172,31 +175,10 @@ private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float) {
             drawPath(top, c, style = st, alpha = alpha)
             for (k in 0..2) { val x = s * (0.36f + 0.12f * k); drawLine(c, Offset(x, s * 0.43f - k * s * 0.03f), Offset(x + s * 0.05f, s * 0.33f - k * s * 0.03f), st.width * 0.8f, StrokeCap.Round, alpha = alpha) }
         }
-        1 -> {   // voetbal: zwarte vijfhoek in het midden, vijf halve vlakken langs de rand en naden ertussen
-            val ctr = Offset(s * 0.5f, s * 0.5f); val r = s * 0.26f
-            fun pent(cx: Float, cy: Float, pr: Float, rot: Float) = Path().apply {
-                for (k in 0 until 5) {
-                    val a = rot + k * 2 * PI.toFloat() / 5
-                    val x = cx + cos(a) * pr; val y = cy + sin(a) * pr
-                    if (k == 0) moveTo(x, y) else lineTo(x, y)
-                }
-                close()
-            }
-            val up = -PI.toFloat() / 2
-            val inner = r * 0.36f
-            val circle = Path().apply { addOval(Rect(Offset(ctr.x - r, ctr.y - r), Size(r * 2, r * 2))) }
-            clipPath(circle) {
-                drawPath(pent(ctr.x, ctr.y, inner, up), c, alpha = alpha)
-                for (k in 0 until 5) {
-                    val a = up + k * 2 * PI.toFloat() / 5
-                    // naad van hoek middenvijfhoek naar het vlak aan de rand
-                    drawLine(c, Offset(ctr.x + cos(a) * inner, ctr.y + sin(a) * inner), Offset(ctr.x + cos(a) * r * 0.78f, ctr.y + sin(a) * r * 0.78f), st.width * 0.75f, StrokeCap.Round, alpha = alpha)
-                    // vlak aan de rand (half buiten de bal, wordt afgeknipt)
-                    val pc = Offset(ctr.x + cos(a) * r * 1.02f, ctr.y + sin(a) * r * 1.02f)
-                    drawPath(pent(pc.x, pc.y, r * 0.30f, a + PI.toFloat()), c, alpha = alpha)
-                }
-            }
-            drawCircle(c, r, ctr, style = st, alpha = alpha)
+        1 -> {   // voetbal (eigen afbeelding, in de icoonkleur)
+            val d = (s * 0.56f).toInt()
+            drawImage(ball, dstOffset = androidx.compose.ui.unit.IntOffset(((s - d) / 2).toInt(), ((s - d) / 2).toInt()),
+                dstSize = androidx.compose.ui.unit.IntSize(d, d), alpha = alpha, colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(c))
         }
         2 -> {   // krant
             drawRoundRect(c, Offset(s * 0.24f, s * 0.26f), Size(s * 0.52f, s * 0.48f), CornerRadius(s * 0.05f), style = st, alpha = alpha)
