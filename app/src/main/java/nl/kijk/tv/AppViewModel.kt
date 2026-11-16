@@ -960,6 +960,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var hyZones by mutableStateOf<Map<String, HZone>>(emptyMap()); private set
     var hyVars by mutableStateOf<List<HVar>>(emptyList()); private set
     var hyFlows by mutableStateOf<List<HFlow>>(emptyList()); private set
+    /** schakelaar-id → lampen die hij via je flows aanzet */
+    var hySwitches by mutableStateOf<Map<String, Set<String>>>(emptyMap()); private set
     var hyError by mutableStateOf<String?>(null); private set
     var hyAt by mutableStateOf(0L); private set
     var hySnapBusy by mutableStateOf(false); private set
@@ -981,6 +983,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (meta || hyZones.isEmpty() || now - hyMetaAt > 30 * MINUTE) {
                     hyZones = homey.zones()
                     hyFlows = homey.flows()
+                    hySwitches = runCatching { homey.switchTargets() }.getOrDefault(hySwitches)
                     hyMetaAt = now
                 }
                 hyVars = runCatching { homey.variables() }.getOrDefault(hyVars)
@@ -1001,7 +1004,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         appendLine()
         appendLine("== Ruimtes op de verlichtingskaart ==")
-        hyRooms.forEach { r -> appendLine("${r.floor} / ${r.zone.name}: ${r.lights.joinToString { "${it.name}=${it.bool("onoff")}" }}") }
+        hyRooms.forEach { r -> appendLine("${r.floor} / ${r.zone.name}: " + (if (r.switches.isNotEmpty()) "schakelaars ${r.switches.joinToString { "${it.name}=${it.bool("onoff")}" }} · " else "") +
+            "lampen ${r.loose.joinToString { "${it.name}=${it.bool("onoff")}" }}") }
+        appendLine()
+        appendLine("== Schakelaars uit je flows ==")
+        hySwitches.forEach { (sw, t) -> appendLine("${hyDevices.firstOrNull { it.id == sw }?.name ?: sw} → ${t.joinToString { id -> hyDevices.firstOrNull { it.id == id }?.name ?: id }}") }
         appendLine()
         appendLine("== Flows ==")
         hyFlows.forEach { appendLine(it.name + if (it.advanced) " (geavanceerd)" else "") }
@@ -1050,10 +1057,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         hySetChoice("hide", org.json.JSONArray((if (n in cur) cur - n else cur + n).toList()).toString())
     }
 
-    data class HRoom(val zone: HZone, val floor: String, val floorRank: Int, val lights: List<HDevice>) {
-        val on get() = lights.count { it.bool("onoff") == true }
+    /**
+     * Een ruimte. Heeft hij schakelaars ([switches]) die alleen lampen in deze ruimte aansturen, dan bepalen díe of
+     * het licht aan is en zet OK díe om (je eigen flows doen de rest). Lampen die zo'n schakelaar aanstuurt tellen
+     * dan niet mee: die blijven soms "aan" om stroom te houden.
+     */
+    data class HRoom(val zone: HZone, val floor: String, val floorRank: Int, val lights: List<HDevice>, val switches: List<HDevice> = emptyList(), val loose: List<HDevice> = lights) {
+        private val shown get() = switches + loose
+        val on get() = shown.count { it.bool("onoff") == true }
+        val total get() = shown.size
         val dimmable get() = lights.any { "dim" in it.caps }
-        val dim get() = lights.filter { it.bool("onoff") == true }.mapNotNull { it.num("dim") }.maxOrNull()
+        val dim get() = if (on == 0) null else lights.filter { it.bool("onoff") == true }.mapNotNull { it.num("dim") }.maxOrNull()
     }
 
     /** Lampen per ruimte, per verdieping (volgens de zones in Homey), zonder de verborgen ruimtes. */
@@ -1061,7 +1075,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val zones = hyZones; val hidden = hyHidden
         fun chain(id: String): List<HZone> { val out = mutableListOf<HZone>(); var z = zones[id]; var n = 0
             while (z != null && n++ < 12) { out += z; z = z.parent?.let { zones[it] } }; return out }
-        return hyDevices.filter { it.isLight }.groupBy { it.zone }.mapNotNull { (zid, lights) ->
+        val byId = hyDevices.associateBy { it.id }
+        val switchIds = hySwitches.keys
+        fun isSwitch(d: HDevice) = d.id in switchIds || d.name.lowercase().let { "wall switch" in it || "schakelaar" in it }
+        // schakelaars die uitsluitend lampen in één ruimte aansturen, per ruimte
+        val roomSwitches = hySwitches.mapNotNull { (sw, targets) ->
+            val zs = targets.mapNotNull { byId[it]?.zone }.toSet()
+            if (zs.size == 1 && byId[sw] != null) zs.first() to sw else null
+        }.groupBy({ it.first }, { it.second })
+        return hyDevices.filter { it.isLight && !isSwitch(it) }.groupBy { it.zone }.mapNotNull { (zid, lights) ->
             val ch = chain(zid); val zone = ch.firstOrNull() ?: return@mapNotNull null
             if (ch.any { it.name.lowercase() in hidden }) return@mapNotNull null
             // verdieping = de zone direct onder "Huis" (de bovenste zone)
@@ -1069,7 +1091,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val f = floor.name.lowercase()
             val rank = when { listOf("begane", "beneden", "bg").any { it in f } -> 0; listOf("1e", "eerste").any { it in f } -> 1
                 listOf("2e", "tweede", "zolder").any { it in f } -> 2; listOf("tuin", "buiten").any { it in f } -> 3; else -> 4 }
-            HRoom(zone, floor.name, rank, lights.sortedBy { it.name })
+            val sws = roomSwitches[zid].orEmpty().mapNotNull { byId[it] }
+            val driven = sws.flatMap { hySwitches[it.id].orEmpty() }.toSet()
+            HRoom(zone, floor.name, rank, lights.sortedBy { it.name }, sws.sortedBy { it.name }, lights.filter { it.id !in driven }.sortedBy { it.name })
         }.sortedWith(compareBy({ it.floorRank }, { it.floor }, { it.zone.name }))
     }
 
@@ -1084,18 +1108,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun hyToggleRoom(r: HRoom) {
         val on = r.on == 0
-        r.lights.forEach { patch(it.id, "onoff", on) }
-        hyDo("Licht") { r.lights.forEach { homey.setCapability(it.id, "onoff", on) } }
+        // met schakelaars: die omzetten (zoals de knop aan de muur); losse lampen zelf
+        val targets = r.switches + r.loose
+        targets.forEach { patch(it.id, "onoff", on) }
+        hyDo("Licht") { targets.forEach { homey.setCapability(it.id, "onoff", on) } }
     }
     fun hyDimRoom(r: HRoom, delta: Double) {
-        val ls = r.lights.filter { "dim" in it.caps }
-        if (ls.isEmpty()) return
+        val ls = r.lights.filter { "dim" in it.caps && it.bool("onoff") == true }
+        if (r.on == 0 || ls.isEmpty()) return
         val v = ((r.dim ?: 0.0) + delta).coerceIn(0.05, 1.0)
-        ls.forEach { patch(it.id, "dim", v); patch(it.id, "onoff", true) }
+        ls.forEach { patch(it.id, "dim", v) }
         hyDo("Dimmen") { ls.forEach { homey.setCapability(it.id, "dim", v) } }
     }
     fun hyAllOff() {
-        val ls = hyRooms.flatMap { it.lights }.filter { it.bool("onoff") == true }
+        val ls = hyRooms.flatMap { it.switches + it.loose }.filter { it.bool("onoff") == true }
         ls.forEach { patch(it.id, "onoff", false) }
         hyDo("Licht") { ls.forEach { homey.setCapability(it.id, "onoff", false) } }
     }

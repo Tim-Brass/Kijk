@@ -146,6 +146,37 @@ class Homey(
         return (read("/api/manager/flow/flow/", false) + read("/api/manager/flow/advancedflow/", true)).sortedBy { it.name.lowercase() }
     }
 
+    /**
+     * Welke lampen een schakelaar aanstuurt, afgeleid uit je (geavanceerde) flows:
+     * "<schakelaar> aangezet → (wacht/ALL) → <lamp> zet aan / dim naar …".
+     */
+    fun switchTargets(): Map<String, Set<String>> {
+        val out = mutableMapOf<String, MutableSet<String>>()
+        val o = runCatching { JSONObject(call("GET", "/api/manager/flow/advancedflow/")) }.getOrNull() ?: return out
+        fun dev(uri: String) = uri.removePrefix("homey:device:").takeIf { uri.startsWith("homey:device:") }
+        for (fid in o.keys()) {
+            val cards = o.optJSONObject(fid)?.optJSONObject("cards") ?: continue
+            for (cid in cards.keys()) {
+                val c = cards.optJSONObject(cid) ?: continue
+                if (c.optString("type") != "trigger") continue
+                val sw = dev(c.optString("ownerUri")) ?: continue
+                val what = c.optString("id").lowercase()
+                if (!what.contains("turned_on") && !what.endsWith(":on") && !what.contains("onoff_true")) continue
+                // volgen tot aan apparaat-acties (via wachten/ALL/ANY), hooguit een paar stappen diep
+                val seen = mutableSetOf<String>()
+                fun walk(id: String, depth: Int) {
+                    if (depth > 4 || !seen.add(id)) return
+                    val n = cards.optJSONObject(id) ?: return
+                    val d = if (n.optString("type") == "action") dev(n.optString("ownerUri")) else null
+                    if (d != null) { if (d != sw && !n.optString("id").lowercase().contains("off")) out.getOrPut(sw) { mutableSetOf() }.add(d); return }
+                    n.optJSONArray("outputSuccess")?.let { a -> for (i in 0 until a.length()) walk(a.optString(i), depth + 1) }
+                }
+                c.optJSONArray("outputSuccess")?.let { a -> for (i in 0 until a.length()) walk(a.optString(i), 1) }
+            }
+        }
+        return out
+    }
+
     fun setCapability(device: String, cap: String, value: Any) {
         call("PUT", "/api/manager/devices/device/$device/capability/$cap", JSONObject().put("value", value).toString())
     }
