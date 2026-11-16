@@ -403,7 +403,9 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
     // beeld uit het live kijken alleen als het nieuwer is dan dat van Homey, en hooguit een kwartier
     val live = vm.liveFrame?.takeIf { it.second > imgAt && vm.now - it.second < 15 * 60_000L }
     Box(modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFF22222A)), contentAlignment = Alignment.Center) {
-        if (live != null) androidx.compose.foundation.Image(remember(live) { live.first.asImageBitmap() }, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        val snap = vm.hySnap?.takeIf { d?.id == vm.hyBell?.id }
+        if (live != null && (snap == null || live.second > snap.second)) androidx.compose.foundation.Image(remember(live) { live.first.asImageBitmap() }, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else if (snap != null) androidx.compose.foundation.Image(remember(snap) { snap.first.asImageBitmap() }, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else if (path == null) Label("Geen beeld", size = 12.sp, color = GreyH)
         else {
             val url = vm.homey.imageUrl(path, if (imgAt > 0) imgAt else vm.hyAt)

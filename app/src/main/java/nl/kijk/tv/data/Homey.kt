@@ -254,6 +254,19 @@ class Homey(
 
     fun imageUrl(path: String) = if (path.startsWith("http")) path else base + path
 
+    /** Het beeld zelf ophalen (Ring maakt het soms pas op verzoek: ruime wachttijd). */
+    fun imageBytes(path: String): ByteArray {
+        val u = imageUrl(path, System.currentTimeMillis())
+        val c = URL(u).openConnection() as HttpURLConnection
+        try {
+            c.connectTimeout = 3_000; c.readTimeout = 20_000
+            c.setRequestProperty("Authorization", "Bearer $key")
+            c.useCaches = false
+            if (c.responseCode !in 200..299) throw IOException("beeld ${c.responseCode}")
+            return c.inputStream.use { it.readBytes() }
+        } finally { c.disconnect() }
+    }
+
     /** Beeld met een versie erachter (zoals de Homey-app doet), zodat er nooit een oude kopie terugkomt. */
     fun imageUrl(path: String, version: Long) = imageUrl(path).let { u -> u + (if ('?' in u) "&" else "?") + version }
 

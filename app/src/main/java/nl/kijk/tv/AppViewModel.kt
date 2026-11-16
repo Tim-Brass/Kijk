@@ -971,6 +971,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var bellAlert by mutableStateOf<Long?>(null)
     /** laatste beeld uit het live beeld (Ring ververst zijn snapshot alleen bij beweging/aanbellen) */
     var liveFrame by mutableStateOf<Pair<android.graphics.Bitmap, Long>?>(null)
+    /** het deurbelbeeld zoals Homey het nu heeft (zelf opgehaald bij elke verversing) */
+    var hySnap by mutableStateOf<Pair<android.graphics.Bitmap, Long>?>(null); private set
+    private var hySnapBusyFetch = false
+
+    private fun fetchBellImage() {
+        val path = hyBell?.image ?: return
+        if (hySnapBusyFetch) return
+        hySnapBusyFetch = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = homey.imageBytes(path)
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, o)
+                var sample = 1; while (o.outWidth / (sample * 2) >= 640) sample *= 2
+                val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                if (bmp != null) hySnap = bmp to System.currentTimeMillis()
+            } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Deurbelbeeld: ${e.message}") }
+            finally { hySnapBusyFetch = false }
+        }
+    }
     var hyRings by mutableStateOf(hyPrefs.getString("rings", "")!!.split(',').mapNotNull { it.toLongOrNull() }); private set
     private var hyMetaAt = 0L
     private var hyJob: Job? = null
@@ -994,6 +1014,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 hyVars = runCatching { homey.variables() }.getOrDefault(hyVars)
                 hyDevices = homey.devices()
                 hyError = null
+                fetchBellImage()
             } catch (e: Exception) { hyError = e.message ?: e.javaClass.simpleName }
             hyAt = System.currentTimeMillis()
         }
