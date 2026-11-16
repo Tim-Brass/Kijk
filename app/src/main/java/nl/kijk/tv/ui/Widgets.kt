@@ -60,7 +60,7 @@ fun EmptyState(title: String, subtitle: String = "") {
 @Composable
 fun PillButton(text: String, modifier: Modifier = Modifier, selected: Boolean = false, onClick: () -> Unit) {
     FocusCard(onClick = onClick, modifier = modifier, selected = selected, shape = RoundedCornerShape(12.dp), focusedScale = 1.06f) {
-        Label(text, Modifier.padding(horizontal = 22.dp, vertical = 10.dp), size = Kijk.Headline, weight = Kijk.Semibold)
+        Label(text, Modifier.padding(horizontal = 22.dp, vertical = 10.dp), size = Kijk.Headline, weight = Kijk.Semibold, color = if (selected) Kijk.Accent else Color.Unspecified)
     }
 }
 
@@ -68,7 +68,7 @@ fun PillButton(text: String, modifier: Modifier = Modifier, selected: Boolean = 
 fun SmallPill(text: String, modifier: Modifier = Modifier, selected: Boolean = false, highlight: Color? = null, onFocus: (() -> Unit)? = null, onClick: () -> Unit) {
     FocusCard(onClick = onClick, onFocus = onFocus, modifier = modifier, selected = selected, shape = RoundedCornerShape(50), focusedScale = 1.06f) { f ->
         Box(if (highlight != null && !f) Modifier.background(highlight) else Modifier) {
-            Label(text, Modifier.padding(horizontal = 14.dp, vertical = 5.dp), size = Kijk.Caption, weight = Kijk.Semibold)
+            Label(text, Modifier.padding(horizontal = 14.dp, vertical = 5.dp), size = Kijk.Caption, weight = Kijk.Semibold, color = if (selected) Kijk.Accent else Color.Unspecified)
         }
     }
 }
@@ -110,18 +110,18 @@ fun Field(
         if (label.isNotEmpty()) Label(label, Modifier.padding(start = 4.dp, bottom = 4.dp), size = Kijk.Caption, weight = Kijk.Semibold, color = Kijk.Secondary)
         BasicTextField(
             value = value, onValueChange = onChange, singleLine = true,
-            textStyle = TextStyle(color = if (focused) Color.Black else Color.White, fontSize = Kijk.Headline),
+            textStyle = TextStyle(color = Color.White, fontSize = Kijk.Headline),
             cursorBrush = SolidColor(Kijk.Accent),
             visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = if (last) ImeAction.Done else ImeAction.Next, autoCorrectEnabled = false),
             keyboardActions = KeyboardActions(onAny = { onDone?.invoke() ?: fm.moveFocus(FocusDirection.Down) }),
             modifier = Modifier.fillMaxWidth()
                 .onFocusChanged { focused = it.isFocused }
-                .background(if (focused) Kijk.Focused else Kijk.Fill, RoundedCornerShape(Kijk.Corner))
+                .background(if (focused) Color(0xFF1B1B23) else Kijk.Fill, RoundedCornerShape(Kijk.Corner))
                 .border(2.dp, if (focused) Kijk.Accent else Color.Transparent, RoundedCornerShape(Kijk.Corner))
                 .padding(horizontal = 16.dp, vertical = 11.dp),
             decorationBox = { inner ->
-                Box { if (value.isEmpty()) Label(placeholder, size = Kijk.Headline, color = if (focused) Kijk.SecondaryOnFocus else Kijk.Secondary); inner() }
+                Box { if (value.isEmpty()) Label(placeholder, size = Kijk.Headline, color = Kijk.Secondary); inner() }
             },
         )
     }

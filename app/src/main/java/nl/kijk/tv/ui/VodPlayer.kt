@@ -370,11 +370,11 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
 
         countdown?.let { s ->
             Box(Modifier.align(Alignment.BottomEnd).padding(end = Kijk.SafeH, bottom = Kijk.SafeV + 40.dp)
-                .background(Kijk.Focused, RoundedCornerShape(Kijk.Corner)).padding(horizontal = 22.dp, vertical = 14.dp)) {
+                .background(Color(0xF21B1B23), RoundedCornerShape(Kijk.Corner)).border(2.dp, Kijk.Accent, RoundedCornerShape(Kijk.Corner)).padding(horizontal = 22.dp, vertical = 14.dp)) {
                 Column {
-                    Label("Volgende aflevering over $s s", size = Kijk.Headline, weight = Kijk.Semibold, color = Color.Black)
-                    items.getOrNull(index + 1)?.subtitle?.let { Label(it, size = Kijk.Body, color = Kijk.SecondaryOnFocus) }
-                    Label("OK = nu afspelen · Terug = stoppen", size = Kijk.Caption, color = Kijk.SecondaryOnFocus)
+                    Label("Volgende aflevering over $s s", size = Kijk.Headline, weight = Kijk.Semibold, color = Color.White)
+                    items.getOrNull(index + 1)?.subtitle?.let { Label(it, size = Kijk.Body, color = Kijk.Secondary) }
+                    Label("OK = nu afspelen · Terug = stoppen", size = Kijk.Caption, color = Kijk.Secondary)
                 }
             }
         }
@@ -410,8 +410,9 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
                                 "audio" -> "🔊  Audio"
                                 else -> "⏭  Volgende"
                             }
-                            Box(Modifier.background(if (sel) Kijk.Focused else Color(0x33FFFFFF), RoundedCornerShape(12.dp)).padding(horizontal = 18.dp, vertical = 9.dp)) {
-                                Label(label, size = Kijk.Body, weight = Kijk.Semibold, color = if (sel) Color.Black else Color.White)
+                            Box(Modifier.background(Color(0x66000000), RoundedCornerShape(12.dp))
+                                .border(2.dp, if (sel) Kijk.Accent else Color(0x33FFFFFF), RoundedCornerShape(12.dp)).padding(horizontal = 18.dp, vertical = 9.dp)) {
+                                Label(label, size = Kijk.Body, weight = Kijk.Semibold, color = Color.White)
                             }
                         }
                     }

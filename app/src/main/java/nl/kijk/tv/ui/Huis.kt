@@ -505,22 +505,23 @@ private fun PanelRow(
     title: String, value: String, modifier: Modifier = Modifier, valueColor: Color = Color.White, sub: String? = null,
     onLeft: (() -> Unit)? = null, onRight: (() -> Unit)? = null, onClick: () -> Unit = {},
 ) {
-    FocusCard(onClick = onClick, focusedScale = 1.02f, modifier = modifier.fillMaxWidth().onPreviewKeyEvent { e ->
+    var f by remember { mutableStateOf(false) }
+    FocusCard(onClick = onClick, focusedScale = 1.02f, modifier = modifier.fillMaxWidth().onFocusChanged { f = it.isFocused }.onPreviewKeyEvent { e ->
         if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
         when (e.key) {
             Key.DirectionLeft -> { onLeft?.invoke(); onLeft != null }
             Key.DirectionRight -> { onRight?.invoke(); onRight != null }
             else -> false
         }
-    }) { f ->
+    }) { _ ->
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Label(title, size = Kijk.Body, weight = Kijk.Medium, color = if (f) Color.Black else Color.White)
-                if (sub != null) Label(sub, size = 12.sp, color = secondary(f))
+                Label(title, size = Kijk.Body, weight = Kijk.Medium, color = Color.White)
+                if (sub != null) Label(sub, size = 12.sp, color = Kijk.Secondary)
             }
-            if (onLeft != null && f) Label("‹  ", size = Kijk.Body, color = secondary(f))
-            Label(value, size = Kijk.Body, weight = Kijk.Semibold, color = if (f) Color.Black else valueColor)
-            if (onRight != null && f) Label("  ›", size = Kijk.Body, color = secondary(f))
+            if (onLeft != null && f) Label("‹  ", size = Kijk.Body, color = Kijk.Secondary)
+            Label(value, size = Kijk.Body, weight = Kijk.Semibold, color = valueColor)
+            if (onRight != null && f) Label("  ›", size = Kijk.Body, color = Kijk.Secondary)
         }
     }
 }

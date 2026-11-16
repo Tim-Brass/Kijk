@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
  * zoals cellen op tvOS. Zo is altijd in één oogopslag te zien waar de focus staat.
  */
 /** Schermen in de "donker + blauw randje"-stijl (Live, Gids, Instellingen) zetten dit aan voor al hun tegels. */
-val LocalDarkFocus = androidx.compose.runtime.staticCompositionLocalOf { false }
+val LocalDarkFocus = androidx.compose.runtime.staticCompositionLocalOf { true }   // overal de donkere stijl
 
 @Composable
 fun FocusCard(
@@ -77,8 +77,9 @@ fun FocusCard(
             contentColor = Color.White,
             focusedContainerColor = if (darkFocus) (if (selected) Color(0xFF2E2E38) else Color(0xFF1B1B23)) else Kijk.Focused,
             focusedContentColor = if (darkFocus) Color.White else Color.Black,
-            pressedContainerColor = Color(0xFFD1D1D6),
-            pressedContentColor = Color.Black,
+            // indrukken: heel even een fractie lichter, nooit wit (zoals bij de posters)
+            pressedContainerColor = if (darkFocus) Color(0xFF2C2C36) else Color(0xFFD1D1D6),
+            pressedContentColor = if (darkFocus) Color.White else Color.Black,
         ),
     ) {
         // donkere stijl: de inhoud blijft er bij focus hetzelfde uitzien (wit op donker), alleen het randje verandert
