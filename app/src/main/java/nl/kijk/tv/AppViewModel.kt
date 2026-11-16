@@ -1045,7 +1045,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     val hyResume: HFlow? get() { hyVer
         val id = store.homey("resume")
-        return hyFlows.firstOrNull { it.id == id } ?: hyFlows.firstOrNull { "hervat" in it.name.lowercase() }
+        return hyFlows.firstOrNull { it.id == id } ?: hyFlows.firstOrNull { "terug naar programma" in it.name.lowercase() } ?: hyFlows.firstOrNull { "hervat" in it.name.lowercase() }
     }
     val hyAfval: HDevice? get() { hyVer
         return hyDev(store.homey("afval")) ?: hyDevices.firstOrNull { it.has("afval", "trash", "waste", "garbage", "vuilnis", "container") }
@@ -1158,8 +1158,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         hyDo("Comfort") { homey.setVariable(v.id, n) }
     }
     fun hyResumeSchedule() {
-        val f = hyResume ?: run { notice = "Geen flow \"Hervat schema\" gevonden. Kies hem in Instellingen › Huis."; return }
-        hyDo("Schema") { homey.trigger(f); notice = "Schema hervat" }
+        val f = hyResume ?: run { notice = "Geen flow \"Kijk – terug naar programma\" gevonden in Homey."; return }
+        hyDo("Programma") { homey.trigger(f); notice = "Thermostaat terug naar programma" }
     }
     /** Nieuwe snapshot: start de snapshot-flow (als die er is) en haal daarna het beeld opnieuw op. */
     fun hySnapshot() {

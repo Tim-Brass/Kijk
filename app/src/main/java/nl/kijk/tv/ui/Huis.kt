@@ -129,8 +129,7 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
             }
         }
         Spacer(Modifier.weight(1f))
-        val c = vm.hyComfort
-        CardFoot(if (c != null) "Comfort ${deg((c.value as? Number)?.toDouble())}" else if (t == null) "Geen thermostaat gevonden" else "OK om te bedienen")
+        CardFoot(if (t == null) "Geen thermostaat gevonden" else "Comfort ${deg(t.num("target_temperature"))} · OK")
     }
 }
 
@@ -478,7 +477,7 @@ private fun HuisPanel(vm: AppViewModel, kind: String, onClose: () -> Unit) {
                     Spacer(Modifier.width(10.dp))
                     Label(title, size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
                 }
-                Label(when (kind) { "temp", "light" -> "OK = aan/uit · ‹ › = aanpassen · Terug = sluiten"; else -> "Terug = sluiten" },
+                Label(when (kind) { "temp" -> "‹ › = comfort-temperatuur · Terug = sluiten"; "light" -> "OK = aan/uit · ‹ › = dimmen · Terug = sluiten"; else -> "Terug = sluiten" },
                     Modifier.padding(top = 2.dp, bottom = 10.dp), size = 12.sp, color = GreyH)
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
                     when (kind) {
@@ -523,34 +522,30 @@ private fun HuisHeader(text: String) {
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.tempPanel(vm: AppViewModel, first: FocusRequester) {
-    var firstUsed = false
-    fun fm(): Modifier = if (!firstUsed) { firstUsed = true; Modifier.focusRequester(first) } else Modifier
-    val c = vm.hyComfort
-    if (c != null) {
-        val m = fm()
-        item(key = "comfort") { PanelRow("Comfort-temperatuur", deg((c.value as? Number)?.toDouble()), m, TempC, sub = "geldt voor je flows",
-            onLeft = { vm.hyComfortBy(-0.5) }, onRight = { vm.hyComfortBy(0.5) }) }
+    // Alleen de comfort-temperatuur (= setpoint van de thermostaat) en terug naar programma.
+    // De rest regelt het verwarmingsscript in Homey zelf; daar wordt via de tv niet aan gezeten.
+    val t = vm.hyThermostat
+    if (t == null) { item { Label("Geen thermostaat gevonden in Homey.", size = Kijk.Body, color = GreyH) }; return }
+    item(key = "comfort") {
+        PanelRow("Comfort-temperatuur", deg(t.num("target_temperature")), Modifier.focusRequester(first), TempC,
+            sub = "nu ${deg(t.num("measure_temperature"))} · geldt tot het volgende programmamoment",
+            onLeft = { vm.hyTarget(t, -0.5) }, onRight = { vm.hyTarget(t, 0.5) })
     }
-    item(key = "h1") { HuisHeader("Apparaten") }
-    vm.hyThermostat?.let { t ->
-        val m = fm()
-        item(key = "t") { PanelRow(t.name, deg(t.num("target_temperature")), m, TempC, sub = "nu ${deg(t.num("measure_temperature"))}",
-            onLeft = { vm.hyTarget(t, -0.5) }, onRight = { vm.hyTarget(t, 0.5) }) }
+    if (vm.hyResume != null) item(key = "resume") {
+        Box(Modifier.padding(top = 10.dp)) { PanelRow("Terug naar programma", "", sub = "de thermostaat weer op het schema") { vm.hyResumeSchedule() } }
     }
-    listOfNotNull(vm.hyAirco1, vm.hyAirco2).forEach { a ->
-        val m = fm()
-        val on = a.bool("onoff") != false
-        val mode = when (a.caps["thermostat_mode"]?.value as? String) { "heat" -> "verwarmen"; "cool" -> "koelen"; "auto" -> "auto"; "off" -> "uit"; null -> null; else -> a.caps["thermostat_mode"]?.value.toString() }
-        item(key = "a" + a.id) {
-            PanelRow(a.name, if (on) deg(a.num("target_temperature")) else "uit", m, if (on) TempC else GreyH,
-                sub = listOfNotNull(a.num("measure_temperature")?.let { "nu ${deg(it)}" }, mode?.takeIf { on }).joinToString(" · ").ifEmpty { null },
-                onLeft = { vm.hyTarget(a, -0.5) }, onRight = { vm.hyTarget(a, 0.5) }) { vm.hyToggle(a) }
+    val aircos = listOfNotNull(vm.hyAirco1, vm.hyAirco2)
+    if (aircos.isNotEmpty()) {
+        item(key = "h1") { HuisHeader("Airco's (regelt Homey zelf)") }
+        aircos.forEach { a ->
+            item(key = "a" + a.id) {
+                val on = a.bool("onoff") != false
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+                    Label(a.name, Modifier.weight(1f), size = Kijk.Body, color = Color(0xFFD1D1D6))
+                    Label(if (on) deg(a.num("target_temperature")) else "uit", size = Kijk.Body, color = if (on) TempC else GreyH)
+                }
+            }
         }
-        if (mode != null && on) item(key = "m" + a.id) { PanelRow("Modus ${a.name}", mode, valueColor = Color(0xFFD1D1D6)) { vm.hyNextMode(a) } }
-    }
-    if (vm.hyResume != null) {
-        val m = fm()
-        item(key = "resume") { Box(Modifier.padding(top = 10.dp)) { PanelRow("Hervat schema", "", m, sub = "handmatige aanpassingen terugdraaien") { vm.hyResumeSchedule() } } }
     }
 }
 
@@ -643,7 +638,7 @@ fun homeyOptions(vm: AppViewModel, slot: String): Pair<String, List<Triple<Strin
         "afval" -> "Afval-app" to dev(vm.hyDevices)
         "bell" -> "Deurbel" to dev(vm.hyDevices.filter { it.image != null })
         "comfort" -> "Comfort-temperatuur (variabele)" to vm.hyVars.filter { it.type == "number" }.sortedBy { it.name.lowercase() }.map { Triple(it.id, it.name, it.value?.toString() ?: "") }
-        "resume" -> "Flow: hervat schema" to vm.hyFlows.map { Triple(it.id, it.name, if (it.advanced) "geavanceerd" else "") }
+        "resume" -> "Flow: terug naar programma" to vm.hyFlows.map { Triple(it.id, it.name, if (it.advanced) "geavanceerd" else "") }
         "snap" -> "Flow: nieuwe snapshot" to vm.hyFlows.map { Triple(it.id, it.name, if (it.advanced) "geavanceerd" else "") }
         else -> "Ruimtes verbergen" to zones.values.sortedBy { it.name.lowercase() }.map { Triple(it.id, it.name, "") }
     }
