@@ -228,20 +228,21 @@ private fun GuideRow(
     }
     Row(Modifier.fillMaxWidth().height(ROW_H)) {
         FocusCard(onClick = onPlayLive, onLongClick = { vm.toggleFavorite(ch) }, onFocus = { onFocus(null) }, modifier = Modifier.width(CHAN_W).fillMaxHeight().focusRequester(chanFocus), focusedScale = 1.02f, darkFocus = true) { _ ->
-            val f = false   // tegel blijft donker bij focus (blauw randje), dus tekstkleuren als niet-geselecteerd
-            // favoriet: sterretje rechtsboven in de hoek, los van de rest
-            if (ch.key in vm.favorites) Label("★", Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 7.dp), size = 12.sp, color = Color(0xFFFFD60A))
-            // groot logo met de naam eronder, in hetzelfde vak
-            Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Label(ch.number.toString(), Modifier.width(30.dp), size = Kijk.Caption, color = secondary(f))
-                Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center) {
-                    ChannelLogo(ch.logo, ch.name, Modifier.size(width = 124.dp, height = 32.dp), plate = false)
-                    Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = 11.sp, weight = Kijk.Semibold, maxLines = 1)
-                        if (ch.archiveDays > 0) Label(" ↺${ch.archiveDays}d", size = 11.sp, color = Kijk.Accent)
+            Box(Modifier.fillMaxSize()) {
+                // groot logo met de naam eronder, in hetzelfde vak; donker blijven met blauw randje bij selectie (zoals op Thuis)
+                Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Label(ch.number.toString(), Modifier.width(30.dp), size = Kijk.Caption, color = Kijk.Secondary)
+                    Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center) {
+                        ChannelLogo(ch.logo, ch.name, Modifier.size(width = 124.dp, height = 32.dp), plate = false)
+                        Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = 11.sp, weight = Kijk.Semibold, maxLines = 1)
+                            if (ch.archiveDays > 0) Label(" ↺${ch.archiveDays}d", size = 11.sp, color = Kijk.Accent)
+                        }
                     }
                 }
+                // favoriet: sterretje rechtsboven in de hoek, de rest blijft staan
+                if (ch.key in vm.favorites) Label("★", Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 6.dp), size = 12.sp, color = Color(0xFFFFD60A))
             }
         }
         Spacer(Modifier.width(8.dp))
