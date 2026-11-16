@@ -432,7 +432,8 @@ private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
         val ring = vm.hyRings.firstOrNull()
         Label(when {
             ring != null -> "Aangebeld ${ringTime(ring, vm.now)}"
-            (vm.liveFrame?.second ?: 0L) > (b?.imageAt ?: 0L) && vm.now - vm.liveFrame!!.second < 15 * 60_000L -> "Beeld ${ringTime(vm.liveFrame!!.second, vm.now)}"
+            (vm.liveFrame?.second ?: 0L) > maxOf(b?.imageAt ?: 0L, vm.hySnap?.second ?: 0L) && vm.now - vm.liveFrame!!.second < 15 * 60_000L -> "Beeld ${ringTime(vm.liveFrame!!.second, vm.now)}"
+            vm.hySnap != null -> "Beeld ${ringTime(vm.hySnap!!.second, vm.now)}"
             (b?.imageAt ?: 0L) > 0 -> "Beeld ${ringTime(b!!.imageAt, vm.now)}"
             b == null -> "Geen deurbel gevonden"
             else -> "Nog niet aangebeld"
