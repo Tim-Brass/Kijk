@@ -16,6 +16,8 @@ android {
         targetSdk = 35
         versionCode = buildNumber
         versionName = if (buildNumber >= 111) "0.2.${buildNumber - 111}" else "0.1.$buildNumber"   // vanaf build 111: 0.2.0
+        // alleen ARM (tv's en boxen); scheelt veel MB's aan x86-bibliotheken
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
     // Vaste sleutel, zodat nieuwe versies over de oude heen geïnstalleerd kunnen worden.
