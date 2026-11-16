@@ -188,6 +188,10 @@ class Homey(
         return out
     }
 
+    /** Instellingen van een app (bv. de ophaaldagen van "Afval Herinnering 2.0"). */
+    fun appSettings(appId: String): JSONObject? = runCatching { JSONObject(call("GET", "/api/manager/apps/app/$appId/setting/")) }
+        .onFailure { ImageLog.add("Homey app-instellingen $appId: ${it.message}") }.getOrNull()
+
     fun setCapability(device: String, cap: String, value: Any) {
         call("PUT", "/api/manager/devices/device/$device/capability/$cap", JSONObject().put("value", value).toString())
     }

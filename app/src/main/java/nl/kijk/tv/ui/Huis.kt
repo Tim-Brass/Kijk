@@ -184,7 +184,66 @@ private fun parseAfvalDate(s: String, now: Long): Long? {
     return null
 }
 
-fun afvalItems(d: HDevice?, now: Long): List<AfvalItem> {
+/** Ophaaldagen: uit de afval-app (instellingen) of anders uit een afval-apparaat. Komende eerst. */
+fun afvalItems(vm: AppViewModel): List<AfvalItem> {
+    val now = vm.now
+    val fromApp = vm.hyAfvalSettings?.let { afvalFromSettings(it, now) }.orEmpty()
+    if (fromApp.isNotEmpty()) return fromApp
+    return afvalFromDevice(vm.hyAfval, now)
+}
+
+private val WASTE = listOf("gft", "groen", "papier", "pmd", "plastic", "pbd", "rest", "grof", "textiel", "kca", "glas", "kerst", "snoei", "luier")
+
+private fun wasteName(k: String): String {
+    val l = k.lowercase()
+    return when {
+        "gft" in l || "groen" in l -> "GFT"
+        "papier" in l -> "Papier"
+        "pmd" in l || "plastic" in l || "pbd" in l -> "PMD"
+        "rest" in l -> "Restafval"
+        "grof" in l -> "Grofvuil"
+        "textiel" in l -> "Textiel"
+        "kerst" in l -> "Kerstbomen"
+        "snoei" in l -> "Snoeiafval"
+        else -> k.replaceFirstChar { it.uppercase() }
+    }
+}
+
+/** Zoekt in de app-instellingen naar datums en de soort waar ze bij horen (sleutel of "SOORT;datum;datum"). */
+fun afvalFromSettings(o: org.json.JSONObject, now: Long): List<AfvalItem> {
+    val found = mutableListOf<Pair<String, Long>>()
+    val dateRe = Regex("""(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})-(\d{1,2})-(\d{4})""")
+    fun cal(y: Int, m: Int, d: Int) = Calendar.getInstance().apply { clear(); set(y, m - 1, d) }.timeInMillis
+    fun walk(v: Any?, key: String) {
+        when (v) {
+            is org.json.JSONObject -> v.keys().forEach { k ->
+                // sleutels als "dates" of een datum zelf: soort van de ouder houden
+                val useKey = if (WASTE.any { it in k.lowercase() } || key.isEmpty()) k else key
+                walk(v.opt(k), useKey)
+            }
+            is org.json.JSONArray -> for (i in 0 until v.length()) walk(v.opt(i), key)
+            is String -> {
+                if (v.trim().startsWith("{") || v.trim().startsWith("[")) { runCatching { walk(org.json.JSONTokener(v).nextValue(), key) }; return }
+                v.split('\n').forEach { line ->
+                    val type = line.substringBefore(';', "").takeIf { ';' in line && it.isNotBlank() && it.length < 20 } ?: key
+                    dateRe.findAll(line).forEach { m ->
+                        val g = m.groupValues
+                        val t = if (g[1].isNotEmpty()) cal(g[1].toInt(), g[2].toInt(), g[3].toInt()) else cal(g[6].toInt(), g[5].toInt(), g[4].toInt())
+                        found += type to t
+                    }
+                }
+            }
+        }
+    }
+    walk(o, "")
+    val today = dayStart(now)
+    return found.filter { (k, t) -> t >= today && t < today + 120L * 86_400_000L && WASTE.any { it in k.lowercase() } }
+        .map { (k, t) -> AfvalItem(wasteName(k), t, "") }
+        .distinctBy { it.type + it.date }
+        .sortedBy { it.date }
+}
+
+fun afvalFromDevice(d: HDevice?, now: Long): List<AfvalItem> {
     d ?: return emptyList()
     val skip = listOf("measure_battery", "alarm_battery", "onoff", "button", "alarm_generic")
     return d.caps.values.filter { c -> skip.none { c.id.startsWith(it) } && c.value != null && c.value !is Boolean }
@@ -209,13 +268,13 @@ private val dayFmt get() = SimpleDateFormat("EEE d MMM", Locale("nl"))
 
 @Composable
 private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
-    val items = afvalItems(vm.hyAfval, vm.now)
+    val items = afvalItems(vm)
     val today = dayStart(vm.now)
     val next = items.firstOrNull { (it.date ?: Long.MAX_VALUE) >= today } ?: items.firstOrNull()
     HuisCard(modifier, onClick) {
         CardHead("Afval", AfvalC)
         if (next == null) {
-            Label(if (vm.hyAfval == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
+            Label(if (vm.hyAfval == null && vm.hyAfvalSettings == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
         } else {
             Label(next.date?.let { dayFmt.format(it) } ?: next.text, Modifier.padding(top = 4.dp), size = 22.sp, weight = Kijk.Bold, color = Color.White)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
@@ -223,7 +282,7 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
                 Spacer(Modifier.width(6.dp))
                 Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6))
             }
-            items.filter { it !== next }.take(1).forEach {
+            items.filter { it !== next && it.type != next.type }.take(1).forEach {
                 Label("${it.date?.let { d -> dayFmt.format(d) } ?: it.text} · ${it.type}", Modifier.padding(top = 4.dp), size = 12.sp, color = GreyH)
             }
         }
@@ -415,7 +474,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.lightPanel(vm: AppVie
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.afvalPanel(vm: AppViewModel, first: FocusRequester) {
-    val items = afvalItems(vm.hyAfval, vm.now)
+    val items = afvalItems(vm).take(10)
     if (items.isEmpty()) { item { Label("Geen ophaaldagen gevonden. Kies de afval-app in Instellingen › Huis.", size = Kijk.Body, color = GreyH, maxLines = 3) }; return }
     items.forEachIndexed { i, it ->
         item(key = "af$i") {

@@ -962,6 +962,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var hyFlows by mutableStateOf<List<HFlow>>(emptyList()); private set
     /** schakelaar-id → lampen die hij via je flows aanzet */
     var hySwitches by mutableStateOf<Map<String, Set<String>>>(emptyMap()); private set
+    /** instellingen van de afval-app (Afval Herinnering 2.0 heeft geen apparaat; de ophaaldagen staan daar) */
+    var hyAfvalSettings by mutableStateOf<org.json.JSONObject?>(null); private set
     var hyError by mutableStateOf<String?>(null); private set
     var hyAt by mutableStateOf(0L); private set
     var hySnapBusy by mutableStateOf(false); private set
@@ -984,6 +986,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     hyZones = homey.zones()
                     hyFlows = homey.flows()
                     hySwitches = runCatching { homey.switchTargets() }.getOrDefault(hySwitches)
+                    homey.appSettings("com.trashchecker")?.let { hyAfvalSettings = it }
                     hyMetaAt = now
                 }
                 hyVars = runCatching { homey.variables() }.getOrDefault(hyVars)
@@ -1009,6 +1012,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         appendLine()
         appendLine("== Schakelaars uit je flows ==")
         hySwitches.forEach { (sw, t) -> appendLine("${hyDevices.firstOrNull { it.id == sw }?.name ?: sw} → ${t.joinToString { id -> hyDevices.firstOrNull { it.id == id }?.name ?: id }}") }
+        appendLine()
+        appendLine("== Afval-app (com.trashchecker): ${hyAfvalSettings?.keys()?.asSequence()?.toList()?.joinToString() ?: "niet gelezen"}")
+        appendLine(nl.kijk.tv.ui.afvalItems(this@AppViewModel).take(8).joinToString("\n") { "  ${it.type}: ${it.date?.let { d -> java.util.Date(d) } ?: it.text}" })
         appendLine()
         appendLine("== Flows ==")
         hyFlows.forEach { appendLine(it.name + if (it.advanced) " (geavanceerd)" else "") }

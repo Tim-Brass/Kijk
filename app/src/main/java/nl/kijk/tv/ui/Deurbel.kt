@@ -71,7 +71,23 @@ private class LiveSession(ctx: Context, private val homey: Homey, private val vi
         renderer.setEnableHardwareScaler(true)
     }
 
+    /** Volgorde van de media in ons aanbod; Homey antwoordt in een vaste volgorde, dus die nemen we over als het misgaat. */
     suspend fun start() {
+        var order = listOf("audio", "video", "application")
+        repeat(2) { attempt ->
+            try { startWith(order); return }
+            catch (e: MLineOrder) {
+                ImageLog.add("Live: andere volgorde ${e.order}")
+                runCatching { pc?.close() }; runCatching { pc?.dispose() }; pc = null
+                order = e.order
+                if (attempt == 1) throw IllegalStateException("volgorde past niet")
+            }
+        }
+    }
+
+    private class MLineOrder(val order: List<String>) : Exception("m-line volgorde")
+
+    private suspend fun startWith(order: List<String>) {
         val cfg = PeerConnection.RTCConfiguration(listOf(PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer())).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
         }
@@ -92,9 +108,14 @@ private class LiveSession(ctx: Context, private val homey: Homey, private val vi
             override fun onRenegotiationNeeded() {}
         }) ?: throw IllegalStateException("WebRTC niet beschikbaar")
         pc = p
-        p.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO, RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY))
-        p.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO, RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY))
-        p.createDataChannel("data", DataChannel.Init())
+        val recv = RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.RECV_ONLY)
+        order.forEach { k ->
+            when (k) {
+                "audio" -> p.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO, recv)
+                "video" -> p.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO, recv)
+                "application" -> p.createDataChannel("data", DataChannel.Init())
+            }
+        }
 
         val offer = suspendCoroutine<SessionDescription> { k ->
             p.createOffer(object : Sdp() {
@@ -115,11 +136,24 @@ private class LiveSession(ctx: Context, private val homey: Homey, private val vi
         val local = p.localDescription?.description ?: offer.description
         val (answer, sid) = withContext(Dispatchers.IO) { homey.videoOffer(videoId, local) }
         streamId = sid
-        suspendCoroutine<Unit> { k ->
-            p.setRemoteDescription(object : Sdp() {
-                override fun onSetSuccess() { k.resume(Unit) }
-                override fun onSetFailure(e: String?) { k.resumeWith(Result.failure(IllegalStateException(e))) }
-            }, SessionDescription(SessionDescription.Type.ANSWER, answer))
+        setAnswer(p, answer)
+    }
+
+    // wrapper om setRemoteDescription: bij een volgorde-fout de volgorde uit het antwoord teruggeven
+    private suspend fun setAnswer(p: PeerConnection, answer: String) {
+        try {
+            suspendCoroutine<Unit> { k ->
+                p.setRemoteDescription(object : Sdp() {
+                    override fun onSetSuccess() { k.resume(Unit) }
+                    override fun onSetFailure(e: String?) { k.resumeWith(Result.failure(IllegalStateException(e))) }
+                }, SessionDescription(SessionDescription.Type.ANSWER, answer))
+            }
+        } catch (e: IllegalStateException) {
+            if (e.message?.contains("m-lines", ignoreCase = true) == true) {
+                val kinds = Regex("""(?m)^m=(\w+)""").findAll(answer).map { it.groupValues[1] }.toList()
+                throw MLineOrder(kinds)
+            }
+            throw e
         }
     }
 
