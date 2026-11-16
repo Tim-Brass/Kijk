@@ -147,8 +147,8 @@ private fun LightCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
             Label(if (on.size == 1) "  ruimte aan" else "  ruimtes aan", Modifier.padding(bottom = 5.dp), size = 13.sp, color = GreyH)
         }
         // de ruimtes die aan zijn, daarna een paar die uit zijn
-        Column(Modifier.padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            (on + rooms.filter { it.on == 0 }).take(3).forEach { r ->
+        Column(Modifier.padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            (on + rooms.filter { it.on == 0 }).take(5).forEach { r ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).background(if (r.on > 0) LightC else Color(0xFF3A3A40), RoundedCornerShape(50)))
                     Spacer(Modifier.width(6.dp))
@@ -377,9 +377,9 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
                     Label(next.type, size = 13.sp, color = Color(0xFFD1D1D6), maxLines = 1)
                 }
             }
-            items.filter { it.type != next.type }.distinctBy { it.type }.take(2).forEach {
-                Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    WasteIcon(it.type, 16.dp)
+            items.filter { it.type != next.type }.distinctBy { it.type }.take(4).forEach {
+                Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WasteIcon(it.type, 15.dp)
                     Spacer(Modifier.width(5.dp))
                     Label("${it.date?.let { d -> shortDay.format(d) } ?: it.text} · ${it.type}", size = 12.sp, color = GreyH, maxLines = 1)
                 }
