@@ -31,6 +31,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.key
 import androidx.compose.ui.focus.FocusRequester
@@ -227,15 +228,16 @@ private fun GuideRow(
     }
     Row(Modifier.fillMaxWidth().height(ROW_H)) {
         FocusCard(onClick = onPlayLive, onLongClick = { vm.toggleFavorite(ch) }, onFocus = { onFocus(null) }, modifier = Modifier.width(CHAN_W).fillMaxHeight().focusRequester(chanFocus), focusedScale = 1.02f) { f ->
-            Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Label(ch.number.toString(), Modifier.width(36.dp), size = Kijk.Caption, color = secondary(f))
-                ChannelLogo(ch.logo, ch.name, Modifier.size(width = 52.dp, height = 34.dp))
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Label(shortName(ch.name), size = Kijk.Caption, weight = Kijk.Semibold)
-                    Row {
-                        if (ch.key in vm.favorites) Label("★ ", size = Kijk.Caption, color = if (f) Color(0xFFB8860B) else Color(0xFFFFD60A))
-                        if (ch.archiveDays > 0) Label("↺ ${ch.archiveDays} d", size = Kijk.Caption, color = Kijk.Accent)
+            // groot logo met de naam eronder, in hetzelfde vak
+            Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Label(ch.number.toString(), Modifier.width(30.dp), size = Kijk.Caption, color = secondary(f))
+                Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center) {
+                    ChannelLogo(ch.logo, ch.name, Modifier.size(width = 124.dp, height = 32.dp))
+                    Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = 11.sp, weight = Kijk.Semibold, maxLines = 1)
+                        if (ch.key in vm.favorites) Label(" ★", size = 11.sp, color = if (f) Color(0xFFB8860B) else Color(0xFFFFD60A))
+                        if (ch.archiveDays > 0) Label(" ↺${ch.archiveDays}d", size = 11.sp, color = Kijk.Accent)
                     }
                 }
             }
