@@ -208,15 +208,15 @@ private fun KijkApp(vm: AppViewModel) {
             is Screen.MovieDetail -> { BackHandler { nav.pop() }; MovieDetailScreen(vm, nav, screen.movie) }
             is Screen.ShowDetail -> { BackHandler { nav.pop() }; ShowDetailScreen(vm, nav, screen.show) }
             is Screen.Vod -> VodPlayer(vm, nav, screen.items, screen.index, screen.start, screen.showId)
-            is Screen.Groups -> GroupsScreen(vm, nav, screen.kind)
-            Screen.EpgChannels -> { BackHandler { nav.pop() }; EpgChannelsScreen(vm, nav) }
-            is Screen.SportChannel -> { BackHandler { nav.pop() }; SportChannelScreen(vm, nav, screen.football) }
+            is Screen.Groups -> Dark { GroupsScreen(vm, nav, screen.kind) }
+            Screen.EpgChannels -> { BackHandler { nav.pop() }; Dark { EpgChannelsScreen(vm, nav) } }
+            is Screen.SportChannel -> { BackHandler { nav.pop() }; Dark { SportChannelScreen(vm, nav, screen.football) } }
             Screen.Doorbell -> { BackHandler { nav.pop() }; nl.kijk.tv.ui.DoorbellLiveScreen(vm) }
-            is Screen.HomeyPick -> { BackHandler { nav.pop() }; nl.kijk.tv.ui.HomeyPickScreen(vm, nav, screen.slot) }
-            is Screen.EpgLink -> { BackHandler { nav.pop() }; EpgLinkScreen(vm, nav, screen.channel) }
-            Screen.OsConfig -> { BackHandler { nav.pop() }; OsConfigScreen(vm, nav) }
+            is Screen.HomeyPick -> { BackHandler { nav.pop() }; Dark { nl.kijk.tv.ui.HomeyPickScreen(vm, nav, screen.slot) } }
+            is Screen.EpgLink -> { BackHandler { nav.pop() }; Dark { EpgLinkScreen(vm, nav, screen.channel) } }
+            Screen.OsConfig -> { BackHandler { nav.pop() }; Dark { OsConfigScreen(vm, nav) } }
             Screen.SyncPair -> { BackHandler { nav.pop() }; SyncPairScreen(vm, nav) }
-            Screen.GitHub -> { BackHandler { vm.cancelGitHubLogin(); nav.pop() }; GitHubSyncScreen(vm, nav) }
+            Screen.GitHub -> { BackHandler { vm.cancelGitHubLogin(); nav.pop() }; Dark { GitHubSyncScreen(vm, nav) } }
             is Screen.SubSearch -> SubSearchScreen(vm, screen.item, { nav.pop() }, screen.onPick)
             is Screen.Pin -> { BackHandler { screen.onResult(null) }; PinScreen(screen) }
             is Screen.Confirm -> { BackHandler { screen.onResult(false) }; ConfirmScreen(screen) }
@@ -258,3 +258,9 @@ private fun KijkApp(vm: AppViewModel) {
     }
     }
 }
+
+
+/** Instellingen-schermen: tegels in de donkere stijl met blauw randje. */
+@Composable
+private fun Dark(content: @Composable () -> Unit) =
+    androidx.compose.runtime.CompositionLocalProvider(nl.kijk.tv.ui.LocalDarkFocus provides true, content = content)

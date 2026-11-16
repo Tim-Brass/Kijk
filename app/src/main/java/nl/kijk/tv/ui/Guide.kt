@@ -303,8 +303,8 @@ private fun GuideRow(
                         .onPreviewKeyEvent { e -> move(p, e) },
                     selected = live, shape = RoundedCornerShape(8.dp), focusedScale = 1f,
                 ) { f ->
-                    // al uitgezonden deel van een lopend programma kleurt mee
-                    if (live && !f) Box(Modifier.fillMaxHeight().fillMaxWidth(p.progress(vm.now).coerceIn(0f, 1f)).background(Kijk.AccentSoft))
+                    // lopend programma: lichter vlak (selected) met onderin een rood lijntje voor het al uitgezonden deel
+                    if (live) Box(Modifier.align(Alignment.BottomStart).fillMaxWidth(p.progress(vm.now).coerceIn(0f, 1f)).height(3.dp).background(Kijk.Live))
                     Column(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (catchup) Label("↺ ", size = Kijk.Caption, color = if (f) Color(0xFF0050A0) else Kijk.Accent, weight = Kijk.Bold)
@@ -312,7 +312,6 @@ private fun GuideRow(
                             Label(p.title, size = Kijk.Caption, weight = Kijk.Semibold, color = if (past && !catchup && !f) Kijk.Secondary else Color.Unspecified)
                         }
                         if (shown >= 70.dp) Label(Format.range(p.start, p.stop), size = 11.sp(), color = secondary(f))
-                        if (live) ProgressBar(p.progress(vm.now), Modifier.fillMaxWidth().padding(top = 3.dp), f, 2.dp)
                     }
                 }
             } }

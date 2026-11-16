@@ -39,6 +39,9 @@ import androidx.compose.ui.text.font.FontWeight
  * Basis-bouwsteen: een element dat bij focus licht wordt en iets "optilt",
  * zoals cellen op tvOS. Zo is altijd in één oogopslag te zien waar de focus staat.
  */
+/** Schermen in de "donker + blauw randje"-stijl (Live, Gids, Instellingen) zetten dit aan voor al hun tegels. */
+val LocalDarkFocus = androidx.compose.runtime.staticCompositionLocalOf { false }
+
 @Composable
 fun FocusCard(
     onClick: () -> Unit,
@@ -53,6 +56,7 @@ fun FocusCard(
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val darkFocus = darkFocus || LocalDarkFocus.current
     Surface(
         // sporttegels en posters: hetzelfde dunne blauwe randje met een beetje ruimte eromheen
         border = if (focusRing || darkFocus) ClickableSurfaceDefaults.border(
@@ -69,15 +73,16 @@ fun FocusCard(
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         scale = ClickableSurfaceDefaults.scale(focusedScale = focusedScale),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (darkFocus) Color(0xFF16161C) else if (selected) Kijk.FillSelected else Kijk.Fill,
+            containerColor = if (darkFocus) (if (selected) Color(0xFF2A2A33) else Color(0xFF16161C)) else if (selected) Kijk.FillSelected else Kijk.Fill,
             contentColor = Color.White,
-            focusedContainerColor = if (darkFocus) Color(0xFF1B1B23) else Kijk.Focused,
+            focusedContainerColor = if (darkFocus) (if (selected) Color(0xFF2E2E38) else Color(0xFF1B1B23)) else Kijk.Focused,
             focusedContentColor = if (darkFocus) Color.White else Color.Black,
             pressedContainerColor = Color(0xFFD1D1D6),
             pressedContentColor = Color.Black,
         ),
     ) {
-        content(focused)
+        // donkere stijl: de inhoud blijft er bij focus hetzelfde uitzien (wit op donker), alleen het randje verandert
+        content(focused && !darkFocus)
     }
 }
 

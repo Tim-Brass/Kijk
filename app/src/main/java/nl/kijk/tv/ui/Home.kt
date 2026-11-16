@@ -29,6 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -169,12 +172,12 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 FadeIn(hs.tab) {
                     when (hs.tab) {
                         TAB_HOME -> HomeTab(vm, nav, hs, overlay?.onPlay)
-                        TAB_LIVE -> LiveTab(vm, nav, hs, overlay?.onPlay)
-                        TAB_GUIDE -> GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay)
+                        TAB_LIVE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { LiveTab(vm, nav, hs, overlay?.onPlay) }
+                        TAB_GUIDE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay) }
                         TAB_FILMS -> VodTab(vm, nav, series = false, hs = hs)
                         TAB_SERIES -> VodTab(vm, nav, series = true, hs = hs)
                         TAB_SEARCH -> SearchTab(vm, nav)
-                        else -> SettingsTab(vm, nav)
+                        else -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { SettingsTab(vm, nav) }
                     }
                 }
             }
@@ -225,34 +228,41 @@ fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: 
     val nn = vm.nowNext(ch)
     val cur = nn.firstOrNull()?.takeIf { it.isLive(vm.now) }
     val next = if (cur != null) nn.getOrNull(1) else nn.firstOrNull()
-    FocusCard(onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxWidth()) { focused ->
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!compact) Label(ch.number.toString(), Modifier.width(44.dp), color = secondary(focused))
-            ChannelLogo(ch.logo, ch.name)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Label(ch.name, Modifier.weight(1f, fill = false), size = Kijk.Headline, weight = Kijk.Semibold)
-                    if (ch.key in vm.favorites) Label("  ★", color = if (focused) Color(0xFFB8860B) else Color(0xFFFFD60A))
-                    if (ch.archiveDays > 0) Label("  ↺", color = Kijk.Accent, weight = Kijk.Bold)
-                }
-                if (cur != null) {
-                    Label(cur.title, color = if (focused) Color.Black else Color.White)
-                    Spacer(Modifier.height(4.dp))
+    FocusCard(onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxWidth(), darkFocus = true) { _ ->
+        Box(Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (!compact) Label(ch.number.toString(), Modifier.width(40.dp), color = Kijk.Secondary)
+                // groot logo zonder grijs vak (zoals in de gids)
+                ChannelLogo(ch.logo, ch.name, Modifier.size(width = 104.dp, height = 46.dp), plate = false)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProgressBar(cur.progress(vm.now), Modifier.width(120.dp), focused)
-                        Spacer(Modifier.width(8.dp))
-                        Label(Format.minutesLeft(cur.stop, vm.now), size = Kijk.Caption, color = secondary(focused))
+                        Label(ch.name, Modifier.weight(1f, fill = false), size = Kijk.Headline, weight = Kijk.Semibold)
+                        if (ch.archiveDays > 0) Label("  ↺", color = Kijk.Accent, weight = Kijk.Bold)
                     }
-                } else Label(if (vm.hasEpg(ch)) "Nu geen programma-informatie" else "Geen gidsinformatie", size = Kijk.Caption, color = secondary(focused))
-            }
-            if (!compact && next != null) {
-                Spacer(Modifier.width(16.dp))
-                Column(Modifier.width(210.dp)) {
-                    Label("Straks · ${Format.time(next.start)}", size = Kijk.Caption, color = secondary(focused))
-                    Label(next.title, color = secondary(focused))
+                    if (cur != null) {
+                        Label(cur.title, color = Color.White)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // voortgang van wat nu speelt: rood, zoals in de gids
+                            Box(Modifier.width(120.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))) {
+                                Box(Modifier.fillMaxHeight().fillMaxWidth(cur.progress(vm.now).coerceIn(0f, 1f)).background(Kijk.Live))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Label(Format.minutesLeft(cur.stop, vm.now), size = Kijk.Caption, color = Kijk.Secondary)
+                        }
+                    } else Label(if (vm.hasEpg(ch)) "Nu geen programma-informatie" else "Geen gidsinformatie", size = Kijk.Caption, color = Kijk.Secondary)
+                }
+                if (!compact && next != null) {
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.width(210.dp)) {
+                        Label("Straks · ${Format.time(next.start)}", size = Kijk.Caption, color = Kijk.Secondary)
+                        Label(next.title, color = Kijk.Secondary)
+                    }
                 }
             }
+            // favoriet: sterretje rechtsboven in de hoek
+            if (ch.key in vm.favorites) Label("★", Modifier.align(Alignment.TopEnd).padding(top = 5.dp, end = 8.dp), size = 14.sp, color = Color(0xFFFFD60A))
         }
     }
 }
