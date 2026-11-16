@@ -57,6 +57,7 @@ private val TempC = Color(0xFFFF9F0A)
 private val LightC = Color(0xFFFFC940)
 private val AfvalC = Color(0xFF30D158)
 private val BellC = Color(0xFF64D2FF)
+private val CupraC = Color(0xFFC8865A)
 private val GreyH = Color(0xFF8E8E93)
 private val LineH = Color(0xFF2A2A31)
 private val PanelBg = Color(0xFF16161C)
@@ -78,11 +79,12 @@ fun HuisRow(vm: AppViewModel, nav: Nav) {
             if (err != null) Label("  ·  Homey niet bereikbaar", size = 12.sp, color = GreyH)
             else if (vm.hyDevices.isEmpty()) Label("  ·  Homey zoeken…", size = 12.sp, color = GreyH)
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(if (vm.hyCar != null) 14.dp else 18.dp)) {
             TempCard(vm, Modifier.weight(1f)) { panel = "temp" }
             LightCard(vm, Modifier.weight(1f)) { panel = "light" }
             AfvalCard(vm, Modifier.weight(1f)) { panel = "afval" }
             BellCard(vm, Modifier.weight(1f)) { if (vm.hyBell?.video != null) nav.push(nl.kijk.tv.Screen.Doorbell) else vm.hySnapshot() }
+            if (vm.hyCar != null) CarCard(vm, Modifier.weight(1f)) { panel = "auto" }
         }
     }
     panel?.let { p -> HuisPanel(vm, p) { panel = null } }
@@ -475,18 +477,19 @@ private fun HuisPanel(vm: AppViewModel, kind: String, onClose: () -> Unit) {
             LaunchedEffect(Unit) { delay(80); runCatching { first.requestFocus() } }
             Column(Modifier.align(Alignment.CenterEnd).width(480.dp).fillMaxHeight().background(PanelBg)
                 .padding(start = 26.dp, end = Kijk.SafeH, top = Kijk.SafeV + 6.dp, bottom = Kijk.SafeV)) {
-                val (title, color) = when (kind) { "temp" -> "Temperatuur" to TempC; "light" -> "Verlichting" to LightC; else -> "Afval" to AfvalC }
+                val (title, color) = when (kind) { "temp" -> "Temperatuur" to TempC; "light" -> "Verlichting" to LightC; "auto" -> "Cupra Leon" to CupraC; else -> "Afval" to AfvalC }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).background(color, RoundedCornerShape(50)))
                     Spacer(Modifier.width(10.dp))
                     Label(title, size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
                 }
-                Label(when (kind) { "temp" -> "‹ › = comfort-temperatuur · Terug = sluiten"; "light" -> "OK = aan/uit · ‹ › = dimmen · Terug = sluiten"; else -> "Terug = sluiten" },
+                Label(when (kind) { "auto" -> "Terug = sluiten"; "temp" -> "‹ › = comfort-temperatuur · Terug = sluiten"; "light" -> "OK = aan/uit · ‹ › = dimmen · Terug = sluiten"; else -> "Terug = sluiten" },
                     Modifier.padding(top = 2.dp, bottom = 10.dp), size = 12.sp, color = GreyH)
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
                     when (kind) {
                         "temp" -> tempPanel(vm, first)
                         "light" -> lightPanel(vm, first)
+                        "auto" -> carPanel(vm, first)
                         else -> afvalPanel(vm, first)
                     }
                 }
@@ -645,5 +648,101 @@ fun homeyOptions(vm: AppViewModel, slot: String): Pair<String, List<Triple<Strin
         "resume" -> "Flow: terug naar programma" to vm.hyFlows.map { Triple(it.id, it.name, if (it.advanced) "geavanceerd" else "") }
         "snap" -> "Flow: nieuwe snapshot" to vm.hyFlows.map { Triple(it.id, it.name, if (it.advanced) "geavanceerd" else "") }
         else -> "Ruimtes verbergen" to zones.values.sortedBy { it.name.lowercase() }.map { Triple(it.id, it.name, "") }
+    }
+}
+
+
+// ---------------------------------------------------------------- auto (Cupra, uit Homey-variabelen)
+
+private fun batteryColor(p: Int, charging: Boolean) = when {
+    charging || p >= 50 -> Color(0xFF30D158)
+    p >= 20 -> Color(0xFFFF9F0A)
+    else -> Color(0xFFFF453A)
+}
+
+/** Batterij-icoon; tijdens het laden vult hij steeds rustig tot de doel-lading en pulseert het bliksemschichtje. */
+@Composable
+fun CarBattery(percent: Int, target: Int, charging: Boolean, modifier: Modifier = Modifier) {
+    val p = percent.coerceIn(0, 100) / 100f
+    val goal = (target.coerceIn(percent, 100)) / 100f
+    val anim = if (charging) androidx.compose.animation.core.rememberInfiniteTransition(label = "laden") else null
+    val fill = anim?.animateFloat(p, goal.coerceAtLeast(p + 0.01f), androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        androidx.compose.animation.core.RepeatMode.Restart), label = "vul")
+    val bolt = anim?.animateFloat(0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(600), androidx.compose.animation.core.RepeatMode.Reverse), label = "bliksem")
+    val col = batteryColor(percent, charging)
+    androidx.compose.foundation.Canvas(modifier) {
+        val w = size.width; val h = size.height
+        val nub = w * 0.07f; val body = w - nub
+        val sw = h * 0.08f
+        drawRoundRect(Color(0xFFD1D1D6), androidx.compose.ui.geometry.Offset(sw / 2, sw / 2), androidx.compose.ui.geometry.Size(body - sw, h - sw),
+            androidx.compose.ui.geometry.CornerRadius(h * 0.18f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+        drawRoundRect(Color(0xFFD1D1D6), androidx.compose.ui.geometry.Offset(body, h * 0.32f), androidx.compose.ui.geometry.Size(nub, h * 0.36f), androidx.compose.ui.geometry.CornerRadius(nub / 2))
+        val pad = sw * 1.9f
+        val f = (fill?.value ?: p).coerceIn(0f, 1f)
+        drawRoundRect(col, androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Size((body - 2 * pad) * f, h - 2 * pad), androidx.compose.ui.geometry.CornerRadius(h * 0.08f))
+        if (charging) {
+            val cx = body / 2; val cy = h / 2; val s = h * 0.36f
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx + s * 0.15f, cy - s); lineTo(cx - s * 0.45f, cy + s * 0.12f); lineTo(cx - s * 0.02f, cy + s * 0.12f)
+                lineTo(cx - s * 0.15f, cy + s); lineTo(cx + s * 0.45f, cy - s * 0.12f); lineTo(cx + s * 0.02f, cy - s * 0.12f); close()
+            }
+            drawPath(path, Color.White, alpha = bolt?.value ?: 1f)
+        }
+    }
+}
+
+@Composable
+private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
+    val car = vm.hyCar ?: return
+    val bat = car.battery ?: 0
+    HuisCard(modifier, onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Label("Cupra Leon", Modifier.weight(1f), size = 14.sp, weight = Kijk.Semibold, color = CupraC, maxLines = 1)
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.cupra_logo), "Cupra", Modifier.height(16.dp))
+        }
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.car_cupra), null,
+            Modifier.fillMaxWidth().weight(1f).padding(vertical = 4.dp).clip(RoundedCornerShape(6.dp)), contentScale = ContentScale.Crop)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CarBattery(bat, car.target ?: 100, car.charging, Modifier.size(width = 46.dp, height = 22.dp))
+            Spacer(Modifier.width(8.dp))
+            Label("$bat%", size = 20.sp, weight = Kijk.Bold, color = Color.White)
+            car.range?.let { Label("  $it km", size = 12.sp, color = GreyH) }
+        }
+        val tgt = car.target?.takeIf { it in 1..99 }?.let { " · tot $it%" } ?: ""
+        when {
+            car.charging -> CardFoot("Laadt$tgt", Color(0xFF30D158))
+            car.plugged -> CardFoot("Aan de lader · laadt niet", TempC)
+            else -> CardFoot("Niet aan de lader")
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.carPanel(vm: AppViewModel, first: FocusRequester) {
+    val car = vm.hyCar ?: return
+    val rows = listOfNotNull(
+        "Accu" to "${car.battery ?: "–"}%",
+        car.range?.let { "Bereik elektrisch" to "$it km" },
+        car.target?.let { "Doel-lading" to "$it%" },
+        "Laden" to if (car.charging) "laadt" else "laadt niet",
+        "Stekker" to if (car.plugged) "erin" else "eruit",
+        car.updated?.let { "Bijgewerkt" to it },
+    )
+    item(key = "foto") {
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.car_cupra), null,
+            Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+    }
+    rows.forEachIndexed { i, (k, v) ->
+        item(key = "c$i") {
+            var f by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                .onFocusChanged { st -> f = st.isFocused }.focusable()
+                .background(if (f) Color(0x1FFFFFFF) else Color.Transparent, RoundedCornerShape(10.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Label(k, Modifier.weight(1f), size = Kijk.Body, color = Color.White)
+                Label(v, size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
+            }
+        }
     }
 }

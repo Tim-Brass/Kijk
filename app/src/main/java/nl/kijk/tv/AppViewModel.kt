@@ -1065,6 +1065,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** gemeten / ingestelde temperatuur van de thermostaat, met offset */
     fun hyShown(d: HDevice?, cap: String): Double? = d?.num(cap)?.let { it + hyOffset }
 
+    /** Auto (Cupra) uit Homey-variabelen die je flow "Cupra ophalen" bijhoudt. */
+    data class Car(val battery: Int?, val range: Int?, val target: Int?, val charging: Boolean, val plugged: Boolean, val updated: String?)
+    val hyCar: Car? get() {
+        fun v(vararg w: String) = hyVars.firstOrNull { x -> val n = x.name.lowercase(); "cupra" in n && w.all { it in n } }?.value
+        fun num(vararg w: String) = (v(*w) as? Number)?.toDouble()?.let { Math.round(it).toInt() }
+        val bat = num("accu") ?: return null
+        return Car(bat, num("bereik"), num("doel"), v("laadt") == true, v("stekker") == true,
+            (v("bijgewerkt") as? String)?.takeIf { it.isNotBlank() })
+    }
+
     fun hyChoice(slot: String) = store.homey(slot)
     fun hySetChoice(slot: String, v: String) { store.setHomey(slot, v); hyVer++ }
 
