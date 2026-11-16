@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
@@ -142,13 +143,34 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(w
         var step by androidx.compose.runtime.remember(name, url, nice) { androidx.compose.runtime.mutableIntStateOf(if (nice != null) 0 else 1) }
         val model = when (step) { 0 -> nice; 1 -> url; else -> null }
         if (model != null) {
-            AsyncImage(
-                model = model,
-                contentDescription = name,
-                contentScale = ContentScale.Fit,
-                onError = { step++ },
-                modifier = Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 4.dp),
-            )
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            androidx.compose.runtime.LaunchedEffect(Unit) { nl.kijk.tv.data.LogoTone.init(ctx) }
+            val tone = nl.kijk.tv.data.LogoTone.tone(model)
+            val req = androidx.compose.runtime.remember(model) {
+                // software-bitmap, zodat Kijk het logo één keer kan meten (logo's zijn klein)
+                coil.request.ImageRequest.Builder(ctx).data(model).allowHardware(nl.kijk.tv.data.LogoTone.known(model)).build()
+            }
+            Box(
+                Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
+                    .then(if (tone == 2) Modifier.background(Color(0xFFE5E5EA), RoundedCornerShape(6.dp)) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = req,
+                    contentDescription = name,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = if (tone == 1) androidx.compose.ui.graphics.ColorFilter.tint(Color.White) else null,
+                    onError = { step++ },
+                    onSuccess = { st ->
+                        if (!nl.kijk.tv.data.LogoTone.known(model)) {
+                            val bmp = (st.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                            if (bmp != null && bmp.config != android.graphics.Bitmap.Config.HARDWARE)
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch { nl.kijk.tv.data.LogoTone.measure(model, bmp) }
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize().padding(horizontal = if (tone == 2) 5.dp else 2.dp, vertical = if (tone == 2) 3.dp else 2.dp),
+                )
+            }
         } else {
             Label(name.take(3).uppercase(), size = Kijk.Caption, weight = Kijk.Bold, color = Kijk.Secondary)
         }
