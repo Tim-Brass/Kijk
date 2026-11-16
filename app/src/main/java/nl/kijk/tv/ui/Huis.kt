@@ -561,7 +561,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.lightPanel(vm: AppVie
             item(key = r.zone.id) {
                 val pct = r.dim?.let { " · ${(it * 100).toInt()}%" } ?: ""
                 PanelRow(r.zone.name, if (r.on > 0) "aan$pct" else "uit", m, if (r.on > 0) LightC else GreyH,
-                    sub = if (r.switches.isEmpty() && r.total > 1) "${r.on} van ${r.total} lampen aan" else null,
+                    sub = null,
                     onLeft = if (r.dimmable) ({ vm.hyDimRoom(r, -0.1) }) else null, onRight = if (r.dimmable) ({ vm.hyDimRoom(r, 0.1) }) else null) { vm.hyToggleRoom(r) }
             }
         }
