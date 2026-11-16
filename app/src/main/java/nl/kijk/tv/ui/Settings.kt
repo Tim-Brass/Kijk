@@ -102,6 +102,8 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                 }
                 1 -> {
                     item { tick.hashCode(); SettingRow("Zendergroepen", "${vm.groups.size} van ${vm.allGroups.size} zichtbaar") { nav.push(Screen.Groups("live")) } }
+                    item { tick.hashCode(); SettingRow("Verzorgde zenderlogo's", if (vm.store.niceLogos) "Aan · vaste set logo's in één stijl (OK = uit)" else "Uit · logo's van de aanbieder (OK = aan)") {
+                        vm.store.niceLogos = !vm.store.niceLogos; nl.kijk.tv.data.TvLogos.enabled = vm.store.niceLogos; changed() } }
                     item { tick.hashCode(); SettingRow("Gids koppelen per zender", "${s.epgLinks.size} handmatig gekoppeld") { nav.push(Screen.EpgChannels) } }
                     item { tick.hashCode(); SettingRow("Zender voor Formule 1", vm.store.sportF1Channel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(false)) } }
                     item { tick.hashCode(); SettingRow("Zender voor voetbal (PSV en Oranje)", vm.store.sportFootballChannel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(true)) } }

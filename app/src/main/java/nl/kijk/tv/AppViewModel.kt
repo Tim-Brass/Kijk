@@ -135,6 +135,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun startSync() {
+        nl.kijk.tv.data.TvLogos.enabled = store.niceLogos
         PhoneServer.doorbellHandler = { mainHandler.post { doorbellRang() } }
         PhoneServer.homeyDump = { homeyDump() }
         PhoneServer.syncHandler = { path, o, from ->

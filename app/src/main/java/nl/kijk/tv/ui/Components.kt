@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -130,12 +131,17 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(w
             .background(Color(0x14FFFFFF)),
         contentAlignment = Alignment.Center,
     ) {
-        if (url != null) {
+        // eerst het verzorgde logo; lukt dat niet, dan dat van de aanbieder; anders de naam
+        val nice = androidx.compose.runtime.remember(name, nl.kijk.tv.data.TvLogos.enabled) { nl.kijk.tv.data.TvLogos.url(name) }
+        var step by androidx.compose.runtime.remember(name, url, nice) { androidx.compose.runtime.mutableIntStateOf(if (nice != null) 0 else 1) }
+        val model = when (step) { 0 -> nice; 1 -> url; else -> null }
+        if (model != null) {
             AsyncImage(
-                model = url,
+                model = model,
                 contentDescription = name,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.padding(4.dp),
+                onError = { step++ },
+                modifier = Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 4.dp),
             )
         } else {
             Label(name.take(3).uppercase(), size = Kijk.Caption, weight = Kijk.Bold, color = Kijk.Secondary)
