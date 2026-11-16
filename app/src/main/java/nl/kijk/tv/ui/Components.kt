@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -132,19 +131,11 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(w
         contentAlignment = Alignment.Center,
     ) {
         if (url != null) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            // vaste, kleine decodeermaat; lege randen eraf; altijd in verhouding binnen het vak
-            val req = androidx.compose.runtime.remember(url) {
-                coil.request.ImageRequest.Builder(ctx).data(url).size(256, 160)
-                    .scale(coil.size.Scale.FIT).precision(coil.size.Precision.INEXACT)
-                    .transformations(TrimTransparent).crossfade(false).build()
-            }
             AsyncImage(
-                model = req,
+                model = url,
                 contentDescription = name,
                 contentScale = ContentScale.Fit,
-                alignment = Alignment.Center,
-                modifier = Modifier.fillMaxSize().padding(4.dp),
+                modifier = Modifier.padding(4.dp),
             )
         } else {
             Label(name.take(3).uppercase(), size = Kijk.Caption, weight = Kijk.Bold, color = Kijk.Secondary)
@@ -161,47 +152,5 @@ fun LiveBadge(modifier: Modifier = Modifier) {
             .padding(horizontal = 6.dp, vertical = 1.dp),
     ) {
         Label("NU", size = Kijk.Caption, weight = Kijk.Bold, color = Color.White)
-    }
-}
-
-
-/**
- * Knipt de lege (doorzichtige of effen) rand rond een zenderlogo weg, zodat alle logo's hun vak even goed vullen.
- * Draait één keer per logo bij het laden (op de achtergrond); het resultaat staat daarna in het geheugen.
- */
-object TrimTransparent : coil.transform.Transformation {
-    override val cacheKey = "trim-v1"
-    override suspend fun transform(input: android.graphics.Bitmap, size: coil.size.Size): android.graphics.Bitmap {
-        val w = input.width; val h = input.height
-        if (w < 4 || h < 4) return input
-        val px = IntArray(w * h)
-        input.getPixels(px, 0, w, 0, 0, w, h)
-        val corner = px[0]
-        val opaque = (corner ushr 24) > 200
-        fun empty(c: Int): Boolean {
-            val a = c ushr 24
-            if (a < 24) return true
-            if (!opaque) return false
-            // effen achtergrond (zelfde kleur als de hoek)
-            val dr = ((c shr 16) and 255) - ((corner shr 16) and 255)
-            val dg = ((c shr 8) and 255) - ((corner shr 8) and 255)
-            val db = (c and 255) - (corner and 255)
-            return dr * dr + dg * dg + db * db < 300
-        }
-        var top = 0; var bottom = h - 1; var left = 0; var right = w - 1
-        fun rowEmpty(y: Int): Boolean { val o = y * w; for (x in 0 until w) if (!empty(px[o + x])) return false; return true }
-        fun colEmpty(x: Int, y0: Int, y1: Int): Boolean { for (y in y0..y1) if (!empty(px[y * w + x])) return false; return true }
-        while (top < bottom && rowEmpty(top)) top++
-        while (bottom > top && rowEmpty(bottom)) bottom--
-        while (left < right && colEmpty(left, top, bottom)) left++
-        while (right > left && colEmpty(right, top, bottom)) right--
-        val cw = right - left + 1; val ch = bottom - top + 1
-        // niets (of bijna niets) weg te knippen, of alles leeg: origineel houden
-        if (cw < 4 || ch < 4 || (cw >= w - 2 && ch >= h - 2)) return input
-        // een effen logo met witte achtergrond niet tot op de letters bijsnijden: een klein randje laten
-        val pad = if (opaque) (minOf(cw, ch) * 0.06f).toInt() else 0
-        val x0 = (left - pad).coerceAtLeast(0); val y0 = (top - pad).coerceAtLeast(0)
-        val x1 = (right + pad).coerceAtMost(w - 1); val y1 = (bottom + pad).coerceAtMost(h - 1)
-        return android.graphics.Bitmap.createBitmap(input, x0, y0, x1 - x0 + 1, y1 - y0 + 1)
     }
 }
