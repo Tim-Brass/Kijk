@@ -240,7 +240,7 @@ fun GroupsScreen(vm: AppViewModel, nav: Nav, kind: String) {
                 FocusCard(onClick = { set(if (on) hidden + c.id else hidden - c.id) }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                         Label(if (on) "☑" else "☐", Modifier.width(32.dp), size = Kijk.Headline, color = if (on) (if (f) Color(0xFF0050A0) else Kijk.Accent) else secondary(f))
-                        Label((if (vm.isLocked(c.name)) "🔒 " else "") + shortName(c.name) + vm.variantLabel(c).let { if (it.isEmpty()) "" else " · $it" }, Modifier.weight(1f), weight = Kijk.Medium)
+                        Label((if (vm.isLocked(c.name)) "🔒 " else "") + c.name, Modifier.weight(1f), weight = Kijk.Medium)
                         if (kind == "live") Label("${vm.allChannels.count { it.group == c.id }} zenders", size = Kijk.Caption, color = secondary(f))
                     }
                 }
