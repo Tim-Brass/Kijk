@@ -200,7 +200,8 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
         GROUP_ARCH.takeIf { vm.channels.any { it.archiveDays > 0 } })
     val all = special + vm.groups
     if (hs.group !in all) hs.group = GROUP_ALL
-    val list = remember(vm.dataVersion, hs.group, vm.favorites, vm.recentChannels, vm.unlocked) { vm.list(hs.group) }
+    val list = remember(vm.dataVersion, hs.group, vm.favorites, vm.recentChannels, vm.unlocked, vm.epgMatch) {
+        vm.list(hs.group).let { if (hs.group == GROUP_RECENT) it else vm.mergeList(it) } }
     Row(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
             items(all) { g ->
@@ -216,7 +217,9 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
             list.isEmpty() -> EmptyState("Geen zenders", if (hs.group == GROUP_FAV) "Houd OK ingedrukt op een zender om hem bij je favorieten te zetten." else "")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 10.dp)) {
                 itemsIndexed(list) { i, ch ->
-                    ChannelRow(vm, ch, onClick = { if (onPlay != null) onPlay(list, i) else nav.push(Screen.Live(list, i)) }, onLongClick = { vm.toggleFavorite(ch) })
+                    val play: (List<Channel>) -> Unit = { l -> if (onPlay != null) onPlay(l, i) else nav.push(Screen.Live(l, i)) }
+                    ChannelRow(vm, ch, onClick = { play(list) }, onLongClick = { vm.toggleFavorite(ch) },
+                        onVariant = { v -> vm.pickVariant(v); play(list.toMutableList().also { it[i] = v }) })
                 }
             }
         }
@@ -224,11 +227,26 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
 }
 
 @Composable
-fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, compact: Boolean = false) {
+fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, compact: Boolean = false,
+               onVariant: ((Channel) -> Unit)? = null) {
+    val variants = if (onVariant != null) vm.variants(ch) else emptyList()
+    if (variants.isEmpty()) { ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.fillMaxWidth(), showQuality = true); return }
+    // kwaliteit kiezen: pijl rechts naar de knopjes, OK = spelen en onthouden
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.weight(1f), showQuality = false)
+        Spacer(Modifier.width(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            variants.take(4).forEach { v -> SmallPill(vm.variantChip(v, variants), selected = v.key == ch.key) { onVariant!!(v) } }
+        }
+    }
+}
+
+@Composable
+private fun ChannelRowCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)?, compact: Boolean, modifier: Modifier, showQuality: Boolean) {
     val nn = vm.nowNext(ch)
     val cur = nn.firstOrNull()?.takeIf { it.isLive(vm.now) }
     val next = if (cur != null) nn.getOrNull(1) else nn.firstOrNull()
-    FocusCard(onClick = onClick, onLongClick = onLongClick, modifier = Modifier.fillMaxWidth(), darkFocus = true) { _ ->
+    FocusCard(onClick = onClick, onLongClick = onLongClick, modifier = modifier, darkFocus = true) { _ ->
         Box(Modifier.fillMaxWidth()) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (!compact) Label(ch.number.toString(), Modifier.width(40.dp), color = Kijk.Secondary)
@@ -238,7 +256,7 @@ fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: 
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = Kijk.Headline, weight = Kijk.Semibold)
-                        vm.variantLabel(ch).takeIf { it.isNotEmpty() }?.let { Label("  · $it", size = Kijk.Caption, color = Kijk.Secondary) }
+                        if (showQuality) vm.variantLabel(ch).takeIf { it.isNotEmpty() }?.let { Label("  · $it", size = Kijk.Caption, color = Kijk.Secondary) }
                         if (ch.archiveDays > 0) Label("  ↺", color = Kijk.Accent, weight = Kijk.Bold)
                     }
                     if (cur != null) {

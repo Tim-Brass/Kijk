@@ -42,6 +42,8 @@ class Store(ctx: Context) {
     var hiddenMovieCats: Set<String> get() = set("hiddenM"); set(v) = putSet("hiddenM", v)
     var hiddenShowCats: Set<String> get() = set("hiddenS"); set(v) = putSet("hiddenS", v)
     var epgLinks: Map<String, String> get() = map("epgLinks"); set(v) = putMap("epgLinks", v)
+    /** gekozen kwaliteit per zender: variant-groep → zender-sleutel */
+    var variantPick: Map<String, String> get() = map("variantPick"); set(v) = putMap("variantPick", v)
     var guideArch: Boolean get() = sp.getBoolean("guideArch", false); set(v) = putBool("guideArch", v)
     var guideFav: Boolean get() = sp.getBoolean("guideFav", false); set(v) = putBool("guideFav", v)
     /** Gids: zenders zonder gidsinformatie verbergen (favorieten blijven) */

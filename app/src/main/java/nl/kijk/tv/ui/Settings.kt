@@ -108,7 +108,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                         SettingRow("Gids: zenders zonder gidsinformatie verbergen", if (s.guideHideNoEpg) "Aan · $noEpg zenders verborgen (favorieten blijven) · OK = uit" else "Uit · OK = aan") {
                             s.guideHideNoEpg = !s.guideHideNoEpg; vm.bumpData(); changed() } }
                     item { tick.hashCode(); val (_, merged) = vm.guideCounts()
-                        SettingRow("Gids: dubbele zenders samenvoegen", if (s.guideMerge) "Aan · $merged dubbele verborgen; je favoriet of de beste kwaliteit blijft · OK = uit" else "Uit · OK = aan") {
+                        SettingRow("Dubbele zenders samenvoegen (Gids en Live)", if (s.guideMerge) "Aan · $merged dubbele verborgen; kwaliteit kies je met pijl rechts in Live of in de speler · OK = uit" else "Uit · OK = aan") {
                             s.guideMerge = !s.guideMerge; vm.bumpData(); changed() } }
                     item { tick.hashCode(); SettingRow("Zendernamen opschonen", if (s.cleanNames) "Aan · \"NL: NPO 1 FHD\" wordt \"NPO 1\" · OK = uit" else "Uit · OK = aan") {
                         s.cleanNames = !s.cleanNames; nl.kijk.tv.data.ChannelNames.enabled = s.cleanNames; vm.bumpData(); changed() } }

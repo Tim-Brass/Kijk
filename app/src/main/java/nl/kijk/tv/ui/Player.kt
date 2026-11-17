@@ -400,6 +400,15 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
                 item(key = "fav") {
                     OptionRow(if (channel.key in vm.favorites) "★ Uit favorieten halen" else "☆ Aan favorieten toevoegen", false) { vm.toggleFavorite(channel) }
                 }
+                val vars = vm.variants(channel)
+                if (vars.isNotEmpty()) {
+                    item(key = "h-q") { PanelHeader("Kwaliteit") }
+                    items(vars, key = { "q" + it.key }) { v ->
+                        OptionRow(vm.variantChip(v, vars), v.key == channel.key) {
+                            if (v.key != channel.key) { vm.pickVariant(v); list = list.toMutableList().also { it[index] = v } }
+                        }
+                    }
+                }
                 item(key = "h-subs") { PanelHeader("Ondertitels") }
                 item(key = "sub-off$refresh") { OptionRow("Uit", subsOff) { selectTrack(player, C.TRACK_TYPE_TEXT, null); refresh++ } }
                 if (subs.isEmpty()) item(key = "sub-none") { Label("Deze zender zendt geen ondertitels mee.", Modifier.padding(6.dp), size = Kijk.Body, color = Kijk.Secondary, maxLines = 2) }
