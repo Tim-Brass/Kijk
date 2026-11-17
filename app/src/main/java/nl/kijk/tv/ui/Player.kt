@@ -248,6 +248,9 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     var buffering by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var retries by remember { mutableIntStateOf(0) }
+    var errTick by remember { mutableIntStateOf(0) }                  // elke fout telt, ook dezelfde melding
+    var tried by remember { mutableStateOf(setOf<String>()) }        // varianten die al niet werkten
+    var failingOver by remember { mutableStateOf(false) }
     var digits by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
 
@@ -270,7 +273,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
                 buffering = state == Player.STATE_BUFFERING || state == Player.STATE_IDLE
                 if (state == Player.STATE_READY) { error = null; retries = 0 }
             }
-            override fun onPlayerError(e: PlaybackException) { error = "Deze zender speelt niet af (${e.errorCodeName})." }
+            override fun onPlayerError(e: PlaybackException) { error = "Deze zender speelt niet af (${e.errorCodeName})."; errTick++ }
         }
         player.addListener(l)
         onDispose { player.removeListener(l); player.release(); if (vm.playing?.first?.startsWith("live:") == true) vm.playing = null }
@@ -287,6 +290,8 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         vm.playing = "live:${channel.key}" to { 0L }
         vm.watched(channel)
         error = null; retries = 0; tracks = Tracks.EMPTY
+        if (!failingOver) tried = emptySet()   // zelf gekozen: opnieuw beginnen met overstappen
+        failingOver = false
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().clearOverrides().build()
         applyPreferences(player, vm.subStyle)
         player.stop()   // oude stream eerst echt sluiten: je aanbieder staat maar één verbinding toe
@@ -294,8 +299,21 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         showInfo = true; browse = null; infoTick++
     }
     // Veel IPTV-streams haperen even: een paar keer opnieuw proberen.
-    LaunchedEffect(error) {
-        if (error != null && retries < 5) { delay(3_000); retries++; player.prepare(); player.playWhenReady = true }
+    LaunchedEffect(errTick) {
+        if (error == null) return@LaunchedEffect
+        // na 2 mislukte pogingen: over op de volgende variant (tijdelijk; je eigen keuze blijft bewaard)
+        if (retries >= 2) {
+            val next = vm.variants(channel).firstOrNull { it.key != channel.key && it.key !in tried + channel.key }
+            if (next != null) {
+                tried = tried + channel.key; failingOver = true
+                val from = vm.variantChip(channel, vm.variants(channel)); val to = vm.variantChip(next, vm.variants(channel))
+                vm.notice = "${shortName(channel.name)} $from speelt niet af, overgestapt op $to"
+                player.stop()   // eerst de oude verbinding echt dicht (maar één stream tegelijk)
+                list = list.toMutableList().also { it[index] = next }
+                return@LaunchedEffect
+            }
+        }
+        if (retries < 5) { delay(3_000); retries++; player.prepare(); player.playWhenReady = true }
     }
     LaunchedEffect(showInfo, infoTick) { if (showInfo) { delay(if (browse != null) 10_000 else 6_000); showInfo = false; browse = null } }
     LaunchedEffect(showOptions, showGuide, showMenu, vm.dueReminder) { if (!showOptions && !showGuide && !showMenu && vm.dueReminder == null) runCatching { focus.requestFocus() } }
