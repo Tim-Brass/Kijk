@@ -504,14 +504,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var groupsFor: Pair<Any?, Any?>? = null
-    private var groups: Map<String, List<Channel>> = emptyMap()
+    private var varGroups: Map<String, List<Channel>> = emptyMap()
     private fun groupMap(): Map<String, List<Channel>> {
         if (groupsFor?.first !== allChannels || groupsFor?.second !== epgMatch) {
-            groups = allChannels.groupBy { dupKey(it) }.filterValues { it.size > 1 }
+            varGroups = allChannels.groupBy { dupKey(it) }.filterValues { it.size > 1 }
                 .mapValues { (_, v) -> v.sortedWith(compareByDescending<Channel> { quality(it) }.thenBy { it.number }) }
             groupsFor = allChannels to epgMatch
         }
-        return groups
+        return varGroups
     }
     /** Alle varianten van deze zender (beste kwaliteit eerst), leeg als er maar één is. */
     fun variants(ch: Channel): List<Channel> = if (!store.guideMerge) emptyList() else groupMap()[dupKey(ch)] ?: emptyList()
