@@ -434,7 +434,8 @@ private fun InfoOverlay(vm: AppViewModel, ch: Channel, browsing: Boolean, canRes
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Label("${ch.number}", size = Kijk.Title, color = Kijk.Secondary)
                         Spacer(Modifier.width(10.dp))
-                        Label(ch.name, size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
+                        Label(shortName(ch.name), size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
+                        vm.variantLabel(ch).takeIf { it.isNotEmpty() }?.let { Label("  · $it", size = Kijk.Headline, color = Kijk.Secondary) }
                         if (ch.key in vm.favorites) Label("  ★", size = Kijk.Title, color = Color(0xFFFFD60A))
                         if (ch.archiveDays > 0) Label("  ↺", size = Kijk.Title, color = Kijk.Accent)
                     }

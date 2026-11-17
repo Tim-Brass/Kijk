@@ -136,6 +136,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startSync() {
         nl.kijk.tv.data.TvLogos.enabled = store.niceLogos
+        nl.kijk.tv.data.ChannelNames.enabled = store.cleanNames
         PhoneServer.doorbellHandler = { mainHandler.post { doorbellRang() } }
         PhoneServer.homeyDump = { homeyDump() }
         PhoneServer.syncHandler = { path, o, from ->
@@ -495,12 +496,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun bumpData() { dataVersion++ }
 
+    private var dupCountsFor: Pair<Any?, Any?>? = null
+    private var dupCounts: Map<String, Int> = emptyMap()
+    /** "FHD", "HD", ... alleen als er van deze zender meer varianten zijn; anders "" */
+    fun variantLabel(ch: Channel): String {
+        if (!store.cleanNames) return ""
+        val k = allChannels to epgMatch
+        if (dupCountsFor?.first !== k.first || dupCountsFor?.second !== k.second) {
+            dupCounts = allChannels.groupingBy { dupKey(it) }.eachCount(); dupCountsFor = k
+        }
+        return if ((dupCounts[dupKey(ch)] ?: 0) > 1) nl.kijk.tv.data.ChannelNames.quality(ch.name).ifEmpty { "" } else ""
+    }
+
     /** De zenderlijst voor de Gids, met de instellingen voor verbergen en samenvoegen. */
     fun guideList(list: List<Channel>): List<Channel> {
         var l = list
         if (store.guideHideNoEpg) l = l.filter { hasEpg(it) || it.key in favorites }
         if (store.guideMerge) {
-            val best = l.groupBy { dupKey(it) }.mapValues { (_, v) -> v.maxWith(compareBy<Channel> { quality(it) }.thenByDescending { -it.number }) }
+            val best = l.groupBy { dupKey(it) }.mapValues { (_, v) -> v.maxWith(compareBy<Channel> { quality(it) }.thenByDescending { it.number }) }
             l = l.filter { best[dupKey(it)]?.key == it.key }
         }
         return l

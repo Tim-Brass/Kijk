@@ -237,7 +237,8 @@ fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: 
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Label(ch.name, Modifier.weight(1f, fill = false), size = Kijk.Headline, weight = Kijk.Semibold)
+                        Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = Kijk.Headline, weight = Kijk.Semibold)
+                        vm.variantLabel(ch).takeIf { it.isNotEmpty() }?.let { Label("  · $it", size = Kijk.Caption, color = Kijk.Secondary) }
                         if (ch.archiveDays > 0) Label("  ↺", color = Kijk.Accent, weight = Kijk.Bold)
                     }
                     if (cur != null) {

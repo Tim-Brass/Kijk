@@ -157,7 +157,7 @@ fun digitOf(e: KeyEvent): Char? = when (e.key) {
 }
 
 /** Zendernaam zonder landvoorvoegsel ("NL: NPO 1" → "NPO 1"). */
-fun shortName(n: String) = n.replace(Regex("""^\s*[A-Z]{2,3}\s*[:|]\s*"""), "")
+fun shortName(n: String) = nl.kijk.tv.data.ChannelNames.clean(n)
 
 @Composable
 fun NumberOverlay(digits: String, vm: AppViewModel, modifier: Modifier = Modifier) {
@@ -165,7 +165,7 @@ fun NumberOverlay(digits: String, vm: AppViewModel, modifier: Modifier = Modifie
     val ch = vm.channels.firstOrNull { it.number.toString() == digits }
     Column(modifier.background(Color(0xCC000000), RoundedCornerShape(14.dp)).padding(horizontal = 18.dp, vertical = 10.dp), horizontalAlignment = Alignment.End) {
         Label(digits, size = Kijk.LargeTitle, weight = Kijk.Bold, color = Color.White)
-        Label(ch?.name ?: "…", size = Kijk.Caption, color = Color(0xFFD1D1D6))
+        Label(ch?.name?.let { shortName(it) } ?: "…", size = Kijk.Caption, color = Color(0xFFD1D1D6))
     }
 }
 

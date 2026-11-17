@@ -110,9 +110,11 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                     item { tick.hashCode(); val (_, merged) = vm.guideCounts()
                         SettingRow("Gids: dubbele zenders samenvoegen", if (s.guideMerge) "Aan · $merged dubbele verborgen; je favoriet of de beste kwaliteit blijft · OK = uit" else "Uit · OK = aan") {
                             s.guideMerge = !s.guideMerge; vm.bumpData(); changed() } }
+                    item { tick.hashCode(); SettingRow("Zendernamen opschonen", if (s.cleanNames) "Aan · \"NL: NPO 1 FHD\" wordt \"NPO 1\" · OK = uit" else "Uit · OK = aan") {
+                        s.cleanNames = !s.cleanNames; nl.kijk.tv.data.ChannelNames.enabled = s.cleanNames; vm.bumpData(); changed() } }
                     item { tick.hashCode(); SettingRow("Gids koppelen per zender", "${s.epgLinks.size} handmatig gekoppeld") { nav.push(Screen.EpgChannels) } }
-                    item { tick.hashCode(); SettingRow("Zender voor Formule 1", vm.store.sportF1Channel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(false)) } }
-                    item { tick.hashCode(); SettingRow("Zender voor voetbal (PSV en Oranje)", vm.store.sportFootballChannel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(true)) } }
+                    item { tick.hashCode(); SettingRow("Zender voor Formule 1", vm.store.sportF1Channel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name?.let { shortName(it) } ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(false)) } }
+                    item { tick.hashCode(); SettingRow("Zender voor voetbal (PSV en Oranje)", vm.store.sportFootballChannel.let { k -> vm.allChannels.firstOrNull { it.key == k }?.name?.let { shortName(it) } ?: "Geen: alleen zoeken in de gids" }) { nav.push(Screen.SportChannel(true)) } }
                     item { tick.hashCode(); SettingRow("Tijdverschuiving gids", if (vm.epgOffsetMinutes == 0) "Geen" else "%+d min".format(vm.epgOffsetMinutes)) { vm.setEpgOffset(next(OFFSETS, vm.epgOffsetMinutes)) } }
                 }
                 2 -> {
@@ -238,7 +240,7 @@ fun GroupsScreen(vm: AppViewModel, nav: Nav, kind: String) {
                 FocusCard(onClick = { set(if (on) hidden + c.id else hidden - c.id) }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                         Label(if (on) "☑" else "☐", Modifier.width(32.dp), size = Kijk.Headline, color = if (on) (if (f) Color(0xFF0050A0) else Kijk.Accent) else secondary(f))
-                        Label((if (vm.isLocked(c.name)) "🔒 " else "") + c.name, Modifier.weight(1f), weight = Kijk.Medium)
+                        Label((if (vm.isLocked(c.name)) "🔒 " else "") + shortName(c.name) + vm.variantLabel(c).let { if (it.isEmpty()) "" else " · $it" }, Modifier.weight(1f), weight = Kijk.Medium)
                         if (kind == "live") Label("${vm.allChannels.count { it.group == c.id }} zenders", size = Kijk.Caption, color = secondary(f))
                     }
                 }
@@ -271,7 +273,7 @@ fun EpgChannelsScreen(vm: AppViewModel, nav: Nav) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         ChannelLogo(ch.logo, ch.name, Modifier.size(52.dp, 32.dp))
                         Spacer(Modifier.width(12.dp))
-                        Label(ch.name, Modifier.weight(1f), weight = Kijk.Medium)
+                        Label(shortName(ch.name) + vm.variantLabel(ch).let { if (it.isEmpty()) "" else " · $it" }, Modifier.weight(1f), weight = Kijk.Medium)
                         val cid = vm.epgMatch[ch.key]
                         Label(when { links.containsKey(ch.name) -> "✎ $cid"; cid != null -> "✓ $cid"; else -> "Geen gids" }, Modifier.width(300.dp), size = Kijk.Caption,
                             color = if (cid == null) Kijk.Live else secondary(f))
@@ -583,7 +585,7 @@ fun SportChannelScreen(vm: AppViewModel, nav: Nav, football: Boolean) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         ChannelLogo(ch.logo, ch.name, Modifier.size(52.dp, 32.dp))
                         Spacer(Modifier.width(12.dp))
-                        Label(ch.name, Modifier.weight(1f), weight = Kijk.Medium)
+                        Label(shortName(ch.name) + vm.variantLabel(ch).let { if (it.isEmpty()) "" else " · $it" }, Modifier.weight(1f), weight = Kijk.Medium)
                         if (ch.key in vm.favorites) Label("★", color = Kijk.Accent)
                     }
                 }

@@ -224,7 +224,7 @@ private fun FavChannelCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit) {
             ChannelLogo(ch.logo, ch.name, Modifier.size(width = 56.dp, height = 36.dp), plate = false)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Label("${ch.number} · ${ch.name}", size = Kijk.Caption, weight = Kijk.Semibold, color = Color.White)
+                Label("${ch.number} · ${shortName(ch.name)}", size = Kijk.Caption, weight = Kijk.Semibold, color = Color.White)
                 Label(cur?.title ?: "Geen gidsinformatie", Modifier.padding(top = 2.dp), size = Kijk.Caption, color = Kijk.Secondary)
                 if (cur != null) ProgressBar(cur.progress(vm.now), Modifier.fillMaxWidth().padding(top = 6.dp), focused = false, height = 3.dp)
             }
