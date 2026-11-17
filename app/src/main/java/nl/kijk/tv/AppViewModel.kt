@@ -474,6 +474,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         else -> if (isLocked(group) && !unlocked) emptyList() else channels.filter { it.group == group }
     }
 
+    // ---------------------------------------------------------------- Gids: opschonen
+    private val nameNoise = Regex("(?i)^\\s*(nl|be|vl|ned)\\s*[:|\\-\\]]\\s*|\\[(nl|be)]|\\b(uhd|fhd|hd|sd|hq|4k|8k|hevc|h265|50fps|60fps|raw|backup|vip|multi)\\b|\\(.*?\\)")
+    fun normName(name: String) = nameNoise.replace(name, " ").lowercase().replace(Regex("[^a-z0-9+]"), "")
+    /** voorkeur binnen dubbele zenders: favoriet, dan FHD, HD, 4K, rest */
+    private fun quality(ch: Channel): Int {
+        val n = ch.name.lowercase()
+        return when {
+            ch.key in favorites -> 100
+            "backup" in n -> 0
+            Regex("\\bfhd\\b|1080").containsMatchIn(n) -> 40
+            Regex("\\bhd\\b").containsMatchIn(n) -> 30
+            Regex("\\b(4k|uhd)\\b").containsMatchIn(n) -> 20
+            Regex("\\bsd\\b").containsMatchIn(n) -> 5
+            else -> 10
+        }
+    }
+    /** Varianten van dezelfde zender (zelfde gids-koppeling, anders zelfde schone naam). */
+    private fun dupKey(ch: Channel) = epgMatch[ch.key]?.let { "e:$it" } ?: "n:" + normName(ch.name)
+
+    fun bumpData() { dataVersion++ }
+
+    /** De zenderlijst voor de Gids, met de instellingen voor verbergen en samenvoegen. */
+    fun guideList(list: List<Channel>): List<Channel> {
+        var l = list
+        if (store.guideHideNoEpg) l = l.filter { hasEpg(it) || it.key in favorites }
+        if (store.guideMerge) {
+            val best = l.groupBy { dupKey(it) }.mapValues { (_, v) -> v.maxWith(compareBy<Channel> { quality(it) }.thenByDescending { -it.number }) }
+            l = l.filter { best[dupKey(it)]?.key == it.key }
+        }
+        return l
+    }
+    /** (verborgen zonder gids, samengevoegd) voor de uitleg in Instellingen */
+    fun guideCounts(): Pair<Int, Int> {
+        val all = allChannels
+        val noEpg = all.count { !hasEpg(it) && it.key !in favorites }
+        val withEpg = all.filter { hasEpg(it) || it.key in favorites }
+        val merged = withEpg.size - withEpg.map { dupKey(it) }.distinct().size
+        return noEpg to merged
+    }
+
     fun hasEpg(ch: Channel) = ch.key in epgMatch || (ch.archiveDays > 0 && ch.streamId != null && xtream != null)
 
     fun nowNext(ch: Channel): List<Programme> {

@@ -44,6 +44,10 @@ class Store(ctx: Context) {
     var epgLinks: Map<String, String> get() = map("epgLinks"); set(v) = putMap("epgLinks", v)
     var guideArch: Boolean get() = sp.getBoolean("guideArch", false); set(v) = putBool("guideArch", v)
     var guideFav: Boolean get() = sp.getBoolean("guideFav", false); set(v) = putBool("guideFav", v)
+    /** Gids: zenders zonder gidsinformatie verbergen (favorieten blijven) */
+    var guideHideNoEpg: Boolean get() = sp.getBoolean("guideHideNoEpg", true); set(v) = putBool("guideHideNoEpg", v)
+    /** Gids: dubbele zenders (zelfde gids of zelfde naam) samenvoegen tot één regel */
+    var guideMerge: Boolean get() = sp.getBoolean("guideMerge", true); set(v) = putBool("guideMerge", v)
     var lastTab: Int get() = sp.getInt("tab", 0); set(v) = putInt("tab", v)
     var searchKind: Int get() = sp.getInt("searchKind", 0); set(v) = putInt("searchKind", v)
     /** Vaste zender (sleutel) als reserve voor de sporttegels, als de gids niets vindt. */

@@ -95,8 +95,8 @@ fun GuideGrid(
     var winStart by remember { mutableLongStateOf(halfHour(System.currentTimeMillis())) }
     var sel by remember { mutableStateOf<Pair<Channel, Programme?>?>(null) }
     val base = remember(vm.dataVersion, hs.group, vm.favorites, vm.unlocked) { vm.list(hs.group) }
-    val list = remember(base, favOnly, archOnly, vm.favorites) {
-        base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) }
+    val list = remember(base, favOnly, archOnly, vm.favorites, vm.epgMatch, vm.store.guideHideNoEpg, vm.store.guideMerge) {
+        vm.guideList(base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) })
     }
     val state = rememberLazyListState()
     val nowFocus = remember { FocusRequester() }
