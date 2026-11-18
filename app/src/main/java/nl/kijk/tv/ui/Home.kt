@@ -218,8 +218,7 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 10.dp)) {
                 itemsIndexed(list) { i, ch ->
                     val play: (List<Channel>) -> Unit = { l -> if (onPlay != null) onPlay(l, i) else nav.push(Screen.Live(l, i)) }
-                    ChannelRow(vm, ch, onClick = { play(list) }, onLongClick = { vm.toggleFavorite(ch) },
-                        onVariant = { v -> vm.pickVariant(v); play(list.toMutableList().also { it[i] = v }) })
+                    ChannelRow(vm, ch, onClick = { play(list) }, onLongClick = { vm.toggleFavorite(ch) })
                 }
             }
         }
@@ -227,18 +226,9 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
 }
 
 @Composable
-fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, compact: Boolean = false,
-               onVariant: ((Channel) -> Unit)? = null) {
-    val variants = if (onVariant != null) vm.variants(ch) else emptyList()
-    if (variants.isEmpty()) { ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.fillMaxWidth(), showQuality = true); return }
-    // kwaliteit kiezen: pijl rechts naar de knopjes, OK = spelen en onthouden
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.weight(1f), showQuality = false)
-        Spacer(Modifier.width(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            variants.take(4).forEach { v -> SmallPill(vm.variantChip(v, variants), selected = v.key == ch.key) { onVariant!!(v) } }
-        }
-    }
+fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, compact: Boolean = false) {
+    // Live toont weer één zenderkaart; kwaliteitskeuze blijft beschikbaar in het spelermenu (OK → OK).
+    ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.fillMaxWidth(), showQuality = true)
 }
 
 @Composable
