@@ -404,7 +404,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
         }
         if (showMenu) {
             // Terug: het hoofdmenu halfdoorzichtig over de zender, selectie op de tabbalk
-            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = switchFromOverlay, onClose = { showMenu = false }))
+            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = switchFromOverlay, onClose = { showMenu = false }, onBeforeCatchup = { player.stop() }))
         }
         AnimatedVisibility(showOptions, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(), modifier = Modifier.align(Alignment.CenterEnd)) {
             val subs = trackOptions(tracks, C.TRACK_TYPE_TEXT)
