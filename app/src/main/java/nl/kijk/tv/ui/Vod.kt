@@ -146,7 +146,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
         all.isEmpty() -> EmptyState(error ?: "Niets gevonden", if (hiddenCats.isNotEmpty()) "Misschien staan alle categorieën uit bij Instellingen." else "")
         else -> Row(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                items(all) { cat ->
+                items(all, key = { it.id }) { cat ->
                     val locked = vm.isLocked(cat.name) && !vm.unlocked
                     SideItem((if (locked) "🔒 " else "") + cat.name, selected = cat.id == catId, onFocus = { catId = cat.id }) {
                         if (locked) nav.askPin(vm) { vm.unlock(); catId = cat.id } else catId = cat.id
@@ -168,7 +168,7 @@ fun VodTab(vm: AppViewModel, nav: Nav, series: Boolean, hs: HomeState? = null) {
                     columns = GridCells.Adaptive(118.dp), modifier = Modifier.fillMaxSize().onFocusChanged { gridFocused = it.hasFocus },
                     horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(20.dp), contentPadding = PaddingValues(12.dp),
                 ) {
-                    items(list) { item ->
+                    items(list, key = { item -> when (item) { is Movie -> "movie:${item.id}"; is Show -> "show:${item.id}"; else -> item.hashCode().toString() } }) { item ->
                         when (item) {
                             is Movie -> PosterCard(item.name, item.poster, vm.store.progress(movieKey(item))?.takeIf { it.resumable }?.fraction, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item),
                                 fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) }, onFocus = { focusItem = item }) {
@@ -207,7 +207,7 @@ fun VodBackdrop(url: String?) {
 fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modifier = Modifier, fav: Boolean = false, onLongClick: (() -> Unit)? = null, onFocus: (() -> Unit)? = null, badge: String? = null, onPosterError: (() -> Unit)? = null, fallback: (suspend () -> String?)? = null, known: String? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.onFocusChanged { focused = it.hasFocus }) {
-        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.08f, focusRing = true) {
+        FocusCard(onClick = onClick, onLongClick = onLongClick, onFocus = onFocus, modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f), shape = RoundedCornerShape(10.dp), focusedScale = 1.02f, focusRing = true) {
             Box(Modifier.fillMaxSize().background(Kijk.Elevated)) {
                 // kleiner decoderen (scheelt veel geheugen op zwakkere boxen); lukt het niet, dan de titel tonen
                 // ontbreekt het plaatje of laadt het niet, dan één keer een andere bron proberen (filminfo, TMDB, TVmaze)
@@ -225,7 +225,7 @@ fun PosterCard(title: String, poster: String?, progress: Float?, modifier: Modif
                 if (shown != null) {
                     val ctx = androidx.compose.ui.platform.LocalContext.current
                     AsyncImage(
-                        remember(shown) { coil.request.ImageRequest.Builder(ctx).data(shown).size(260, 390).build() },
+                        remember(ctx, shown) { coil.request.ImageRequest.Builder(ctx).data(shown).size(260, 390).crossfade(false).build() },
                         contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                         onError = { failed = true; if (alt == null) needAlt = true }, onSuccess = { failed = false },
                     )

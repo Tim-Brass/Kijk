@@ -135,9 +135,40 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 },
             state = listState, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (favs.isNotEmpty()) item {
+            // Statische redactionele blikvanger: uitsluitend bestaande EPG en logo's.
+            // Geen mini-player, geen videopreview en dus geen extra IPTV-stream.
+            val featured = favs.firstOrNull { ch -> vm.nowNext(ch).any { it.isLive(vm.now) } }
+            val featuredProgramme = featured?.let { vm.nowNext(it).firstOrNull { p -> p.isLive(vm.now) } }
+            if (featured != null && featuredProgramme != null) item(key = "featured-live") {
+                FocusCard(
+                    onClick = {
+                        val i = vm.channels.indexOfFirst { it.key == featured.key }
+                        if (i >= 0) {
+                            if (onPlay != null) onPlay(vm.channels, i)
+                            else nav.push(Screen.Live(vm.channels, i))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).height(116.dp),
+                    darkFocus = true,
+                    focusedScale = 1f,
+                    shape = RoundedCornerShape(16.dp),
+                ) { _ ->
+                    Row(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                            Label("●  LIVE  ·  UITGELICHT", size = 11.sp, weight = Kijk.Bold, color = Kijk.Live)
+                            Spacer(Modifier.height(5.dp))
+                            Label(featuredProgramme.title, size = Kijk.Title, weight = Kijk.Bold, maxLines = 1)
+                            Spacer(Modifier.height(3.dp))
+                            Label(shortName(featured.name) + "   ·   ▶ Kijk nu", size = Kijk.Caption, color = Kijk.Secondary)
+                        }
+                        Spacer(Modifier.width(20.dp))
+                        ChannelLogo(featured.logo, featured.name, Modifier.size(width = 124.dp, height = 62.dp), plate = false)
+                    }
+                }
+            }
+            if (favs.isNotEmpty()) item(key = "favorites") {
                 HomeRow("Nu op je favorieten") {
-                    items(favs) { ch ->
+                    items(favs, key = { it.key }) { ch ->
                         FavChannelCard(vm, ch) {
                             val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
                             if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
@@ -146,7 +177,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 }
             }
             val f1 = vm.f1; val psv = vm.psvMatch; val table = vm.eredivisie
-            if (f1 != null || psv != null || table != null) item {
+            if (f1 != null || psv != null || table != null) item(key = "sports") {
                 SportRow {
                     // OK: bezig → zender aan; nog niet begonnen → herinnering; niets gevonden → uitleg
                     fun act(tv: nl.kijk.tv.SportTv?, start: Long, live: Boolean, title: String) {
@@ -166,9 +197,9 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 }
             }
             if (vm.homeyReady) item(key = "huis") { HuisRow(vm, nav) }
-            if (newest.isNotEmpty()) item {
+            if (newest.isNotEmpty()) item(key = "newest") {
                 HomeRow("Nieuwste films en series") {
-                    items(newest) { item ->
+                    items(newest, key = { item -> when (item) { is Movie -> "movie:${item.id}"; is Show -> "show:${item.id}"; else -> item.hashCode().toString() } }) { item ->
                         when (item) {
                             is Movie -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
                                 onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item)) { openMovie(item, resume = false) }
@@ -178,7 +209,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     }
                 }
             }
-            if (favs.isEmpty() && newest.isEmpty()) item {
+            if (favs.isEmpty() && newest.isEmpty()) item(key = "empty") {
                 Label(if (vm.progress != null) "Even geduld, de lijsten worden geladen…" else "Kies Live, Gids, Films of Series in het menu.",
                     Modifier.padding(12.dp), color = Kijk.Secondary)
             }
@@ -219,7 +250,7 @@ private fun HomeRow(title: String, center: Boolean = false, content: androidx.co
 private fun FavChannelCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit) {
     val cur = vm.nowNext(ch).firstOrNull()?.takeIf { it.isLive(vm.now) }
     // zelfde stijl als de andere kaarten: donker blijven, blauw randje bij selectie
-    FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.06f, darkFocus = true) { _ ->
+    FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.01f, darkFocus = true) { _ ->
         Row(Modifier.fillMaxSize().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             ChannelLogo(ch.logo, ch.name, Modifier.size(width = 56.dp, height = 36.dp), plate = false)
             Spacer(Modifier.width(10.dp))

@@ -62,7 +62,7 @@ import nl.kijk.tv.data.Programme
 private const val WINDOW = 2 * HOUR
 private const val STEP = 30 * MINUTE
 private const val BUCKET = 6 * HOUR
-private val CHAN_W = 210.dp
+private val CHAN_W = 184.dp
 private val ROW_H = 58.dp
 
 fun catchupPlayable(vm: AppViewModel, ch: Channel, p: Programme, offsetMs: Long = 0L) = Playable(
@@ -96,7 +96,10 @@ fun GuideGrid(
     var sel by remember { mutableStateOf<Pair<Channel, Programme?>?>(null) }
     val base = remember(vm.dataVersion, hs.group, vm.favorites, vm.unlocked) { vm.list(hs.group) }
     val list = remember(base, favOnly, archOnly, vm.favorites, vm.epgMatch, vm.store.guideHideNoEpg, vm.store.guideMerge) {
-        vm.guideList(base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) })
+        val began = android.os.SystemClock.elapsedRealtimeNanos()
+        vm.guideList(base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) }).also {
+            android.util.Log.d("KijkPerf", "Gids zenderlijst: ${it.size} zenders in ${(android.os.SystemClock.elapsedRealtimeNanos() - began) / 1_000_000} ms")
+        }
     }
     val state = rememberLazyListState()
     val nowFocus = remember { FocusRequester() }
@@ -180,7 +183,7 @@ fun GuideGrid(
                 }
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(state = state, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
-                        itemsIndexed(list) { i, ch ->
+                        itemsIndexed(list, key = { _, ch -> ch.key }) { i, ch ->
                             GuideRow(vm, ch, winStart, perMin,
                                 onFocus = { sel = ch to it },
                                 onShift = { dir -> shift(dir * STEP) }, onShow = { t -> show(t) },
@@ -230,11 +233,11 @@ private fun GuideRow(
         FocusCard(onClick = onPlayLive, onLongClick = { vm.toggleFavorite(ch) }, onFocus = { onFocus(null) }, modifier = Modifier.width(CHAN_W).fillMaxHeight().focusRequester(chanFocus), focusedScale = 1.02f, darkFocus = true) { _ ->
             Box(Modifier.fillMaxSize()) {
                 // groot logo met de naam eronder, in hetzelfde vak; donker blijven met blauw randje bij selectie (zoals op Thuis)
-                Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Label(ch.number.toString(), Modifier.width(30.dp), size = Kijk.Caption, color = Kijk.Secondary)
+                Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Label(ch.number.toString(), Modifier.width(24.dp), size = Kijk.Caption, color = Kijk.Secondary)
                     Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center) {
-                        ChannelLogo(ch.logo, ch.name, Modifier.size(width = 124.dp, height = 32.dp), plate = false)
+                        ChannelLogo(ch.logo, ch.name, Modifier.size(width = 108.dp, height = 32.dp), plate = false)
                         Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                             Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = 11.sp, weight = Kijk.Semibold, maxLines = 1)
                             if (ch.archiveDays > 0) Label(" ↺${ch.archiveDays}d", size = 11.sp, color = Kijk.Accent)

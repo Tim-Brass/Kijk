@@ -76,8 +76,9 @@ fun SmallPill(text: String, modifier: Modifier = Modifier, selected: Boolean = f
 /** Zachte fade-in (0,15 s) bij een nieuw scherm of tab; goedkoop via graphicsLayer. */
 @Composable
 fun FadeIn(key: Any?, enabled: Boolean = true, content: @Composable () -> Unit) {
-    val a = androidx.compose.runtime.remember(key) { androidx.compose.animation.core.Animatable(if (enabled) 0f else 1f) }
-    androidx.compose.runtime.LaunchedEffect(key) { if (enabled) a.animateTo(1f, androidx.compose.animation.core.tween(150)) }
+    // Kortere fade: nieuwe tab is direct zichtbaar en voelt minder vertraagd aan.
+    val a = androidx.compose.runtime.remember(key) { androidx.compose.animation.core.Animatable(if (enabled) 0.65f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(key) { if (enabled) a.animateTo(1f, androidx.compose.animation.core.tween(85)) }
     androidx.compose.foundation.layout.Box(Modifier.graphicsLayer { alpha = a.value }) { content() }
 }
 
@@ -182,7 +183,7 @@ fun LineItem(
     content: @Composable (color: Color) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val line = when { active -> Kijk.Accent; focused -> Color.White; else -> Color.Transparent }
+    val line = when { active || focused -> Kijk.Accent; else -> Color.Transparent }
     val lineH = if (active) 3.dp else 2.dp
     androidx.tv.material3.Surface(
         onClick = onClick,
@@ -190,7 +191,7 @@ fun LineItem(
             if (it.isFocused != focused) { focused = it.isFocused; if (it.isFocused) onFocus?.invoke() }
         },
         shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(0.dp)),
-        scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+        scale = androidx.tv.material3.ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent, contentColor = Color.White,
             focusedContainerColor = Color.Transparent, focusedContentColor = Color.White,
@@ -288,8 +289,8 @@ fun Modifier.baseline(): Modifier = drawBehind {
 @Composable
 fun SideItem(text: String, selected: Boolean, modifier: Modifier = Modifier, onFocus: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val bar = when { focused -> Color.White; selected -> Kijk.Accent; else -> Color.Transparent }
-    val barW = if (focused) 2.dp else 3.dp
+    val bar = when { focused || selected -> Kijk.Accent; else -> Color.Transparent }
+    val barW = if (focused) 3.dp else 2.dp
     androidx.tv.material3.Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().onFocusChanged {
@@ -305,6 +306,7 @@ fun SideItem(text: String, selected: Boolean, modifier: Modifier = Modifier, onF
     ) {
         Box(
             Modifier.fillMaxWidth()
+                .background(if (focused) Color(0xFF23232C) else if (selected) Color(0xFF1A1A22) else Color.Transparent, RoundedCornerShape(10.dp))
                 .drawBehind {
                     if (bar != Color.Transparent) {
                         val w = barW.toPx(); val inset = 7.dp.toPx()

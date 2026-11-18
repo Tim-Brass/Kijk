@@ -146,9 +146,11 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(w
             val ctx = androidx.compose.ui.platform.LocalContext.current
             androidx.compose.runtime.LaunchedEffect(Unit) { nl.kijk.tv.data.LogoTone.init(ctx) }
             val tone = nl.kijk.tv.data.LogoTone.tone(model)
-            val req = androidx.compose.runtime.remember(model) {
-                // software-bitmap, zodat Kijk het logo één keer kan meten (logo's zijn klein)
-                coil.request.ImageRequest.Builder(ctx).data(model).allowHardware(nl.kijk.tv.data.LogoTone.known(model)).build()
+            val req = androidx.compose.runtime.remember(ctx, model) {
+                // Decodeer logo's maximaal op de kleine TV-weergavegrootte, zonder grote bronbitmaps.
+                // Software-bitmap blijft nodig voor de eenmalige tintanalyse.
+                coil.request.ImageRequest.Builder(ctx).data(model).size(256, 160)
+                    .allowHardware(false).crossfade(false).build()
             }
             Box(
                 Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
