@@ -77,7 +77,7 @@ fun groupLabel(g: String) = when (g) {
 }
 
 /** Het menu als laag over een zender: Terug sluit hem, een zender kiezen wisselt in de speler. */
-class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit, val onClose: () -> Unit)
+class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit, val onClose: () -> Unit, val onBeforeCatchup: (() -> Unit)? = null)
 
 @Composable
 fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
@@ -87,6 +87,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         save = { listOf(it.tab, it.group) }, restore = { HomeState(it[0] as Int).apply { group = it[1] as String } },
     )) { HomeState(if (overlay == null) TAB_HOME else vm.store.lastTab.coerceIn(0, TABS.lastIndex).takeIf { it != TAB_HOME } ?: TAB_LIVE) }
     val tabFocus = remember { List(TABS.size) { FocusRequester() } }
+    // Bewaar de LazyColumn/LazyRow scrollpositie per tab, ook wanneer het scherm uit compositie gaat.
+    val tabStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var digits by remember { mutableStateOf("") }
     // over een zender: de gids pakt zelf de selectie (op de huidige zender)
     LaunchedEffect(Unit) { runCatching { tabFocus[hs.tab].requestFocus() } }
@@ -169,15 +171,17 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             Column(Modifier.weight(1f).padding(start = side, end = side, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f)) {
-                FadeIn(hs.tab) {
+                tabStateHolder.SaveableStateProvider(hs.tab) {
+                    FadeIn(hs.tab) {
                     when (hs.tab) {
                         TAB_HOME -> HomeTab(vm, nav, hs, overlay?.onPlay)
                         TAB_LIVE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { LiveTab(vm, nav, hs, overlay?.onPlay) }
-                        TAB_GUIDE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay) }
+                        TAB_GUIDE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay, onBeforeCatchup = overlay?.onBeforeCatchup) }
                         TAB_FILMS -> VodTab(vm, nav, series = false, hs = hs)
                         TAB_SERIES -> VodTab(vm, nav, series = true, hs = hs)
                         TAB_SEARCH -> SearchTab(vm, nav)
                         else -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { SettingsTab(vm, nav) }
+                    }
                     }
                 }
             }
@@ -201,10 +205,11 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
     val all = special + vm.groups
     if (hs.group !in all) hs.group = GROUP_ALL
     val list = remember(vm.dataVersion, hs.group, vm.favorites, vm.recentChannels, vm.unlocked, vm.epgMatch) {
-        vm.list(hs.group).let { if (hs.group == GROUP_RECENT) it else vm.mergeList(it) } }
+        vm.liveList(hs.group)
+    }
     Row(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-            items(all) { g ->
+            items(all, key = { it }) { g ->
                 val locked = vm.isLocked(g) && !vm.unlocked
                 SideItem((if (locked) "🔒 " else "") + groupLabel(g), selected = hs.group == g, onFocus = { hs.group = g }) {
                     if (locked) nav.askPin(vm) { vm.unlock(); hs.group = g } else hs.group = g
@@ -216,10 +221,9 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
             vm.isLocked(hs.group) && !vm.unlocked -> EmptyState("🔒 Vergrendeld", "Druk op OK op de groep om je pincode in te voeren.")
             list.isEmpty() -> EmptyState("Geen zenders", if (hs.group == GROUP_FAV) "Houd OK ingedrukt op een zender om hem bij je favorieten te zetten." else "")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 10.dp)) {
-                itemsIndexed(list) { i, ch ->
+                itemsIndexed(list, key = { _, ch -> ch.key }) { i, ch ->
                     val play: (List<Channel>) -> Unit = { l -> if (onPlay != null) onPlay(l, i) else nav.push(Screen.Live(l, i)) }
-                    ChannelRow(vm, ch, onClick = { play(list) }, onLongClick = { vm.toggleFavorite(ch) },
-                        onVariant = { v -> vm.pickVariant(v); play(list.toMutableList().also { it[i] = v }) })
+                    ChannelRow(vm, ch, onClick = { play(list) }, onLongClick = { vm.toggleFavorite(ch) })
                 }
             }
         }
@@ -227,18 +231,9 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
 }
 
 @Composable
-fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, compact: Boolean = false,
-               onVariant: ((Channel) -> Unit)? = null) {
-    val variants = if (onVariant != null) vm.variants(ch) else emptyList()
-    if (variants.isEmpty()) { ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.fillMaxWidth(), showQuality = true); return }
-    // kwaliteit kiezen: pijl rechts naar de knopjes, OK = spelen en onthouden
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.weight(1f), showQuality = false)
-        Spacer(Modifier.width(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            variants.take(4).forEach { v -> SmallPill(vm.variantChip(v, variants), selected = v.key == ch.key) { onVariant!!(v) } }
-        }
-    }
+fun ChannelRow(vm: AppViewModel, ch: Channel, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, compact: Boolean = false) {
+    // Live toont weer één zenderkaart; kwaliteitskeuze blijft beschikbaar in het spelermenu (OK → OK).
+    ChannelRowCard(vm, ch, onClick, onLongClick, compact, Modifier.fillMaxWidth(), showQuality = true)
 }
 
 @Composable

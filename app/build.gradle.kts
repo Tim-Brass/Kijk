@@ -15,7 +15,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = buildNumber
-        versionName = if (buildNumber >= 111) "0.2.${buildNumber - 111}" else "0.1.$buildNumber"   // vanaf build 111: 0.2.0
+        versionName = if (buildNumber >= 211) "0.3." + (buildNumber - 211) else if (buildNumber >= 202) "0.2.81" else if (buildNumber >= 111) "0.2.${buildNumber - 111}" else "0.1.$buildNumber" // herstel van de stabiele 0.2.81-code
         // alleen ARM (tv's en boxen); scheelt veel MB's aan x86-bibliotheken
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }

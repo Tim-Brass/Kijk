@@ -76,8 +76,9 @@ fun SmallPill(text: String, modifier: Modifier = Modifier, selected: Boolean = f
 /** Zachte fade-in (0,15 s) bij een nieuw scherm of tab; goedkoop via graphicsLayer. */
 @Composable
 fun FadeIn(key: Any?, enabled: Boolean = true, content: @Composable () -> Unit) {
-    val a = androidx.compose.runtime.remember(key) { androidx.compose.animation.core.Animatable(if (enabled) 0f else 1f) }
-    androidx.compose.runtime.LaunchedEffect(key) { if (enabled) a.animateTo(1f, androidx.compose.animation.core.tween(150)) }
+    // Kortere fade: nieuwe tab is direct zichtbaar en voelt minder vertraagd aan.
+    val a = androidx.compose.runtime.remember(key) { androidx.compose.animation.core.Animatable(if (enabled) 0.65f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(key) { if (enabled) a.animateTo(1f, androidx.compose.animation.core.tween(85)) }
     androidx.compose.foundation.layout.Box(Modifier.graphicsLayer { alpha = a.value }) { content() }
 }
 
