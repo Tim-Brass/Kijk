@@ -514,6 +514,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return list.filter { best[dupKey(it)] == it.key }
     }
 
+    /** Hergebruik de samengevoegde Live-zenderlijst zolang zenders en voorkeuren gelijk blijven. */
+    private var liveListCacheVersion = -1
+    private val liveListCache = HashMap<String, List<Channel>>()
+    fun liveList(group: String): List<Channel> {
+        if (liveListCacheVersion != dataVersion) {
+            liveListCache.clear()
+            liveListCacheVersion = dataVersion
+        }
+        return liveListCache.getOrPut(group) {
+            val source = list(group)
+            if (group == GROUP_RECENT) source else mergeList(source)
+        }
+    }
+
     private var groupsFor: Pair<Any?, Any?>? = null
     private var varGroups: Map<String, List<Channel>> = emptyMap()
     private var dupKeys: Map<String, String> = emptyMap()
