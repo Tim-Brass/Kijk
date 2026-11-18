@@ -201,15 +201,15 @@ fun SidePanel(refocus: Any? = null, content: LazyListScope.(first: FocusRequeste
 
 @Composable
 fun PanelHeader(title: String) {
-    Label(title, Modifier.padding(top = 7.dp, bottom = 2.dp, start = 4.dp), size = Kijk.Body, weight = Kijk.Bold, color = Color.White)
+    Label(title, Modifier.padding(top = 9.dp, bottom = 2.dp, start = 4.dp), size = Kijk.Headline, weight = Kijk.Bold, color = Color.White)
 }
 
 @Composable
 fun OptionRow(label: String, checked: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     FocusCard(onClick = onClick, modifier = modifier.fillMaxWidth(), focusedScale = 1.02f) { focused ->
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-            Label(if (checked) "✓" else "", Modifier.width(20.dp), size = Kijk.Caption, weight = Kijk.Bold, color = if (focused) Color.Black else Kijk.Accent)
-            Label(label, size = Kijk.Caption, weight = if (checked) Kijk.Semibold else Kijk.Medium, maxLines = 2)
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Label(if (checked) "✓" else "", Modifier.width(22.dp), size = Kijk.Body, weight = Kijk.Bold, color = if (focused) Color.Black else Kijk.Accent)
+            Label(label, size = Kijk.Body, weight = if (checked) Kijk.Semibold else Kijk.Medium, maxLines = 2)
         }
     }
 }
