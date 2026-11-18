@@ -89,6 +89,7 @@ fun GuideGrid(
     autoFocus: Boolean = true,                           // ... en de selectie er meteen op zetten
     onPlay: ((List<Channel>, Int) -> Unit)? = null,      // zender kiezen zonder de speler te verlaten
     onMenu: (() -> Unit)? = null,                        // gids over de zender: knop terug naar het menu
+    onBeforeCatchup: (() -> Unit)? = null,               // bestaande stream afsluiten voordat terugkijken start
 ) {
     var favOnly by remember { mutableStateOf(vm.store.guideFav) }
     var archOnly by remember { mutableStateOf(vm.store.guideArch) }
@@ -189,7 +190,7 @@ fun GuideGrid(
                                 onShift = { dir -> shift(dir * STEP) }, onShow = { t -> show(t) },
                                 onPlayLive = { if (onPlay != null) onPlay(list, i) else nav.push(Screen.Live(list, i)) },
                                 autoFocus = autoKey == ch.key, onAutoFocused = { autoKey = null }, overlay = onPlay != null,
-                                onCatchup = { p -> nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null)) },
+                                onCatchup = { p -> onBeforeCatchup?.invoke(); nav.push(Screen.Vod(listOf(catchupPlayable(vm, ch, p)), 0, 0L, null)) },
                             )
                         }
                     }
