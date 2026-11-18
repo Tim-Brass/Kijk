@@ -77,7 +77,7 @@ fun groupLabel(g: String) = when (g) {
 }
 
 /** Het menu als laag over een zender: Terug sluit hem, een zender kiezen wisselt in de speler. */
-class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit, val onClose: () -> Unit)
+class HomeOverlay(val channel: Channel, val onPlay: (List<Channel>, Int) -> Unit, val onClose: () -> Unit, val onBeforeCatchup: (() -> Unit)? = null)
 
 @Composable
 fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
@@ -176,7 +176,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                     when (hs.tab) {
                         TAB_HOME -> HomeTab(vm, nav, hs, overlay?.onPlay)
                         TAB_LIVE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { LiveTab(vm, nav, hs, overlay?.onPlay) }
-                        TAB_GUIDE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay) }
+                        TAB_GUIDE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { GuideGrid(vm, nav, hs, focusChannel = overlay?.channel, autoFocus = guideGrabsFocus, onPlay = overlay?.onPlay, onBeforeCatchup = overlay?.onBeforeCatchup) }
                         TAB_FILMS -> VodTab(vm, nav, series = false, hs = hs)
                         TAB_SERIES -> VodTab(vm, nav, series = true, hs = hs)
                         TAB_SEARCH -> SearchTab(vm, nav)
