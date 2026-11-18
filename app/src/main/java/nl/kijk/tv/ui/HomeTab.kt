@@ -159,7 +159,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     }
                     if (f1 != null) {
                         val next = f1.sessions.firstOrNull { it.start + 2 * 3600_000L > vm.now }
-                        F1Card(vm, f1, vm.f1Tv, Modifier.weight(1f)) { if (next != null) act(vm.f1Tv, next.start, sportLive(vm.f1Tv, next.start, next.name, vm.now), "F1: ${next.name}") }
+                        F1Card(vm, f1, vm.f1Tv, Modifier.width(238.dp)) { if (next != null) act(vm.f1Tv, next.start, sportLive(vm.f1Tv, next.start, next.name, vm.now), "F1: ${next.name}") }
                     }
                     if (table != null) TableCard(table, Modifier.weight(1f))
                     if (psv != null) MatchCard(vm, psv, vm.psvTv, Modifier.weight(1f)) { act(vm.psvTv, psv.start, sportLive(vm.psvTv, psv.start, "Wedstrijd", vm.now), "${psv.home} – ${psv.away}") }
@@ -542,49 +542,80 @@ private val KnvbOrange = Color(0xFFFF7A00)
 
 @Composable
 private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.tv.SportTv?, modifier: Modifier, onClick: () -> Unit) {
-    val now = vm.now
-    val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
-    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
-        Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LogoOr(nl.kijk.tv.data.Sports.F1_LOGO, Modifier.height(26.dp).width(52.dp)) {
-                    Box(Modifier.background(F1Red, RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) { Label("F1", size = 15.sp, weight = Kijk.Bold, color = Color.White) }
-                }
-                Spacer(Modifier.width(8.dp))
-                Label(w.name.removeSuffix(" Grand Prix").let { if (it != w.name) "GP $it" else it }, size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+    val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > vm.now }
+    val name = w.name.removeSuffix(" Grand Prix").let { if (it != w.name) "GP " + it else it }
+    val live = next != null && sportLive(tv, next.start, next.name, vm.now)
+    val detail = when {
+        next == null -> "Volgend raceweekend"
+        live -> "● LIVE · " + next.name
+        else -> next.name.replace("Vrije training", "VT").replace("Sprintkwalificatie", "Sprintkwal.") + " · " + dayTime(next.start)
+    }
+    // Zelfde compacte formaat als de favoriete zenders. Geen extra stream of animatie.
+    FocusCard(onClick = onClick, modifier = modifier.height(104.dp),
+        shape = RoundedCornerShape(14.dp), focusedScale = 1.015f, darkFocus = true) { _ ->
+        Box(Modifier.fillMaxSize().background(
+            Brush.horizontalGradient(listOf(Color(0xFF32131C), Color(0xFF1D171E), Color(0xFF111319)))
+        )) {
+            // Lichtgewicht race-artwork: direct getekend, zonder extra image/network-request.
+            Canvas(Modifier.fillMaxSize()) {
+                val low = size.height * 0.81f
+                drawLine(F1Red.copy(alpha = 0.23f), Offset(size.width * 0.52f, size.height),
+                    Offset(size.width, size.height * 0.12f), 13.dp.toPx())
+                drawLine(F1Red.copy(alpha = 0.12f), Offset(size.width * 0.70f, size.height),
+                    Offset(size.width, size.height * 0.39f), 19.dp.toPx())
+                drawRoundRect(Color(0xFF702431), Offset(size.width * 0.70f, low),
+                    Size(size.width * 0.29f, 12.dp.toPx()), CornerRadius(5.dp.toPx()))
+                drawRoundRect(Color(0xFFC33745), Offset(size.width * 0.81f, low - 8.dp.toPx()),
+                    Size(size.width * 0.16f, 9.dp.toPx()), CornerRadius(3.dp.toPx()))
+                drawCircle(Color(0xFF0A0B10), 9.dp.toPx(), Offset(size.width * 0.76f, low + 9.dp.toPx()))
+                drawCircle(Color(0xFF0A0B10), 9.dp.toPx(), Offset(size.width * 0.94f, low + 9.dp.toPx()))
+                drawCircle(F1Red.copy(alpha = 0.7f), 3.8.dp.toPx(), Offset(size.width * 0.76f, low + 9.dp.toPx()))
+                drawCircle(F1Red.copy(alpha = 0.7f), 3.8.dp.toPx(), Offset(size.width * 0.94f, low + 9.dp.toPx()))
             }
-            Label("${w.circuit.removeSuffix(" Circuit").removeSuffix(" International")} · ronde ${w.round}/${w.rounds}", Modifier.padding(top = 1.dp, bottom = 4.dp), size = 12.sp, color = Grey, maxLines = 1)
-            // sessies links, circuit rechts: allebei boven de lijn
-            Row(Modifier.fillMaxWidth().weight(1f)) {
-                Column(Modifier.width(158.dp)) {
-                    w.sessions.forEach { s ->
-                        val past = s.start + 2 * 3600_000L < now
-                        val isNext = s == next
-                        Row(
-                            Modifier.fillMaxWidth().then(if (isNext) Modifier.background(F1Red, RoundedCornerShape(50)) else Modifier)
-                                .padding(horizontal = 8.dp, vertical = 1.dp),
-                        ) {
-                            val c = when { isNext -> Color.White; past -> Grey.copy(alpha = 0.55f); else -> Color(0xFFC7C7CC) }
-                            Label(s.name.replace("Vrije training", "VT").replace("Sprintkwalificatie", "Sprint-kwal."), Modifier.weight(1f), size = 12.sp, weight = if (isNext) Kijk.Bold else null, color = c, maxLines = 1)
-                            Label(dayTime(s.start), size = 12.sp, weight = if (isNext) Kijk.Bold else null, color = c)
-                        }
+            // Bestaande circuitcoördinaten uit F1Weekend, nooit een fictief circuit.
+            if (w.outline.size > 2) Canvas(
+                Modifier.align(Alignment.TopEnd).padding(top = 22.dp, end = 11.dp).size(width = 74.dp, height = 46.dp)
+            ) {
+                val mx = w.outline.maxOf { it.first }.coerceAtLeast(0.01f)
+                val my = w.outline.maxOf { it.second }.coerceAtLeast(0.01f)
+                val scale = minOf(size.width / mx, size.height / my) * 0.87f
+                val dx = (size.width - mx * scale) / 2f
+                val dy = (size.height - my * scale) / 2f
+                val route = Path().apply {
+                    w.outline.forEachIndexed { i, (x, y) ->
+                        if (i == 0) moveTo(dx + x * scale, dy + y * scale)
+                        else lineTo(dx + x * scale, dy + y * scale)
                     }
                 }
-                // circuit gebruikt alle ruimte rechts van de sessies
-                if (w.outline.size > 2) Canvas(Modifier.weight(1f).fillMaxHeight().padding(start = 8.dp, top = 2.dp, bottom = 6.dp)) {
-                    // zo groot mogelijk binnen het vlak, met behoud van de vorm, en gecentreerd
-                    val mx = w.outline.maxOf { it.first }.coerceAtLeast(0.01f); val my = w.outline.maxOf { it.second }.coerceAtLeast(0.01f)
-                    val side = minOf(size.width / mx, size.height / my)
-                    val dx = (size.width - mx * side) / 2f; val dy = (size.height - my * side) / 2f
-                    val p = Path().apply { w.outline.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(dx + x * side, dy + y * side) else lineTo(dx + x * side, dy + y * side) } }
-                    drawPath(p, F1Red, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round, cap = StrokeCap.Round))
-                    val (sx, sy) = w.outline.first()
-                    val cs = 2.5.dp.toPx(); val fx = dx + sx * side - cs * 1.5f; val fy = dy + sy * side - cs * 1.5f
-                    for (r in 0..2) for (c in 0..2) drawRect(if ((r + c) % 2 == 0) Color.White else Color.Black, Offset(fx + c * cs, fy + r * cs), Size(cs, cs))
+                drawPath(route, Color(0xFFFF5260), style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 1.7.dp.toPx(), cap = StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                ))
+                val (sx, sy) = w.outline.first()
+                drawCircle(Color.White, 2.1.dp.toPx(), Offset(dx + sx * scale, dy + sy * scale))
+            }
+            Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LogoOr(nl.kijk.tv.data.Sports.F1_LOGO, Modifier.width(38.dp).height(18.dp)) {
+                        Label("F1", size = 16.sp, weight = Kijk.Bold, color = F1Red)
+                    }
+                    Spacer(Modifier.width(7.dp))
+                    Label("FORMULE 1", size = 10.sp, weight = Kijk.Bold, color = Color.White)
+                }
+                Column(Modifier.fillMaxWidth(0.79f)) {
+                    Label(name, size = 17.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+                    Label(detail, size = 11.sp, weight = if (live) Kijk.Bold else Kijk.Medium,
+                        color = if (live) Color(0xFFFF7D81) else Color(0xFFE5E5EA), maxLines = 1)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(20.dp).height(2.dp).background(F1Red, RoundedCornerShape(50)))
+                    Spacer(Modifier.width(7.dp))
+                    Label(if (live) "NU KIJKEN" else if (next != null && vm.hasSportReminder(tv, next.start))
+                        "Herinnering actief" else "OK voor opties",
+                        size = 10.sp, weight = Kijk.Semibold, color = Color(0xFFD1D1D6), maxLines = 1)
                 }
             }
-            if (next != null) SportFooter(sportLive(tv, next.start, next.name, now), "${next.name.replace("Vrije training", "VT")} ${countdown(next.start, now, 2 * 3600_000L).replaceFirstChar { it.lowercase() }}",
-                tv?.channel?.name, F1Red, vm.hasSportReminder(tv, next.start))
         }
     }
 }
