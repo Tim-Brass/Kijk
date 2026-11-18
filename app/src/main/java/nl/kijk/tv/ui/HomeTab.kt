@@ -250,7 +250,7 @@ private fun HomeRow(title: String, center: Boolean = false, content: androidx.co
 private fun FavChannelCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit) {
     val cur = vm.nowNext(ch).firstOrNull()?.takeIf { it.isLive(vm.now) }
     // zelfde stijl als de andere kaarten: donker blijven, blauw randje bij selectie
-    FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.06f, darkFocus = true) { _ ->
+    FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.01f, darkFocus = true) { _ ->
         Row(Modifier.fillMaxSize().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             ChannelLogo(ch.logo, ch.name, Modifier.size(width = 56.dp, height = 36.dp), plate = false)
             Spacer(Modifier.width(10.dp))
