@@ -1,0 +1,3 @@
+# Startprofiel voor Kijk: alle eigen code al bij installatie voorcompileren (snellere eerste start en soepeler eerste scrollen)
+HSPLnl/kijk/tv/**->**(**)**
+Lnl/kijk/tv/**;
