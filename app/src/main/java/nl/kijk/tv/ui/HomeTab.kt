@@ -208,7 +208,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
 private fun SportRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     Column {
         Label("Sport", Modifier.padding(start = 12.dp, bottom = 0.dp), size = Kijk.Body, weight = Kijk.Semibold, color = Color(0xFFD1D1D6))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), content = content)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), content = content)
     }
 }
 
@@ -563,7 +563,7 @@ private fun LogoOr(url: String?, modifier: Modifier, fallback: @Composable () ->
 }
 
 private val CardW = 268.dp
-private val CardH = 186.dp
+private val CardH = 204.dp
 private val F1Red = Color(0xFFE10600)
 private val PsvRed = Color(0xFFED1C24)
 private val KnvbOrange = Color(0xFFFF7A00)
@@ -572,14 +572,22 @@ private val KnvbOrange = Color(0xFFFF7A00)
 private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.tv.SportTv?, modifier: Modifier, onClick: () -> Unit) {
     val now = vm.now
     val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
-    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
-        Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
+    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(18.dp), focusedScale = 1.012f, darkFocus = true) { _ ->
+        Column(Modifier.fillMaxSize().background(
+            Brush.horizontalGradient(listOf(Color(0xFF45222B), Color(0xFF242333), Color(0xFF151720)))
+        ).padding(start = 16.dp, end = 13.dp, top = 12.dp, bottom = 10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Label("FORMULE 1", size = 11.sp, weight = Kijk.Bold, color = Color(0xFFFF908A))
+                Spacer(Modifier.weight(1f))
+                Label("● LIVE & AGENDA", size = 10.sp, color = Color(0xFFFFB1AB))
+            }
+            Spacer(Modifier.height(5.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(nl.kijk.tv.data.Sports.F1_LOGO, Modifier.height(26.dp).width(52.dp)) {
                     Box(Modifier.background(F1Red, RoundedCornerShape(5.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) { Label("F1", size = 15.sp, weight = Kijk.Bold, color = Color.White) }
                 }
                 Spacer(Modifier.width(8.dp))
-                Label(w.name.removeSuffix(" Grand Prix").let { if (it != w.name) "GP $it" else it }, size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+                Label(w.name.removeSuffix(" Grand Prix").let { if (it != w.name) "GP $it" else it }, size = 18.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             }
             Label("${w.circuit.removeSuffix(" Circuit").removeSuffix(" International")} · ronde ${w.round}/${w.rounds}", Modifier.padding(top = 1.dp, bottom = 4.dp), size = 12.sp, color = Grey, maxLines = 1)
             // sessies links, circuit rechts: allebei boven de lijn
@@ -624,12 +632,20 @@ private fun TableCard(t: nl.kijk.tv.data.Table, modifier: Modifier, onClick: () 
     val psv = t.rows.firstOrNull { it.isPsv }
     val shown = if (psv == null || psv.rank <= 5) t.rows.take(5) else t.rows.take(4) + psv
     val round = t.rows.maxOfOrNull { it.played } ?: 0
-    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
-        Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
+    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(18.dp), focusedScale = 1.012f, darkFocus = true) { _ ->
+        Column(Modifier.fillMaxSize().background(
+            Brush.horizontalGradient(listOf(Color(0xFF263C39), Color(0xFF1D292F), Color(0xFF15171E)))
+        ).padding(start = 15.dp, end = 15.dp, top = 12.dp, bottom = 10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Label("COMPETITIE", size = 11.sp, weight = Kijk.Bold, color = Color(0xFF67DEC3))
+                Spacer(Modifier.weight(1f))
+                Label("RANGLIJST  ›", size = 10.sp, color = Color(0xFFA9D2C9))
+            }
+            Spacer(Modifier.height(5.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(t.logo, Modifier.size(26.dp)) { }
                 if (t.logo != null) Spacer(Modifier.width(8.dp))
-                Label(t.competition, Modifier.weight(1f), size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+                Label(t.competition, Modifier.weight(1f), size = 18.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
                 if (round > 0) Label("ronde $round", size = 12.sp, color = Grey)
             }
             Row(Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 1.dp, start = 8.dp, end = 8.dp)) {
@@ -676,13 +692,20 @@ private fun TableCard(t: nl.kijk.tv.data.Table, modifier: Modifier, onClick: () 
 private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv.SportTv?, modifier: Modifier, onClick: () -> Unit) {
     val now = vm.now
     val accent = if (m.team == "PSV") PsvRed else KnvbOrange
-    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
-        Box(Modifier.fillMaxWidth().height(4.dp).background(accent))   // gekleurde streep bovenaan
-        Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp)) {
+    FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(18.dp), focusedScale = 1.012f, darkFocus = true) { _ ->
+        Column(Modifier.fillMaxSize().background(
+            Brush.horizontalGradient(listOf(accent.copy(alpha = 0.3f), Color(0xFF2B2630), Color(0xFF161820)))
+        ).padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Label("VOETBAL", size = 11.sp, weight = Kijk.Bold, color = Color.White)
+                Spacer(Modifier.weight(1f))
+                Label("WEDSTRIJD  ›", size = 10.sp, color = Color(0xFFD1D1D6))
+            }
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(m.competitionLogo, Modifier.size(26.dp)) { }
                 if (m.competitionLogo != null) Spacer(Modifier.width(8.dp))
-                Label(m.competition, size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+                Label(m.competition, size = 17.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 TeamBadge(m.home, m.homeLogo, Modifier.weight(1f))
