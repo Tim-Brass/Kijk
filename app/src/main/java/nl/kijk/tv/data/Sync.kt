@@ -178,9 +178,9 @@ class Sync(private val ctx: Context) {
 
     // ------------------------------------------------------------------ netwerk
 
-    private fun post(address: String, path: String, body: JSONObject, timeout: Int = 4000): JSONObject {
+    private fun post(address: String, path: String, body: JSONObject, timeout: Int = 4000, connect: Int = minOf(timeout, 2500)): JSONObject {
         val c = URL("http://$address$path").openConnection() as HttpURLConnection
-        c.connectTimeout = minOf(timeout, 2500); c.readTimeout = timeout
+        c.connectTimeout = connect; c.readTimeout = timeout
         c.requestMethod = "POST"; c.doOutput = true
         c.setRequestProperty("Content-Type", "application/json")
         c.outputStream.use { it.write(body.toString().toByteArray()) }
@@ -242,12 +242,13 @@ class Sync(private val ctx: Context) {
         val threads = addresses().map { p ->
             Thread {
                 try {
-                    val r = post(p.second, "/sync/stop", hello(), 1500)
+                    val r = post(p.second, "/sync/stop", hello(), 1500, connect = 400)   // tv uit: na 0,4 s door, niet 1,5 s wachten
                     if (r.optBoolean("stopped")) synchronized(out) { out += r.optString("key") to r.optLong("pos") }
                 } catch (_: Exception) { }
             }.apply { start() }
         }
-        threads.forEach { it.join(2000) }
+        val until = System.currentTimeMillis() + 1800
+        threads.forEach { it.join((until - System.currentTimeMillis()).coerceAtLeast(1)) }
         return out
     }
 

@@ -89,8 +89,8 @@ class MainActivity : ComponentActivity() {
         setContent { KijkTheme { KijkApp(vm) } }
     }
     // GitHub: bijwerken bij het openen van Kijk en wegschrijven bij het verlaten (niet tussendoor)
-    override fun onStart() { super.onStart(); vm.githubSyncNow(quiet = true) }
-    override fun onStop() { super.onStop(); if (!vm.quitting) vm.githubSyncNow(quiet = true) }
+    override fun onStart() { super.onStart(); vm.foreground = true; vm.githubSyncNow(quiet = true) }
+    override fun onStop() { super.onStop(); vm.foreground = false; if (!vm.quitting) vm.githubSyncNow(quiet = true) }
 }
 
 /** Alle schermen. Een nieuw scherm komt bovenop de stapel; Terug haalt het eraf. */

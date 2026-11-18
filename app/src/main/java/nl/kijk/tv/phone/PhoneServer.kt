@@ -118,6 +118,8 @@ object PhoneServer {
         when {
             method == "OPTIONS" -> send("204 No Content", "text/plain", ByteArray(0))
             method == "GET" && path == "/" -> send("200 OK", "text/html; charset=utf-8", PAGE.replace("{{CODE}}", query["code"]?.filter { it.isDigit() } ?: "").toByteArray())
+            method == "GET" && (path == "/crash" || path == "/log" || path == "/homey") && query["code"] != code ->
+                send("403 Forbidden", "text/plain; charset=utf-8", "Voeg ?code=<koppelcode> toe (Instellingen › Instellen via telefoon).".toByteArray())
             method == "GET" && path == "/crash" -> send("200 OK", "text/plain; charset=utf-8",
                 (filesDir?.let { java.io.File(it, "crash_last.txt") }?.takeIf { it.exists() }?.readText() ?: "Geen crash bewaard.").toByteArray())
             method == "GET" && path == "/log" -> send("200 OK", "text/plain; charset=utf-8", nl.kijk.tv.data.ImageLog.text().toByteArray())

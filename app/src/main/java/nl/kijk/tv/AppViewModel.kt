@@ -99,6 +99,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var vod by mutableStateOf<VodSource?>(null); private set
     var epgMatch by mutableStateOf<Map<String, String>>(emptyMap()); private set
     var dataVersion by mutableStateOf(0); private set   // verhoogd als zenders/gids veranderen
+    private var nowNextUntil = 0L
     private var nowNextById by mutableStateOf<Map<String, List<Programme>>>(emptyMap())
     // Dezelfde XMLTV-koppeling wordt door HD/FHD/SD-zenders gedeeld: bereken de tijdverschuiving slechts één keer.
     private val shiftedNowNext = HashMap<String, List<Programme>>()
@@ -347,7 +348,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (xt == null) step(2) { it.copy(state = if (pl.channels.any { c -> c.catchup != null }) 2 else 3) }
                 playlistEpgUrl = pl.epgUrl
                 // Zenders meteen tonen; de gids wordt daarna gekoppeld.
-                allChannels = chans
+                allChannels = chans.distinctBy { it.key }   // zelfde stream twee keer (.ts/.m3u8): één sleutel, anders crasht de lijst
                 allGroups = chans.map { it.group }.distinct()
                 val newVod: VodSource? = xt ?: pl.vod.takeIf { it.isNotEmpty() }?.let { M3uVodSource(it) }
                 if (newVod?.javaClass != vod?.javaClass || downloaded) { indexJob?.cancel(); vodIndexReady = false }
@@ -460,7 +461,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun refreshNowNext() {
         val at = System.currentTimeMillis() - offset
-        nowNextById = withContext(Dispatchers.IO) { epg.nowNext(at) }
+        val m = withContext(Dispatchers.IO) { epg.nowNext(at) }
+        nowNextById = m
+        // volgende verversing pas als er ergens een programma afloopt
+        nowNextUntil = m.values.mapNotNull { it.firstOrNull()?.stop }.filter { it > at }.minOrNull() ?: (at + 5 * MINUTE)
         shiftedNowNext.clear()
     }
 
@@ -480,7 +484,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         GROUP_ALL -> channels
         GROUP_FAV -> channels.filter { it.key in favorites }
         GROUP_ARCH -> channels.filter { it.archiveDays > 0 }
-        GROUP_RECENT -> recentChannels.mapNotNull { k -> channels.firstOrNull { it.key == k } }
+        GROUP_RECENT -> recentChannels.distinct().mapNotNull { k -> channels.firstOrNull { it.key == k } }
         else -> if (isLocked(group) && !unlocked) emptyList() else channels.filter { it.group == group }
     }
 
@@ -555,7 +559,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             dupKeys = keys
             varGroups = groups
             groupsFor = chans to matches
-            android.util.Log.d("KijkPerf", "Variantenindex klaar: ${groups.size} groepen")
         }
     }
 
@@ -1185,8 +1188,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var hyVer by mutableStateOf(0)
 
     /** Hooguit eens per minuut (of direct met [force]); alleen aangeroepen terwijl Thuis in beeld is. */
+    /** Kijk in beeld? Zo niet: niet pollen (Homey, gids, playlist). Gezet door MainActivity. */
+    var foreground = true
+        set(v) { val back = v && !field; field = v; if (back) viewModelScope.launch { refreshNowNext() } }
+
     fun refreshHomey(force: Boolean = false, meta: Boolean = false) {
         if (!homey.configured) return
+        if (!foreground && !force) return
         if (hyJob?.isActive == true) return
         val now = System.currentTimeMillis()
         if (!force && !meta && now - hyAt < 55_000) return
@@ -1202,7 +1210,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 hyVars = runCatching { homey.variables() }.getOrDefault(hyVars)
                 hyDevices = homey.devices()
                 hyError = null
-                fetchBellImage()
+                // deurbelbeeld niet elke minuut (Ring maakt dan steeds een opname): bij openen, na aanbellen/OK, en eens per 10 min
+                if (force || meta || hySnap == null || System.currentTimeMillis() - (hySnap?.second ?: 0L) > 10 * MINUTE) fetchBellImage()
             } catch (e: Exception) { hyError = e.message ?: e.javaClass.simpleName }
             hyAt = System.currentTimeMillis()
         }
@@ -1479,11 +1488,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // verderop in de klasse staan (anders crasht de app bij het opstarten).
     init {
         viewModelScope.launch { while (true) { now = System.currentTimeMillis(); checkReminders(); delay(15_000) } }
-        viewModelScope.launch { while (true) { delay(60_000); refreshNowNext() } }
+        viewModelScope.launch { while (true) { delay(60_000); if (foreground && System.currentTimeMillis() - offset >= nowNextUntil) refreshNowNext() } }
         viewModelScope.launch {
             while (true) {
                 delay(30 * 60_000L)
-                if (!configured) continue
+                if (!configured || !foreground) continue
                 if (playlistDue(false)) load() else if (epgDue(false)) refreshEpg()
             }
         }

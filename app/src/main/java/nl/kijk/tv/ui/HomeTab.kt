@@ -409,7 +409,8 @@ fun NewsTicker(vm: AppViewModel) {
     val tm = rememberTextMeasurer()
     val style = TextStyle(color = Color(0xFFE5E5EA), fontSize = 14.sp)
     val layouts = remember(news) { news.headlines.map { tm.measure(it, style) } }
-    val start = remember(news) { frame.longValue }
+    // zonder lezen-registratie: anders bouwt de lichtkrant zich elk frame opnieuw op
+    val start = remember(news) { androidx.compose.runtime.snapshots.Snapshot.withoutReadObservation { frame.longValue } }
     Row(
         // strook loopt door tot de onderrand, maar de tekst staat iets hoger: valt ook op tv's met overscan (Xiaomi) niet weg
         Modifier.fillMaxWidth().background(Color(0xFF141419)).drawTopLine().padding(bottom = 14.dp).height(34.dp),

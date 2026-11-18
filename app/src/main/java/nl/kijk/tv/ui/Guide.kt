@@ -97,10 +97,7 @@ fun GuideGrid(
     var sel by remember { mutableStateOf<Pair<Channel, Programme?>?>(null) }
     val base = remember(vm.dataVersion, hs.group, vm.favorites, vm.unlocked) { vm.list(hs.group) }
     val list = remember(base, favOnly, archOnly, vm.favorites, vm.epgMatch, vm.store.guideHideNoEpg, vm.store.guideMerge) {
-        val began = android.os.SystemClock.elapsedRealtimeNanos()
-        vm.guideList(base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) }).also {
-            android.util.Log.d("KijkPerf", "Gids zenderlijst: ${it.size} zenders in ${(android.os.SystemClock.elapsedRealtimeNanos() - began) / 1_000_000} ms")
-        }
+        vm.guideList(base.filter { (!favOnly || it.key in vm.favorites) && (!archOnly || it.archiveDays > 0) })
     }
     val state = rememberLazyListState()
     val nowFocus = remember { FocusRequester() }

@@ -32,7 +32,6 @@ object LogoTone {
             tones.putAll(saved)
             prefs = p
             initialized = true
-            android.util.Log.d("KijkPerf", "Logotinten geladen: ${saved.size}")
         }
     }
 
