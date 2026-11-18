@@ -62,7 +62,7 @@ import nl.kijk.tv.data.Programme
 private const val WINDOW = 2 * HOUR
 private const val STEP = 30 * MINUTE
 private const val BUCKET = 6 * HOUR
-private val CHAN_W = 210.dp
+private val CHAN_W = 184.dp
 private val ROW_H = 58.dp
 
 fun catchupPlayable(vm: AppViewModel, ch: Channel, p: Programme, offsetMs: Long = 0L) = Playable(
@@ -230,11 +230,11 @@ private fun GuideRow(
         FocusCard(onClick = onPlayLive, onLongClick = { vm.toggleFavorite(ch) }, onFocus = { onFocus(null) }, modifier = Modifier.width(CHAN_W).fillMaxHeight().focusRequester(chanFocus), focusedScale = 1.02f, darkFocus = true) { _ ->
             Box(Modifier.fillMaxSize()) {
                 // groot logo met de naam eronder, in hetzelfde vak; donker blijven met blauw randje bij selectie (zoals op Thuis)
-                Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Label(ch.number.toString(), Modifier.width(30.dp), size = Kijk.Caption, color = Kijk.Secondary)
+                Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Label(ch.number.toString(), Modifier.width(24.dp), size = Kijk.Caption, color = Kijk.Secondary)
                     Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center) {
-                        ChannelLogo(ch.logo, ch.name, Modifier.size(width = 124.dp, height = 32.dp), plate = false)
+                        ChannelLogo(ch.logo, ch.name, Modifier.size(width = 108.dp, height = 32.dp), plate = false)
                         Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                             Label(shortName(ch.name), Modifier.weight(1f, fill = false), size = 11.sp, weight = Kijk.Semibold, maxLines = 1)
                             if (ch.archiveDays > 0) Label(" ↺${ch.archiveDays}d", size = 11.sp, color = Kijk.Accent)
