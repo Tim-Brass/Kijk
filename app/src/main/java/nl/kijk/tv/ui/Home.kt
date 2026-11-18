@@ -255,7 +255,11 @@ private fun ChannelRowCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit, o
                         if (ch.archiveDays > 0) Label("  ↺", color = Kijk.Accent, weight = Kijk.Bold)
                     }
                     if (cur != null) {
-                        Label(cur.title, color = Color.White)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(6.dp).background(Kijk.Live, RoundedCornerShape(50)))
+                            Spacer(Modifier.width(7.dp))
+                            Label(cur.title, color = Color.White, weight = Kijk.Semibold)
+                        }
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // voortgang van wat nu speelt: rood, zoals in de gids
