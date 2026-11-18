@@ -330,7 +330,10 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     fun current() = vm.nowNext(channel).firstOrNull()?.takeIf { it.isLive(vm.now) }
     fun restart() {
         val p = current() ?: return
-        if (vm.canRestart(channel, p)) nav.push(Screen.Vod(listOf(catchupPlayable(vm, channel, p)), 0, 0L, null))
+        if (vm.canRestart(channel, p)) {
+            player.stop() // Live-verbinding sluiten voordat opnieuw beginnen een andere stream opent
+            nav.push(Screen.Vod(listOf(catchupPlayable(vm, channel, p)), 0, 0L, null))
+        }
     }
 
     BackHandler {
@@ -396,7 +399,7 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             // ▶: alleen de gids, halfdoorzichtig over de zender; het beeld loopt door
             Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
                 val ghs = remember { HomeState(TAB_GUIDE) }
-                GuideGrid(vm, nav, ghs, focusChannel = channel, onPlay = switchFromOverlay)
+                GuideGrid(vm, nav, ghs, focusChannel = channel, onPlay = switchFromOverlay, onBeforeCatchup = { player.stop() })
             }
         }
         if (showMenu) {
