@@ -485,7 +485,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val qualityHd = Regex("\\bhd\\b")
     private val quality4k = Regex("\\b(4k|uhd)\\b")
     private val qualitySd = Regex("\\bsd\\b")
-    fun normName(name: String) = nameNoise.replace(name, " ").lowercase().replace(Regex("[^a-z0-9+]"), "")
+    private val nonKeyChars = Regex("[^a-z0-9+]")
+    fun normName(name: String) = nonKeyChars.replace(nameNoise.replace(name, " ").lowercase(), "")
     /** kwaliteitsvolgorde: FHD, HD, 4K, zonder label, SD, backup */
     private fun quality(ch: Channel): Int {
         val n = ch.name.lowercase()
