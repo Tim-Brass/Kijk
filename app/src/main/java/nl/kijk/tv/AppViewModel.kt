@@ -357,6 +357,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 dataVersion++
                 progress = null
                 refreshNowNext()
+                warmFirstGuideRows()
                 ensureVodIndex(force = downloaded && indexFile.exists() && System.currentTimeMillis() - indexFile.lastModified() > DAY)
                 val epgAge = System.currentTimeMillis() - epg.updated()
                 when {
@@ -450,6 +451,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         prepareVariants()
         guideProgrammeCache.evictAll()
         refreshNowNext()
+        warmFirstGuideRows()
         dataVersion++
         if (steps[3].state == 1) step(3) { it.copy(state = 2, note = epgStatsText()) }
     }
@@ -615,6 +617,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val result = lst.map { it.copy(start = it.start + offset, stop = it.stop + offset) }
         guideProgrammeCache.put(cacheKey, System.currentTimeMillis() to result)
         result
+    }
+
+    /** Verwarm alleen de eerste lokale gidsregels op IO; geen netwerkcalls of extra UI-werk. */
+    private fun warmFirstGuideRows() {
+        val matches = epgMatch
+        val candidates = channels.asSequence()
+            .filter { matches.containsKey(it.key) }
+            .distinctBy { matches[it.key] }
+            .take(12).map { it.key to matches.getValue(it.key) }.toList()
+        val timeOffset = offset
+        val minutesOffset = epgOffsetMinutes
+        val start = System.currentTimeMillis().let { it - Math.floorMod(it, 30 * MINUTE) }
+        val bucket = start - Math.floorMod(start, 6 * HOUR)
+        val from = bucket - HOUR
+        val to = bucket + 6 * HOUR + 2 * HOUR + HOUR
+        viewModelScope.launch(Dispatchers.IO) {
+            for ((key, cid) in candidates) {
+                val cacheKey = "$key:$cid:$minutesOffset:$from:$to"
+                if (guideProgrammeCache.get(cacheKey) != null) continue
+                runCatching {
+                    // Alleen opslaan wanneer het hele venster lokaal beschikbaar is.
+                    // Anders moet de normale gidsfunctie terugkijkdata kunnen aanvullen.
+                    if (epg.earliest(cid)?.let { it <= from - timeOffset } != true) return@runCatching
+                    val result = epg.programmes(cid, from - timeOffset, to - timeOffset)
+                        .map { it.copy(start = it.start + timeOffset, stop = it.stop + timeOffset) }
+                    guideProgrammeCache.put(cacheKey, System.currentTimeMillis() to result)
+                }
+            }
+        }
     }
 
     private fun archiveEpg(xt: Xtream, sid: String): List<Programme> {
