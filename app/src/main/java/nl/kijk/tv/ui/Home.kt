@@ -209,7 +209,7 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
     }
     Row(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-            items(all) { g ->
+            items(all, key = { it }) { g ->
                 val locked = vm.isLocked(g) && !vm.unlocked
                 SideItem((if (locked) "🔒 " else "") + groupLabel(g), selected = hs.group == g, onFocus = { hs.group = g }) {
                     if (locked) nav.askPin(vm) { vm.unlock(); hs.group = g } else hs.group = g
@@ -221,7 +221,7 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
             vm.isLocked(hs.group) && !vm.unlocked -> EmptyState("🔒 Vergrendeld", "Druk op OK op de groep om je pincode in te voeren.")
             list.isEmpty() -> EmptyState("Geen zenders", if (hs.group == GROUP_FAV) "Houd OK ingedrukt op een zender om hem bij je favorieten te zetten." else "")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 10.dp)) {
-                itemsIndexed(list) { i, ch ->
+                itemsIndexed(list, key = { _, ch -> ch.key }) { i, ch ->
                     val play: (List<Channel>) -> Unit = { l -> if (onPlay != null) onPlay(l, i) else nav.push(Screen.Live(l, i)) }
                     ChannelRow(vm, ch, onClick = { play(list) }, onLongClick = { vm.toggleFavorite(ch) })
                 }
