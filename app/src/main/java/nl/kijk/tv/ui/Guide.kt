@@ -232,7 +232,7 @@ private fun GuideRow(
             Box(Modifier.fillMaxSize()) {
                 // groot logo met de naam eronder, in hetzelfde vak; donker blijven met blauw randje bij selectie (zoals op Thuis)
                 Row(Modifier.fillMaxSize().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Label(ch.number.toString(), Modifier.width(24.dp), size = Kijk.Caption, color = Kijk.Secondary)
+                    Label(ch.number.toString(), Modifier.width(24.dp), size = 10.sp, color = Kijk.Secondary, maxLines = 1)   // 4 cijfers passen
                     Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center) {
                         ChannelLogo(ch.logo, ch.name, Modifier.size(width = 108.dp, height = 32.dp), plate = false)
