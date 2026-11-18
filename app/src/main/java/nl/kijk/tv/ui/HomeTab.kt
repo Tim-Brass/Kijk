@@ -135,6 +135,37 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 },
             state = listState, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            // Statische redactionele blikvanger: uitsluitend bestaande EPG en logo's.
+            // Geen mini-player, geen videopreview en dus geen extra IPTV-stream.
+            val featured = favs.firstOrNull { ch -> vm.nowNext(ch).any { it.isLive(vm.now) } }
+            val featuredProgramme = featured?.let { vm.nowNext(it).firstOrNull { p -> p.isLive(vm.now) } }
+            if (featured != null && featuredProgramme != null) item(key = "featured-live") {
+                FocusCard(
+                    onClick = {
+                        val i = vm.channels.indexOfFirst { it.key == featured.key }
+                        if (i >= 0) {
+                            if (onPlay != null) onPlay(vm.channels, i)
+                            else nav.push(Screen.Live(vm.channels, i))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).height(116.dp),
+                    darkFocus = true,
+                    focusedScale = 1f,
+                    shape = RoundedCornerShape(16.dp),
+                ) { _ ->
+                    Row(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                            Label("●  LIVE  ·  UITGELICHT", size = 11.sp, weight = Kijk.Bold, color = Kijk.Live)
+                            Spacer(Modifier.height(5.dp))
+                            Label(featuredProgramme.title, size = Kijk.Title, weight = Kijk.Bold, maxLines = 1)
+                            Spacer(Modifier.height(3.dp))
+                            Label(shortName(featured.name) + "   ·   ▶ Kijk nu", size = Kijk.Caption, color = Kijk.Secondary)
+                        }
+                        Spacer(Modifier.width(20.dp))
+                        ChannelLogo(featured.logo, featured.name, Modifier.size(width = 124.dp, height = 62.dp), plate = false)
+                    }
+                }
+            }
             if (favs.isNotEmpty()) item(key = "favorites") {
                 HomeRow("Nu op je favorieten") {
                     items(favs, key = { it.key }) { ch ->
