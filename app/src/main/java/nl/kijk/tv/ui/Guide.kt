@@ -183,7 +183,7 @@ fun GuideGrid(
                 }
                 Box(Modifier.fillMaxSize()) {
                     LazyColumn(state = state, modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
-                        itemsIndexed(list) { i, ch ->
+                        itemsIndexed(list, key = { _, ch -> ch.key }) { i, ch ->
                             GuideRow(vm, ch, winStart, perMin,
                                 onFocus = { sel = ch to it },
                                 onShift = { dir -> shift(dir * STEP) }, onShow = { t -> show(t) },
