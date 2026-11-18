@@ -24,7 +24,7 @@ jobs:
       - name: Versienaam
         run: |
           n=${{ github.run_number }}
-          if [ "$n" -ge 202 ]; then echo "KIJK_VERSION=0.2.81 (herstel)" >> $GITHUB_ENV; elif [ "$n" -ge 111 ]; then echo "KIJK_VERSION=0.2.$((n-111))" >> $GITHUB_ENV; else echo "KIJK_VERSION=0.1.$n" >> $GITHUB_ENV; fi
+          if [ "$n" -ge 211 ]; then echo "KIJK_VERSION=0.3.$((n-211))" >> $GITHUB_ENV; elif [ "$n" -ge 202 ]; then echo "KIJK_VERSION=0.2.81 (herstel)" >> $GITHUB_ENV; elif [ "$n" -ge 111 ]; then echo "KIJK_VERSION=0.2.$((n-111))" >> $GITHUB_ENV; else echo "KIJK_VERSION=0.1.$n" >> $GITHUB_ENV; fi
       - name: Build
         run: gradle --no-daemon assembleRelease
       - name: Rename APK
