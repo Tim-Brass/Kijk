@@ -162,7 +162,7 @@ class Xtream(val host: String, val user: String, val pass: String) : VodSource {
                 val asUtc = f.parse(local)?.time
                 if (asUtc != null) offset = Math.round((asUtc - ts * 1000) / 900_000.0) * 900_000L
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Vod.kt:165: ${e.message ?: e.javaClass.simpleName}") }
         return days to offset
     }
 

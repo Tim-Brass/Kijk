@@ -150,7 +150,7 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(w
                 // Decodeer logo's maximaal op de kleine TV-weergavegrootte, zonder grote bronbitmaps.
                 // Software-bitmap blijft nodig voor de eenmalige tintanalyse.
                 coil.request.ImageRequest.Builder(ctx).data(model).size(256, 160)
-                    .allowHardware(false).crossfade(false).build()
+                    .allowHardware(nl.kijk.tv.data.LogoTone.known(model)).crossfade(false).build()   // na de meting: via de grafische chip
             }
             Box(
                 Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 2.dp)
@@ -167,14 +167,14 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier.size(w
                         if (!nl.kijk.tv.data.LogoTone.known(model)) {
                             val bmp = (st.result.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
                             if (bmp != null && bmp.config != android.graphics.Bitmap.Config.HARDWARE)
-                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch { nl.kijk.tv.data.LogoTone.measure(model, bmp) }
+                                nl.kijk.tv.data.LogoTone.measureLater(model, bmp)
                         }
                     },
                     modifier = Modifier.fillMaxSize().padding(horizontal = if (tone == 2) 5.dp else 2.dp, vertical = if (tone == 2) 3.dp else 2.dp),
                 )
             }
         } else {
-            Label(name.take(3).uppercase(), size = Kijk.Caption, weight = Kijk.Bold, color = Kijk.Secondary)
+            Label(shortName(name).take(3).uppercase(), size = Kijk.Caption, weight = Kijk.Bold, color = Kijk.Secondary)
         }
     }
 }

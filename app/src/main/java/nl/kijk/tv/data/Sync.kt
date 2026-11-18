@@ -47,7 +47,7 @@ class Sync(private val ctx: Context) {
         try {
             val a = JSONArray(sp.getString("syncPeers", "[]"))
             for (i in 0 until a.length()) a.getJSONObject(i).let { peers[it.getString("id")] = Peer(it.getString("id"), it.getString("name"), it.getString("address"), it.optLong("last")) }
-        } catch (_: Exception) { }
+        } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:50: ${e.message ?: e.javaClass.simpleName}") }
     }
     private fun savePeers() = sp.edit().putString("syncPeers", JSONArray(peers.values.map {
         JSONObject().put("id", it.id).put("name", it.name).put("address", it.address).put("last", it.lastSync)
@@ -79,9 +79,9 @@ class Sync(private val ctx: Context) {
         val all = sp.all
         val out = HashMap<String, String>()
         for (k in SCALARS) enc(all[k])?.let { out["S|$k"] = it }
-        for (k in SETS) try { val a = JSONArray(all[k] as? String ?: "[]"); for (i in 0 until a.length()) out["E|$k|${a.getString(i)}"] = "1" } catch (_: Exception) { }
-        for (k in MAPS) try { val o = JSONObject(all[k] as? String ?: "{}"); for (key in o.keys()) out["M|$k|$key"] = "s:" + o.getString(key) } catch (_: Exception) { }
-        for (k in LISTS) try { val a = JSONArray(all[k] as? String ?: "[]"); for (i in 0 until a.length()) a.getJSONObject(i).let { out["L|$k|${listId(k, it)}"] = it.toString() } } catch (_: Exception) { }
+        for (k in SETS) try { val a = JSONArray(all[k] as? String ?: "[]"); for (i in 0 until a.length()) out["E|$k|${a.getString(i)}"] = "1" } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:82: ${e.message ?: e.javaClass.simpleName}") }
+        for (k in MAPS) try { val o = JSONObject(all[k] as? String ?: "{}"); for (key in o.keys()) out["M|$k|$key"] = "s:" + o.getString(key) } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:83: ${e.message ?: e.javaClass.simpleName}") }
+        for (k in LISTS) try { val a = JSONArray(all[k] as? String ?: "[]"); for (i in 0 until a.length()) a.getJSONObject(i).let { out["L|$k|${listId(k, it)}"] = it.toString() } } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:84: ${e.message ?: e.javaClass.simpleName}") }
         for ((k, v) in all) if (PREFIXES.any { k.startsWith(it) }) enc(v)?.let { out["P|$k"] = it }
         return out
     }
@@ -115,7 +115,7 @@ class Sync(private val ctx: Context) {
                 "L" -> {
                     val l = lists.getOrPut(parts[1]) { try { JSONArray(sp.getString(parts[1], "[]")).let { a -> (0 until a.length()).map { a.getJSONObject(it) }.toMutableList() } } catch (_: Exception) { mutableListOf() } }
                     l.removeAll { listId(parts[1], it) == parts[2] }
-                    if (v.isNotEmpty()) try { l.add(0, JSONObject(v)) } catch (_: Exception) { }
+                    if (v.isNotEmpty()) try { l.add(0, JSONObject(v)) } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:118: ${e.message ?: e.javaClass.simpleName}") }
                 }
             }
         }
@@ -222,7 +222,7 @@ class Sync(private val ctx: Context) {
             if (r.optString("group") != group) continue
             rememberPeer(r.optString("device"), r.optString("name"), p.second, synced = true)
             changed += merge(r.optJSONObject("entries") ?: JSONObject())
-        } catch (_: Exception) { }
+        } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:225: ${e.message ?: e.javaClass.simpleName}") }
         return changed
     }
 
@@ -244,7 +244,7 @@ class Sync(private val ctx: Context) {
                 try {
                     val r = post(p.second, "/sync/stop", hello(), 1500, connect = 400)   // tv uit: na 0,4 s door, niet 1,5 s wachten
                     if (r.optBoolean("stopped")) synchronized(out) { out += r.optString("key") to r.optLong("pos") }
-                } catch (_: Exception) { }
+                } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:247: ${e.message ?: e.javaClass.simpleName}") }
             }.apply { start() }
         }
         val until = System.currentTimeMillis() + 1800
@@ -311,7 +311,7 @@ class Sync(private val ctx: Context) {
                         peers[id]?.let { p -> if (p.address != "$host:$port") { peers[id] = p.copy(address = "$host:$port"); savePeers() } }
                     }
                     break
-                } catch (_: Exception) { }
+                } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:314: ${e.message ?: e.javaClass.simpleName}") }
             }
         }
         pool.shutdown()
@@ -348,7 +348,7 @@ class Sync(private val ctx: Context) {
                 override fun onStartDiscoveryFailed(t: String, e: Int) {}
                 override fun onStopDiscoveryFailed(t: String, e: Int) {}
             })
-        } catch (_: Exception) { }
+        } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("Sync.kt:351: ${e.message ?: e.javaClass.simpleName}") }
     }
 
     @Suppress("DEPRECATION")

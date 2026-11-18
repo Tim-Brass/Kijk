@@ -1190,7 +1190,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Hooguit eens per minuut (of direct met [force]); alleen aangeroepen terwijl Thuis in beeld is. */
     /** Kijk in beeld? Zo niet: niet pollen (Homey, gids, playlist). Gezet door MainActivity. */
     var foreground = true
-        set(v) { val back = v && !field; field = v; if (back) viewModelScope.launch { refreshNowNext() } }
+        set(v) { val back = v && !field; field = v; if (back) { viewModelScope.launch { refreshNowNext() }; refreshHomey(); refreshHome() } }
 
     fun refreshHomey(force: Boolean = false, meta: Boolean = false) {
         if (!homey.configured) return
@@ -1420,6 +1420,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshHome() {
+        if (!foreground) return   // weer/nieuws/sport niet op de achtergrond
         refreshSports()
         if (homeJob?.isActive == true) return
         val w = weather; val n = news

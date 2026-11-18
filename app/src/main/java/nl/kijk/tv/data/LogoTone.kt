@@ -3,7 +3,12 @@ package nl.kijk.tv.data
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateMapOf
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,10 +34,22 @@ object LogoTone {
                 val saved = p.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap()
                 p to saved
             }
+            // metingen van vóór het laden ook bewaren
+            val early = tones.filterKeys { it !in saved }
             tones.putAll(saved)
+            if (early.isNotEmpty()) withContext(Dispatchers.IO) { p.edit().apply { early.forEach { (k, v) -> putInt(k, v) } }.apply() }
             prefs = p
             initialized = true
         }
+    }
+
+    // één wachtrij voor alle metingen, i.p.v. een losse taak per logo
+    private val queue = CoroutineScope(SupervisorJob() + Executors.newSingleThreadExecutor { r ->
+        Thread(r, "kijk-logotone").apply { isDaemon = true; priority = Thread.MIN_PRIORITY } }.asCoroutineDispatcher())
+    private val pending = java.util.Collections.synchronizedSet(HashSet<String>())
+    fun measureLater(url: String, bmp: Bitmap) {
+        if (known(url) || !pending.add(url)) return
+        queue.launch { try { measure(url, bmp) } finally { pending.remove(url) } }
     }
 
     fun tone(url: String): Int = tones[url] ?: 0

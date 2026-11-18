@@ -41,6 +41,8 @@ object PhoneServer {
     }
     /** Koppelcode; blijft bewaard, zodat een geopende pagina op je telefoon ook na een herstart blijft werken. */
     @Volatile var code: String = "------"; private set
+    @Volatile private var badCodes = 0
+    @Volatile private var lockedUntil = 0L
     private val main = Handler(Looper.getMainLooper())
     /** Altijd de nieuwste ontvanger: na het opnieuw opbouwen van het scherm mag de oude niet meer gebruikt worden. */
     @Volatile private var listener: ((JSONObject) -> Unit)? = null
@@ -79,7 +81,7 @@ object PhoneServer {
             server = s; port = s.localPort
             while (!s.isClosed) {
                 val c = try { s.accept() } catch (_: Exception) { break }
-                thread(isDaemon = true) { try { handle(c) } catch (_: Exception) { } finally { try { c.close() } catch (_: Exception) { } } }
+                thread(isDaemon = true) { try { handle(c) } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("PhoneServer.kt:82 verzoek: ${e.message ?: e.javaClass.simpleName}") } finally { try { c.close() } catch (_: Exception) { } } }
             }
         }
     }
@@ -118,8 +120,10 @@ object PhoneServer {
         when {
             method == "OPTIONS" -> send("204 No Content", "text/plain", ByteArray(0))
             method == "GET" && path == "/" -> send("200 OK", "text/html; charset=utf-8", PAGE.replace("{{CODE}}", query["code"]?.filter { it.isDigit() } ?: "").toByteArray())
-            method == "GET" && (path == "/crash" || path == "/log" || path == "/homey") && query["code"] != code ->
+            method == "GET" && (path == "/crash" || path == "/log" || path == "/homey") && (query["code"] != code || System.currentTimeMillis() < lockedUntil) -> {
+                if (query["code"] != code && ++badCodes >= 10) { lockedUntil = System.currentTimeMillis() + 5 * 60_000L; badCodes = 0 }
                 send("403 Forbidden", "text/plain; charset=utf-8", "Voeg ?code=<koppelcode> toe (Instellingen › Instellen via telefoon).".toByteArray())
+            }
             method == "GET" && path == "/crash" -> send("200 OK", "text/plain; charset=utf-8",
                 (filesDir?.let { java.io.File(it, "crash_last.txt") }?.takeIf { it.exists() }?.readText() ?: "Geen crash bewaard.").toByteArray())
             method == "GET" && path == "/log" -> send("200 OK", "text/plain; charset=utf-8", nl.kijk.tv.data.ImageLog.text().toByteArray())
@@ -143,10 +147,16 @@ object PhoneServer {
             }
             method == "POST" && path == "/import" -> {
                 val o = try { JSONObject(String(body, Charsets.UTF_8)) } catch (_: Exception) { return json("400 Bad Request", JSONObject().put("error", "Ongeldige gegevens")) }
-                if (o.optString("code") != code) return json("403 Forbidden", JSONObject().put("error", "Onjuiste code. Kijk op de tv: Instellingen › Instellen via telefoon."))
+                if (System.currentTimeMillis() < lockedUntil) return json("429 Too Many Requests", JSONObject().put("error", "Te vaak een verkeerde code. Probeer het over een paar minuten opnieuw."))
+                if (o.optString("code") != code) {
+                    // raden onmogelijk maken: na 10 foute pogingen 5 minuten dicht
+                    if (++badCodes >= 10) { lockedUntil = System.currentTimeMillis() + 5 * 60_000L; badCodes = 0 }
+                    return json("403 Forbidden", JSONObject().put("error", "Onjuiste code. Kijk op de tv: Instellingen › Instellen via telefoon."))
+                }
+                badCodes = 0
                 o.remove("code")
                 val l = listener ?: return json("503 Service Unavailable", JSONObject().put("error", "Kijk staat niet open op de tv. Open de app en probeer het opnieuw."))
-                main.post { try { l(o) } catch (_: Exception) { } }
+                main.post { try { l(o) } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("PhoneServer.kt:149: ${e.message ?: e.javaClass.simpleName}") } }
                 json("200 OK", JSONObject().put("ok", true))
             }
             else -> send("404 Not Found", "text/plain", "Niet gevonden".toByteArray())
