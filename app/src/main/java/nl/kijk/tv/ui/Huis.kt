@@ -32,6 +32,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -54,7 +55,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-private val HuisH = 186.dp
+private val HuisH = 198.dp
 private val TempC = Color(0xFFFF9F0A)
 private val LightC = Color(0xFFFFC940)
 private val AfvalC = Color(0xFF30D158)
@@ -93,18 +94,31 @@ fun HuisRow(vm: AppViewModel, nav: Nav) {
 }
 
 @Composable
-private fun HuisCard(modifier: Modifier, onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
-        Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 9.dp)) { content() }
+private fun HuisCard(modifier: Modifier, accent: Color, onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    FocusCard(onClick = onClick, modifier = modifier.height(HuisH),
+        shape = RoundedCornerShape(18.dp), focusedScale = 1.012f, darkFocus = true) { _ ->
+        Column(Modifier.fillMaxSize().background(
+            Brush.horizontalGradient(listOf(
+                accent.copy(alpha = 0.18f), Color(0xFF1B202B), Color(0xFF14151C)
+            ))
+        )) {
+            Box(Modifier.fillMaxWidth().height(3.dp).background(
+                Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0.06f)))
+            ))
+            Column(Modifier.weight(1f).fillMaxWidth().padding(
+                start = 14.dp, end = 14.dp, top = 11.dp, bottom = 11.dp
+            )) { content() }
+        }
     }
 }
 
 @Composable
 private fun CardHead(title: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).background(color, RoundedCornerShape(50)))
-        Spacer(Modifier.width(7.dp))
-        Label(title, size = 14.sp, weight = Kijk.Semibold, color = color)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(3.dp).height(15.dp).background(color, RoundedCornerShape(50)))
+        Spacer(Modifier.width(9.dp))
+        Label(title.uppercase(), Modifier.weight(1f), size = 12.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+        Box(Modifier.size(7.dp).background(color.copy(alpha = 0.85f), RoundedCornerShape(50)))
     }
 }
 
@@ -119,10 +133,10 @@ private fun CardFoot(text: String, color: Color = GreyH) {
 @Composable
 private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val t = vm.hyThermostat
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, TempC, onClick) {
         CardHead("Temperatuur", TempC)
         Row(verticalAlignment = Alignment.Bottom) {
-            Label(deg(vm.hyShown(t, "measure_temperature")), size = 30.sp, weight = Kijk.Bold, color = Color.White)
+            Label(deg(vm.hyShown(t, "measure_temperature")), size = 37.sp, weight = Kijk.Bold, color = Color.White)
             if (t?.num("target_temperature") != null) Label("  → ${deg(vm.hyShown(t, "target_temperature"))}", Modifier.padding(bottom = 5.dp), size = 13.sp, color = GreyH)
         }
         listOfNotNull(vm.hyAirco1, vm.hyAirco2).forEach { a ->
@@ -141,10 +155,10 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
 private fun LightCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val rooms = vm.hyRooms
     val on = rooms.filter { it.on > 0 }
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, LightC, onClick) {
         CardHead("Verlichting", LightC)
         Row(verticalAlignment = Alignment.Bottom) {
-            Label("${on.size}", size = 30.sp, weight = Kijk.Bold, color = Color.White)
+            Label("${on.size}", size = 37.sp, weight = Kijk.Bold, color = Color.White)
             Label(if (on.size == 1) "  ruimte aan" else "  ruimtes aan", Modifier.padding(bottom = 5.dp), size = 13.sp, color = GreyH)
         }
         // de ruimtes die aan zijn, daarna een paar die uit zijn
@@ -365,7 +379,7 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
     val items = afvalItems(vm)
     val today = dayStart(vm.now)
     val next = items.firstOrNull { (it.date ?: Long.MAX_VALUE) >= today } ?: items.firstOrNull()
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, AfvalC, onClick) {
         CardHead("Afval", AfvalC)
         if (next == null) {
             Label(if (vm.hyAfval == null && vm.hyAfvalSettings == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
@@ -431,7 +445,7 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
 @Composable
 private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val b = vm.hyBell
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, BellC, onClick) {
         CardHead("Deurbel", BellC)
         HomeyImage(vm, b, Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp, bottom = 5.dp))
         val ring = vm.hyRings.firstOrNull()
@@ -702,7 +716,7 @@ fun CarBattery(percent: Int, target: Int, charging: Boolean, modifier: Modifier 
 private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val car = vm.hyCar ?: return
     val bat = car.battery ?: 0
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, CupraC, onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Label("Cupra Leon", Modifier.weight(1f), size = 14.sp, weight = Kijk.Semibold, color = CupraC, maxLines = 1)
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.cupra_logo), "Cupra", Modifier.height(24.dp))
