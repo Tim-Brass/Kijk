@@ -739,16 +739,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var update by mutableStateOf<UpdateInfo?>(null); private set
     var updateStatus by mutableStateOf<String?>(null); private set
     private var updating = false
+    /** Alleen op dit apparaat (niet gesynchroniseerd): ook testversies aanbieden. */
+    private val devicePrefs = app.getSharedPreferences("kijk_device", 0)
+    var betaUpdates by mutableStateOf(devicePrefs.getBoolean("beta", false)); private set
+    fun setBeta(on: Boolean) { betaUpdates = on; devicePrefs.edit().putBoolean("beta", on).apply(); update = null; checkUpdate(manual = true) }
     fun checkUpdate(manual: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             if (manual) updateStatus = "Controleren…"
             try {
-                val j = JSONObject(Net.text("https://api.github.com/repos/Tim-Brass/Kijk/releases/latest"))
+                // testversies (pre-releases) alleen als dit apparaat dat wil; "latest" slaat ze altijd over
+                val j = if (betaUpdates) {
+                    val a = org.json.JSONArray(Net.text("https://api.github.com/repos/Tim-Brass/Kijk/releases?per_page=10"))
+                    (0 until a.length()).map { a.getJSONObject(it) }.filter { !it.optBoolean("draft") }
+                        .maxByOrNull { it.optString("tag_name").removePrefix("build-").toIntOrNull() ?: 0 } ?: JSONObject()
+                } else JSONObject(Net.text("https://api.github.com/repos/Tim-Brass/Kijk/releases/latest"))
                 val n = j.optString("tag_name").removePrefix("build-").toIntOrNull() ?: 0
+                val test = j.optBoolean("prerelease")
                 val assets = j.optJSONArray("assets")
                 val url = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
                     .firstOrNull { it.optString("name").endsWith(".apk") }?.optString("browser_download_url")
-                if (n > BuildConfig.VERSION_CODE && url != null) { update = UpdateInfo(n, url); updateStatus = "Versie ${Versions.name(n)} staat klaar · OK om bij te werken" }
+                if (n > BuildConfig.VERSION_CODE && url != null) { update = UpdateInfo(n, url); updateStatus = "${if (test) "Testversie" else "Versie"} ${Versions.name(n)} staat klaar · OK om bij te werken" }
                 else if (manual) updateStatus = "Je hebt de nieuwste versie (${BuildConfig.VERSION_NAME})"
             } catch (e: Exception) { if (manual) updateStatus = "Controleren mislukt: ${e.message ?: e.javaClass.simpleName}" }
         }

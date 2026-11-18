@@ -197,6 +197,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                             if (vm.update != null) vm.installUpdate(ctx) else vm.checkUpdate(manual = true)
                         }
                     }
+                    item { SettingRow("Testversies ontvangen (alleen deze tv)", if (vm.betaUpdates) "Aan · je krijgt ook proefversies · OK = uit" else "Uit · alleen gewone versies · OK = aan") { vm.setBeta(!vm.betaUpdates) } }
                     item { tick.hashCode(); SettingRow("Kijk", "Versie ${BuildConfig.VERSION_NAME} · ${vm.allChannels.size} zenders") { } }
                 }
             }

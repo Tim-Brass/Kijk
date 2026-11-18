@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [main]   # alleen main maakt een release (update-knop); proefbranches niet
+    branches: [main, test]   # main = gewone versie; test = testversie (pre-release, alleen voor tv's met "Testversies ontvangen")
   workflow_dispatch:
 
 permissions:
@@ -38,5 +38,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Kijk ${{ env.KIJK_VERSION }}
+          name: Kijk ${{ env.KIJK_VERSION }}${{ github.ref_name == 'test' && ' (test)' || '' }}
+          prerelease: ${{ github.ref_name == 'test' }}
           files: Kijk.apk
