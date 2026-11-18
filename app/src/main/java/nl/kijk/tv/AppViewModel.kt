@@ -100,6 +100,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var epgMatch by mutableStateOf<Map<String, String>>(emptyMap()); private set
     var dataVersion by mutableStateOf(0); private set   // verhoogd als zenders/gids veranderen
     private var nowNextById by mutableStateOf<Map<String, List<Programme>>>(emptyMap())
+    // Dezelfde XMLTV-koppeling wordt door HD/FHD/SD-zenders gedeeld: bereken de tijdverschuiving slechts één keer.
+    private val shiftedNowNext = HashMap<String, List<Programme>>()
     private var playlistEpgUrl: String? = null
     private var serverOffset = 0L
     private val vodCache = HashMap<String, Any?>()
@@ -459,6 +461,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun refreshNowNext() {
         val at = System.currentTimeMillis() - offset
         nowNextById = withContext(Dispatchers.IO) { epg.nowNext(at) }
+        shiftedNowNext.clear()
     }
 
     // ---------------------------------------------------------------- zenders en groepen
@@ -612,8 +615,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun hasEpg(ch: Channel) = ch.key in epgMatch || (ch.archiveDays > 0 && ch.streamId != null && xtream != null)
 
     fun nowNext(ch: Channel): List<Programme> {
-        val l = epgMatch[ch.key]?.let { nowNextById[it] } ?: return emptyList()
-        return l.map { it.copy(start = it.start + offset, stop = it.stop + offset) }.filter { it.stop > now }
+        val cid = epgMatch[ch.key] ?: return emptyList()
+        val l = nowNextById[cid] ?: return emptyList()
+        val shifted = shiftedNowNext.getOrPut(cid) {
+            val delta = offset
+            if (delta == 0L) l else l.map { it.copy(start = it.start + delta, stop = it.stop + delta) }
+        }
+        // Blijf verlopen programma's filteren met de actuele klok, ook tussen EPG-verversingen.
+        return shifted.filter { it.stop > now }
     }
 
     /** Gids uit XMLTV, aangevuld met de terugkijkgids van de server voor oudere programma's. */
@@ -798,7 +807,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun relock() { unlocked = false; applyHidden() }
     fun setLock(on: Boolean) { lockOn = on; store.lockOn = on; unlocked = false; applyHidden() }
 
-    fun setEpgOffset(m: Int) { epgOffsetMinutes = m; store.epgOffsetMinutes = m; dataVersion++; viewModelScope.launch { refreshNowNext() } }
+    fun setEpgOffset(m: Int) { epgOffsetMinutes = m; store.epgOffsetMinutes = m; shiftedNowNext.clear(); dataVersion++; viewModelScope.launch { refreshNowNext() } }
     fun updateSubStyle(s: SubStyle) { subStyle = s; store.subStyle = s }
 
     suspend fun epgSearch(q: String): List<EpgHit> = withContext(Dispatchers.IO) { epg.search(q) }
