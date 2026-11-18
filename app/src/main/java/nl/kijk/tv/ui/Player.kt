@@ -192,8 +192,8 @@ fun SidePanel(refocus: Any? = null, content: LazyListScope.(first: FocusRequeste
     val first = remember { FocusRequester() }
     // ook opnieuw als de lijst verandert (bijv. sporen geladen): anders raakt de selectie kwijt en reageert niets meer
     LaunchedEffect(refocus) { delay(60); runCatching { first.requestFocus() } }
-    Box(Modifier.fillMaxHeight().width(420.dp).background(Color(0xF21C1C22))) {
-        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(horizontal = 24.dp, vertical = Kijk.SafeV + 8.dp)) {
+    Box(Modifier.fillMaxHeight().width(360.dp).background(Color(0xF21C1C22))) {
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = Kijk.SafeV + 4.dp)) {
             content(first)
         }
     }
@@ -201,15 +201,15 @@ fun SidePanel(refocus: Any? = null, content: LazyListScope.(first: FocusRequeste
 
 @Composable
 fun PanelHeader(title: String) {
-    Label(title, Modifier.padding(top = 12.dp, bottom = 4.dp, start = 4.dp), size = Kijk.Title, weight = Kijk.Bold, color = Color.White)
+    Label(title, Modifier.padding(top = 7.dp, bottom = 2.dp, start = 4.dp), size = Kijk.Body, weight = Kijk.Bold, color = Color.White)
 }
 
 @Composable
 fun OptionRow(label: String, checked: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     FocusCard(onClick = onClick, modifier = modifier.fillMaxWidth(), focusedScale = 1.02f) { focused ->
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Label(if (checked) "✓" else "", Modifier.width(26.dp), size = Kijk.Headline, weight = Kijk.Bold, color = if (focused) Color.Black else Kijk.Accent)
-            Label(label, size = Kijk.Headline, weight = if (checked) Kijk.Semibold else Kijk.Medium, maxLines = 2)
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Label(if (checked) "✓" else "", Modifier.width(20.dp), size = Kijk.Caption, weight = Kijk.Bold, color = if (focused) Color.Black else Kijk.Accent)
+            Label(label, size = Kijk.Caption, weight = if (checked) Kijk.Semibold else Kijk.Medium, maxLines = 2)
         }
     }
 }
@@ -330,7 +330,10 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
     fun current() = vm.nowNext(channel).firstOrNull()?.takeIf { it.isLive(vm.now) }
     fun restart() {
         val p = current() ?: return
-        if (vm.canRestart(channel, p)) nav.push(Screen.Vod(listOf(catchupPlayable(vm, channel, p)), 0, 0L, null))
+        if (vm.canRestart(channel, p)) {
+            player.stop() // Live-verbinding sluiten voordat opnieuw beginnen een andere stream opent
+            nav.push(Screen.Vod(listOf(catchupPlayable(vm, channel, p)), 0, 0L, null))
+        }
     }
 
     BackHandler {
@@ -396,12 +399,12 @@ fun LivePlayer(vm: AppViewModel, nav: Nav, startList: List<Channel>, startIndex:
             // ▶: alleen de gids, halfdoorzichtig over de zender; het beeld loopt door
             Box(Modifier.fillMaxSize().background(Color(0xD90B0B0F)).padding(horizontal = Kijk.SafeH, vertical = Kijk.SafeV)) {
                 val ghs = remember { HomeState(TAB_GUIDE) }
-                GuideGrid(vm, nav, ghs, focusChannel = channel, onPlay = switchFromOverlay)
+                GuideGrid(vm, nav, ghs, focusChannel = channel, onPlay = switchFromOverlay, onBeforeCatchup = { player.stop() })
             }
         }
         if (showMenu) {
             // Terug: het hoofdmenu halfdoorzichtig over de zender, selectie op de tabbalk
-            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = switchFromOverlay, onClose = { showMenu = false }))
+            HomeScreen(vm, nav, HomeOverlay(channel, onPlay = switchFromOverlay, onClose = { showMenu = false }, onBeforeCatchup = { player.stop() }))
         }
         AnimatedVisibility(showOptions, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut(), modifier = Modifier.align(Alignment.CenterEnd)) {
             val subs = trackOptions(tracks, C.TRACK_TYPE_TEXT)

@@ -143,6 +143,8 @@ fun VodPlayer(vm: AppViewModel, nav: Nav, items: List<Playable>, startIndex: Int
             ))
         }
         error = null; ended = false
+        // Bij aflevering-/filmwissel en seek in terugkijken de oude providerverbinding eerst sluiten.
+        player.stop()
         if (cur.isCatchup && cp != null) { baseOffset = (catchStart - cp.start).coerceAtLeast(0L); player.setMediaItem(mi) } else player.setMediaItem(mi, startMs)
         player.prepare(); player.playWhenReady = true
     }

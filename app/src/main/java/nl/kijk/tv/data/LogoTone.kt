@@ -3,6 +3,10 @@ package nl.kijk.tv.data
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateMapOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Hoe een zenderlogo getekend moet worden op het donkere vak:
@@ -12,12 +16,24 @@ import androidx.compose.runtime.mutableStateMapOf
 object LogoTone {
     private val tones = mutableStateMapOf<String, Int>()
     private var prefs: android.content.SharedPreferences? = null
+    private val initMutex = Mutex()
+    private var initialized = false
 
-    fun init(ctx: Context) {
-        if (prefs != null) return
-        val p = ctx.applicationContext.getSharedPreferences("kijk_logotone", 0)
-        prefs = p
-        p.all.forEach { (k, v) -> (v as? Int)?.let { tones[k] = it } }
+    /** SharedPreferences kan bij een eerste opening schijf-I/O doen: nooit op de UI-thread. */
+    suspend fun init(ctx: Context) {
+        if (initialized) return
+        initMutex.withLock {
+            if (initialized) return@withLock
+            val (p, saved) = withContext(Dispatchers.IO) {
+                val p = ctx.applicationContext.getSharedPreferences("kijk_logotone", 0)
+                val saved = p.all.mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap()
+                p to saved
+            }
+            tones.putAll(saved)
+            prefs = p
+            initialized = true
+            android.util.Log.d("KijkPerf", "Logotinten geladen: ${saved.size}")
+        }
     }
 
     fun tone(url: String): Int = tones[url] ?: 0
