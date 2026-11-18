@@ -431,11 +431,35 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         try {
             withContext(Dispatchers.IO) {
-                var label = "Gids downloaden"
-                epg.refresh(urls) { msg, d, t ->
-                    if (msg != null) label = msg.trimEnd('…')
-                    progress = if (d >= 0) LoadProgress(label, d, t) else LoadProgress(label, progress?.done ?: 0, progress?.total ?: 0)
-                    step(3) { it.copy(state = 1, note = label, done = if (d >= 0) d else it.done, total = if (d >= 0) t else it.total) }
+                // Bij een tijdelijke socketfout de volledige XMLTV-import opnieuw proberen.
+                // EpgRepository.refresh() gebruikt een transactie: een mislukte poging
+                // wordt teruggedraaid en kan de vorige gids niet overschrijven.
+                var attempt = 0
+                while (true) {
+                    try {
+                        var label = "Gids downloaden"
+                        epg.refresh(urls) { msg, d, t ->
+                            if (msg != null) label = msg.trimEnd('…')
+                            progress = if (d >= 0) LoadProgress(label, d, t) else LoadProgress(label, progress?.done ?: 0, progress?.total ?: 0)
+                            step(3) { it.copy(state = 1, note = label, done = if (d >= 0) d else it.done, total = if (d >= 0) t else it.total) }
+                        }
+                        break
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        val chain = generateSequence(e as Throwable?) { it.cause }.take(8).toList()
+                        val temporary = chain.any { cause ->
+                            cause is java.io.IOException ||
+                                cause.message.orEmpty().contains("connection reset", ignoreCase = true) ||
+                                cause.message.orEmpty().contains("broken pipe", ignoreCase = true) ||
+                                cause.message.orEmpty().contains("timed out", ignoreCase = true)
+                        }
+                        if (!temporary || attempt >= 2) throw e
+                        attempt++
+                        val msg = "Gidsverbinding onderbroken · opnieuw proberen ($attempt/2)"
+                        progress = LoadProgress(msg)
+                        step(3) { it.copy(state = 1, note = msg, done = 0, total = 0) }
+                        delay(if (attempt == 1) 1_500L else 3_500L)
+                    }
                 }
             }
             status = null
