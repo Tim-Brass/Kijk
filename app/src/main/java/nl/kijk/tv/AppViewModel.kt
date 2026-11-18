@@ -516,11 +516,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Hergebruik de samengevoegde Live-zenderlijst zolang zenders en voorkeuren gelijk blijven. */
     private var liveListCacheVersion = -1
+    private var liveListCacheFavorites: Set<String>? = null
+    private var liveListCacheRecent: List<String>? = null
     private val liveListCache = HashMap<String, List<Channel>>()
     fun liveList(group: String): List<Channel> {
-        if (liveListCacheVersion != dataVersion) {
+        if (liveListCacheVersion != dataVersion || liveListCacheFavorites !== favorites || liveListCacheRecent !== recentChannels) {
             liveListCache.clear()
             liveListCacheVersion = dataVersion
+            liveListCacheFavorites = favorites
+            liveListCacheRecent = recentChannels
         }
         return liveListCache.getOrPut(group) {
             val source = list(group)
