@@ -104,6 +104,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var serverOffset = 0L
     private val vodCache = HashMap<String, Any?>()
     private val archCache = HashMap<String, Pair<Long, List<Programme>>>()
+    private val guideProgrammeCache = android.util.LruCache<String, Pair<Long, List<Programme>>>(96)
     private val loadLock = Mutex()
     private var loadJob: Job? = null
 
@@ -352,6 +353,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 applyHidden()
                 progress = LoadProgress("Zenders aan de gids koppelen")
                 epgMatch = try { withContext(Dispatchers.IO) { matchCached(chans, store.epgLinks) } } catch (e: Exception) { status = "Gids koppelen mislukt: ${e.message}"; emptyMap() }
+                prepareVariants()
                 dataVersion++
                 progress = null
                 refreshNowNext()
@@ -445,6 +447,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             step(3) { it.copy(state = 4, note = status) }
         } finally { epgBusy = false; progress = null }
         epgMatch = withContext(Dispatchers.IO) { matchCached(allChannels, store.epgLinks) }
+        prepareVariants()
+        guideProgrammeCache.evictAll()
         refreshNowNext()
         dataVersion++
         if (steps[3].state == 1) step(3) { it.copy(state = 2, note = epgStatsText()) }
@@ -477,16 +481,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- Gids: opschonen
     private val nameNoise = Regex("(?i)^\\s*(nl|be|vl|ned)\\s*[:|\\-\\]]\\s*|\\[(nl|be)]|\\b(uhd|fhd|hd|sd|hq|4k|8k|hevc|h265|50fps|60fps|raw|backup|vip|multi)\\b|\\(.*?\\)")
+    private val qualityFhd = Regex("\\bfhd\\b|1080")
+    private val qualityHd = Regex("\\bhd\\b")
+    private val quality4k = Regex("\\b(4k|uhd)\\b")
+    private val qualitySd = Regex("\\bsd\\b")
     fun normName(name: String) = nameNoise.replace(name, " ").lowercase().replace(Regex("[^a-z0-9+]"), "")
     /** kwaliteitsvolgorde: FHD, HD, 4K, zonder label, SD, backup */
     private fun quality(ch: Channel): Int {
         val n = ch.name.lowercase()
         return when {
             "backup" in n || "back-up" in n -> 0
-            Regex("\\bfhd\\b|1080").containsMatchIn(n) -> 40
-            Regex("\\bhd\\b").containsMatchIn(n) -> 30
-            Regex("\\b(4k|uhd)\\b").containsMatchIn(n) -> 20
-            Regex("\\bsd\\b").containsMatchIn(n) -> 5
+            qualityFhd.containsMatchIn(n) -> 40
+            qualityHd.containsMatchIn(n) -> 30
+            quality4k.containsMatchIn(n) -> 20
+            qualitySd.containsMatchIn(n) -> 5
             else -> 10
         }
     }
@@ -505,9 +513,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var groupsFor: Pair<Any?, Any?>? = null
     private var varGroups: Map<String, List<Channel>> = emptyMap()
+    private var dupKeys: Map<String, String> = emptyMap()
+    private fun uncachedDupKey(ch: Channel, match: Map<String, String>) =
+        match[ch.key]?.let { "e:$it" } ?: "n:" + normName(ch.name)
+
+    /** Bouw de variantenindex vóór het eerste optiemenu, buiten de UI-thread. */
+    private suspend fun prepareVariants() {
+        val chans = allChannels
+        val matches = epgMatch
+        val (keys, groups) = withContext(Dispatchers.Default) {
+            val keys = chans.associate { it.key to uncachedDupKey(it, matches) }
+            val groups = chans.groupBy { keys.getValue(it.key) }.filterValues { it.size > 1 }
+                .mapValues { (_, v) -> v.sortedWith(compareByDescending<Channel> { quality(it) }.thenBy { it.number }) }
+            keys to groups
+        }
+        if (chans === allChannels && matches === epgMatch) {
+            dupKeys = keys
+            varGroups = groups
+            groupsFor = chans to matches
+            android.util.Log.d("KijkPerf", "Variantenindex klaar: ${groups.size} groepen")
+        }
+    }
+
     private fun groupMap(): Map<String, List<Channel>> {
         if (groupsFor?.first !== allChannels || groupsFor?.second !== epgMatch) {
-            varGroups = allChannels.groupBy { dupKey(it) }.filterValues { it.size > 1 }
+            // Alleen fallback wanneer de gids/playlist op de achtergrond gewijzigd is.
+            dupKeys = allChannels.associate { it.key to uncachedDupKey(it, epgMatch) }
+            varGroups = allChannels.groupBy { dupKeys.getValue(it.key) }.filterValues { it.size > 1 }
                 .mapValues { (_, v) -> v.sortedWith(compareByDescending<Channel> { quality(it) }.thenBy { it.number }) }
             groupsFor = allChannels to epgMatch
         }
@@ -524,7 +556,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun pickVariant(ch: Channel) { store.variantPick = store.variantPick + (dupKey(ch) to ch.key); dataVersion++ }
 
     /** Varianten van dezelfde zender (zelfde gids-koppeling, anders zelfde schone naam). */
-    private fun dupKey(ch: Channel) = epgMatch[ch.key]?.let { "e:$it" } ?: "n:" + normName(ch.name)
+    private fun dupKey(ch: Channel) = if (groupsFor?.first === allChannels && groupsFor?.second === epgMatch)
+        dupKeys[ch.key] ?: uncachedDupKey(ch, epgMatch) else uncachedDupKey(ch, epgMatch)
 
     fun bumpData() { dataVersion++ }
 
@@ -564,6 +597,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Gids uit XMLTV, aangevuld met de terugkijkgids van de server voor oudere programma's. */
     suspend fun programmes(ch: Channel, from: Long, to: Long): List<Programme> = withContext(Dispatchers.IO) {
+        val cacheKey = "${ch.key}:${epgMatch[ch.key]}:${epgOffsetMinutes}:$from:$to"
+        val cached = guideProgrammeCache.get(cacheKey)
+        if (cached != null && System.currentTimeMillis() - cached.first < 3 * 60_000L) return@withContext cached.second
         val f = from - offset; val t = to - offset
         val cid = epgMatch[ch.key]
         var lst = if (cid != null) epg.programmes(cid, f, t) else emptyList()
@@ -575,7 +611,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 lst = EpgRepository.dedupe(older + lst)
             }
         }
-        lst.map { it.copy(start = it.start + offset, stop = it.stop + offset) }
+        val result = lst.map { it.copy(start = it.start + offset, stop = it.stop + offset) }
+        guideProgrammeCache.put(cacheKey, System.currentTimeMillis() to result)
+        result
     }
 
     private fun archiveEpg(xt: Xtream, sid: String): List<Programme> {
