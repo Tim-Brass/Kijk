@@ -87,6 +87,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         save = { listOf(it.tab, it.group) }, restore = { HomeState(it[0] as Int).apply { group = it[1] as String } },
     )) { HomeState(if (overlay == null) TAB_HOME else vm.store.lastTab.coerceIn(0, TABS.lastIndex).takeIf { it != TAB_HOME } ?: TAB_LIVE) }
     val tabFocus = remember { List(TABS.size) { FocusRequester() } }
+    // Bewaar de LazyColumn/LazyRow scrollpositie per tab, ook wanneer het scherm uit compositie gaat.
+    val tabStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var digits by remember { mutableStateOf("") }
     // over een zender: de gids pakt zelf de selectie (op de huidige zender)
     LaunchedEffect(Unit) { runCatching { tabFocus[hs.tab].requestFocus() } }
@@ -169,7 +171,8 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             Column(Modifier.weight(1f).padding(start = side, end = side, bottom = if (hs.tab == TAB_HOME) 6.dp else Kijk.SafeV)) {
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f)) {
-                FadeIn(hs.tab) {
+                tabStateHolder.SaveableStateProvider(hs.tab) {
+                    FadeIn(hs.tab) {
                     when (hs.tab) {
                         TAB_HOME -> HomeTab(vm, nav, hs, overlay?.onPlay)
                         TAB_LIVE -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { LiveTab(vm, nav, hs, overlay?.onPlay) }
@@ -178,6 +181,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         TAB_SERIES -> VodTab(vm, nav, series = true, hs = hs)
                         TAB_SEARCH -> SearchTab(vm, nav)
                         else -> androidx.compose.runtime.CompositionLocalProvider(LocalDarkFocus provides true) { SettingsTab(vm, nav) }
+                    }
                     }
                 }
             }
@@ -201,7 +205,8 @@ private fun LiveTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Ch
     val all = special + vm.groups
     if (hs.group !in all) hs.group = GROUP_ALL
     val list = remember(vm.dataVersion, hs.group, vm.favorites, vm.recentChannels, vm.unlocked, vm.epgMatch) {
-        vm.list(hs.group).let { if (hs.group == GROUP_RECENT) it else vm.mergeList(it) } }
+        vm.liveList(hs.group)
+    }
     Row(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.width(230.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
             items(all) { g ->
