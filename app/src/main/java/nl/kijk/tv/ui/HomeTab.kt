@@ -135,9 +135,9 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 },
             state = listState, contentPadding = PaddingValues(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (favs.isNotEmpty()) item {
+            if (favs.isNotEmpty()) item(key = "favorites") {
                 HomeRow("Nu op je favorieten") {
-                    items(favs) { ch ->
+                    items(favs, key = { it.key }) { ch ->
                         FavChannelCard(vm, ch) {
                             val idx = vm.channels.indexOf(ch).coerceAtLeast(0)
                             if (onPlay != null) onPlay(vm.channels, idx) else nav.push(Screen.Live(vm.channels, idx))
@@ -146,7 +146,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 }
             }
             val f1 = vm.f1; val psv = vm.psvMatch; val table = vm.eredivisie
-            if (f1 != null || psv != null || table != null) item {
+            if (f1 != null || psv != null || table != null) item(key = "sports") {
                 SportRow {
                     // OK: bezig → zender aan; nog niet begonnen → herinnering; niets gevonden → uitleg
                     fun act(tv: nl.kijk.tv.SportTv?, start: Long, live: Boolean, title: String) {
@@ -166,9 +166,9 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                 }
             }
             if (vm.homeyReady) item(key = "huis") { HuisRow(vm, nav) }
-            if (newest.isNotEmpty()) item {
+            if (newest.isNotEmpty()) item(key = "newest") {
                 HomeRow("Nieuwste films en series") {
-                    items(newest) { item ->
+                    items(newest, key = { item -> when (item) { is Movie -> "movie:${item.id}"; is Show -> "show:${item.id}"; else -> item.hashCode().toString() } }) { item ->
                         when (item) {
                             is Movie -> PosterCard(item.name, item.poster, null, Modifier.width(92.dp), fav = vm.isFav(item), onLongClick = { vm.toggleFav(item) },
                                 onFocus = { focusItem = item }, fallback = { vm.posterFallback(item) }, known = vm.knownPoster(item)) { openMovie(item, resume = false) }
@@ -178,7 +178,7 @@ fun HomeTab(vm: AppViewModel, nav: Nav, hs: HomeState, onPlay: ((List<Channel>, 
                     }
                 }
             }
-            if (favs.isEmpty() && newest.isEmpty()) item {
+            if (favs.isEmpty() && newest.isEmpty()) item(key = "empty") {
                 Label(if (vm.progress != null) "Even geduld, de lijsten worden geladen…" else "Kies Live, Gids, Films of Series in het menu.",
                     Modifier.padding(12.dp), color = Kijk.Secondary)
             }
