@@ -69,6 +69,7 @@ class HomeState(tab: Int) {
     var tab by mutableIntStateOf(tab)
     var group by mutableStateOf(GROUP_ALL)
     var jump by mutableStateOf<Channel?>(null)   // zendernummer ingetypt: gids springt hierheen
+    var guideTop by mutableStateOf(0)            // terug naar het menu: gids naar boven
     var backdrop by mutableStateOf<String?>(null) // achtergrondfoto bij Films/Series
 }
 
@@ -116,7 +117,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     BackHandler {
         when {
             // eerst altijd terug naar de menubalk, ook als het menu over een zender ligt
-            !tabsFocused -> runCatching { tabFocus[hs.tab].requestFocus() }
+            !tabsFocused -> { if (hs.tab == TAB_GUIDE && overlay == null) hs.guideTop++; runCatching { tabFocus[hs.tab].requestFocus() } }
             overlay != null -> overlay.onClose()
             hs.tab != TAB_HOME -> { hs.tab = TAB_HOME; runCatching { tabFocus[TAB_HOME].requestFocus() } }
             else -> nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {

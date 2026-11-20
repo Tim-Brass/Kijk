@@ -123,6 +123,8 @@ fun GuideGrid(
         if (n < halfHour(now - maxBack) || n > now + 7 * DAY) return false
         winStart = n; return true
     }
+    // terug naar het menu: gids weer bovenaan
+    LaunchedEffect(hs.guideTop) { if (hs.guideTop > 0) state.scrollToItem(0) }
     LaunchedEffect(hs.jump) {
         val j = hs.jump ?: return@LaunchedEffect
         val i = list.indexOfFirst { it.key == j.key }
@@ -214,8 +216,16 @@ private fun GuideRow(
     val reqs = remember { HashMap<Long, FocusRequester>() }
     var want by remember { mutableStateOf<Long?>(null) }
     val bucket = winStart - Math.floorMod(winStart, BUCKET)
-    val progs by produceState<List<Programme>?>(null, ch.key, bucket, vm.dataVersion, vm.epgOffsetMinutes) {
-        value = try { vm.programmes(ch, bucket - HOUR, bucket + BUCKET + WINDOW + HOUR) } catch (_: Exception) { emptyList() }
+    val needOld = winStart < System.currentTimeMillis() - HOUR   // alleen bij terugschuiven in de tijd
+    val progs by produceState<List<Programme>?>(null, ch.key, bucket, vm.dataVersion, vm.epgOffsetMinutes, needOld) {
+        val from = bucket - HOUR; val to = bucket + BUCKET + WINDOW + HOUR
+        // 1. meteen de lokale gids (snel, geen netwerk)
+        value = try { vm.programmes(ch, from, to, archive = false) } catch (_: Exception) { emptyList() }
+        // 2. terugkijkgids alleen als het nodig is én de regel even in beeld blijft (langs scrollen = niets ophalen)
+        if (needOld && vm.needsArchive(ch, winStart)) {
+            delay(500)
+            value = try { vm.programmes(ch, from, to, archive = true) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { value }
+        }
     }
     val winEnd = winStart + WINDOW
     val chanFocus = remember { FocusRequester() }

@@ -13,6 +13,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import nl.kijk.tv.data.Catchup
 import nl.kijk.tv.data.Channel
@@ -106,7 +108,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var playlistEpgUrl: String? = null
     private var serverOffset = 0L
     private val vodCache = HashMap<String, Any?>()
-    private val archCache = HashMap<String, Pair<Long, List<Programme>>>()
+    // terugkijkgids per zender: veilig bij gelijktijdig gebruik, hooguit 40 in het geheugen, max 2 downloads tegelijk
+    private val archCache = android.util.LruCache<String, Pair<Long, List<Programme>>>(40)
+    private val archGate = kotlinx.coroutines.sync.Semaphore(2)
     private val guideProgrammeCache = android.util.LruCache<String, Pair<Long, List<Programme>>>(96)
     private val loadLock = Mutex()
     private var loadJob: Job? = null
@@ -352,7 +356,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 allGroups = chans.map { it.group }.distinct()
                 val newVod: VodSource? = xt ?: pl.vod.takeIf { it.isNotEmpty() }?.let { M3uVodSource(it) }
                 if (newVod?.javaClass != vod?.javaClass || downloaded) { indexJob?.cancel(); vodIndexReady = false }
-                vod = newVod; vodCache.clear(); archCache.clear()
+                vod = newVod; vodCache.clear(); archCache.evictAll()
                 applyHidden()
                 progress = LoadProgress("Zenders aan de gids koppelen")
                 epgMatch = try { withContext(Dispatchers.IO) { matchCached(chans, store.epgLinks) } } catch (e: Exception) { status = "Gids koppelen mislukt: ${e.message}"; emptyMap() }
@@ -629,15 +633,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Gids uit XMLTV, aangevuld met de terugkijkgids van de server voor oudere programma's. */
-    suspend fun programmes(ch: Channel, from: Long, to: Long): List<Programme> = withContext(Dispatchers.IO) {
-        val cacheKey = "${ch.key}:${epgMatch[ch.key]}:${epgOffsetMinutes}:$from:$to"
+    /** Lokale gids (snel) en, alleen als archive = true en echt nodig, de terugkijkgids van de aanbieder erbij. */
+    suspend fun programmes(ch: Channel, from: Long, to: Long, archive: Boolean = true): List<Programme> = withContext(Dispatchers.IO) {
+        val cacheKey = "${ch.key}:${epgMatch[ch.key]}:${epgOffsetMinutes}:$from:$to:$archive"
         val cached = guideProgrammeCache.get(cacheKey)
         if (cached != null && System.currentTimeMillis() - cached.first < 3 * 60_000L) return@withContext cached.second
         val f = from - offset; val t = to - offset
         val cid = epgMatch[ch.key]
         var lst = if (cid != null) epg.programmes(cid, f, t) else emptyList()
         val xt = xtream
-        if (xt != null && ch.archiveDays > 0 && ch.streamId != null && f < System.currentTimeMillis()) {
+        if (archive && xt != null && ch.archiveDays > 0 && ch.streamId != null && f < System.currentTimeMillis()) {
             val earliest = lst.minOfOrNull { it.start } ?: cid?.let { epg.earliest(it) }
             if (earliest == null || f < earliest) {
                 val older = archiveEpg(xt, ch.streamId).filter { it.stop > f && it.start < t && (earliest == null || it.stop <= earliest + 5 * MINUTE) }
@@ -678,11 +683,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun archiveEpg(xt: Xtream, sid: String): List<Programme> {
-        archCache[sid]?.let { if (System.currentTimeMillis() - it.first < 30 * MINUTE) return it.second }
-        val l = try { xt.archiveEpg(sid) } catch (_: Exception) { emptyList() }
-        archCache[sid] = System.currentTimeMillis() to l
-        return l
+    private suspend fun archiveEpg(xt: Xtream, sid: String): List<Programme> {
+        archCache.get(sid)?.let { if (System.currentTimeMillis() - it.first < 30 * MINUTE) return it.second }
+        return archGate.withPermit {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()   // regel al uit beeld: niet meer downloaden
+            archCache.get(sid)?.let { if (System.currentTimeMillis() - it.first < 30 * MINUTE) return@withPermit it.second }
+            val l = try { xt.archiveEpg(sid) } catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("terugkijkgids $sid: ${e.message ?: e.javaClass.simpleName}"); emptyList() }
+            archCache.put(sid, System.currentTimeMillis() to l)
+            l
+        }
+    }
+    /** Is de terugkijkgids nodig voor dit venster? Alleen als het venster vóór de lokale gids begint. */
+    suspend fun needsArchive(ch: Channel, viewFrom: Long): Boolean = withContext(Dispatchers.IO) {
+        if (xtream == null || ch.archiveDays <= 0 || ch.streamId == null) return@withContext false
+        val t = viewFrom - offset
+        if (t >= System.currentTimeMillis()) return@withContext false
+        val earliest = epgMatch[ch.key]?.let { epg.earliest(it) } ?: return@withContext true
+        t < earliest
     }
 
     fun canCatchup(ch: Channel, p: Programme, at: Long = now) = p.stop <= at && ch.archiveDays > 0 && p.start > at - ch.archiveDays * DAY
