@@ -733,7 +733,7 @@ fun CupraBattery(percent: Int, charging: Boolean, modifier: Modifier = Modifier)
     val pulse = anim?.animateFloat(0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable<Float>(
         androidx.compose.animation.core.tween<Float>(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "puls")
     Box(modifier) {
-        androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.cupra_batterij), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.cupra_batterij, alpha = true), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
             val W = size.width; val H = size.height
             // binnenkant van de behuizing (verhoudingen uit de afbeelding)
@@ -781,10 +781,9 @@ private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val car = vm.hyCar ?: return
     val bat = car.battery ?: 0
     HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra, bias = 0.85f, light = true) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Label("Cupra Leon", Modifier.weight(1f), size = 14.sp, weight = Kijk.Semibold, color = CupraC, maxLines = 1)
-            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.cupra_logo), "Cupra", Modifier.height(24.dp))
-        }
+        // koperen Cupra-logo met woordmerk (aangeleverd), in plaats van tekst + los logo
+        androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.cupra_woordmerk, alpha = true), "Cupra",
+            Modifier.height(22.dp), contentScale = ContentScale.FillHeight, alignment = Alignment.CenterStart)
         Spacer(Modifier.weight(1f))   // de auto staat nu in de achtergrond
         Row(verticalAlignment = Alignment.CenterVertically) {
             CupraBattery(bat, car.charging, Modifier.size(width = 74.dp, height = 27.dp))

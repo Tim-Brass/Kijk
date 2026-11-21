@@ -546,12 +546,13 @@ private val CardH = 186.dp
 /** Achtergronden één keer inlezen (zuinig, 16-bits) en delen tussen alle kaarten, ook bij veel favorieten. */
 private val backdropCache = HashMap<Int, androidx.compose.ui.graphics.ImageBitmap>()
 @Composable
-internal fun backdropBitmap(res: Int): androidx.compose.ui.graphics.ImageBitmap {
+internal fun backdropBitmap(res: Int, alpha: Boolean = false): androidx.compose.ui.graphics.ImageBitmap {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     return remember(res) {
         backdropCache.getOrPut(res) {
-            android.graphics.BitmapFactory.decodeResource(ctx.resources, res,
-                android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }).asImageBitmap()
+            // achtergronden zuinig in 16 bits; plaatjes met doorzichtigheid (batterij, logo) in 32 bits
+            android.graphics.BitmapFactory.decodeResource(ctx.resources, res, android.graphics.BitmapFactory.Options().apply {
+                inPreferredConfig = if (alpha) android.graphics.Bitmap.Config.ARGB_8888 else android.graphics.Bitmap.Config.RGB_565 }).asImageBitmap()
         }
     }
 }
