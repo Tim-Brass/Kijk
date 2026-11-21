@@ -559,10 +559,17 @@ internal fun backdropBitmap(res: Int, alpha: Boolean = false): androidx.compose.
 
 /** Achtergrondbeeld van een sportkaart: rechts uitgelijnd, links extra donker zodat de tekst leesbaar blijft. */
 @Composable
-internal fun CardBackdrop(res: Int, bias: Float = 1f, light: Boolean = false) {
+internal fun CardBackdrop(res: Int, bias: Float = 1f, light: Boolean = false, zoom: Float = 1f, vBias: Float = 0f) {
     // bias: welk deel van het beeld in een smalle kaart blijft (1 = rechterrand, 0 = midden)
+    // zoom > 1 met vBias: beeld iets groter, zodat het onderwerp omhoog (vBias 1) of omlaag (-1) kan schuiven
+    val scale = if (zoom == 1f) androidx.compose.ui.layout.ContentScale.Crop else object : androidx.compose.ui.layout.ContentScale {
+        override fun computeScaleFactor(srcSize: androidx.compose.ui.geometry.Size, dstSize: androidx.compose.ui.geometry.Size): androidx.compose.ui.layout.ScaleFactor {
+            val f = maxOf(dstSize.width / srcSize.width, dstSize.height / srcSize.height) * zoom
+            return androidx.compose.ui.layout.ScaleFactor(f, f)
+        }
+    }
     androidx.compose.foundation.Image(backdropBitmap(res), null, Modifier.fillMaxSize(),
-        contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(bias, 0f))
+        contentScale = scale, alignment = androidx.compose.ui.BiasAlignment(bias, vBias))
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
         if (light) listOf(Color(0xA60B0B0F), Color(0x400B0B0F), Color(0x0D0B0B0F))
         else listOf(Color(0xD90B0B0F), Color(0x800B0B0F), Color(0x1A0B0B0F)))))
