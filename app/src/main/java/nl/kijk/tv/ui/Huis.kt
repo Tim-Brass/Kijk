@@ -93,8 +93,9 @@ fun HuisRow(vm: AppViewModel, nav: Nav) {
 }
 
 @Composable
-private fun HuisCard(modifier: Modifier, onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun HuisCard(modifier: Modifier, onClick: () -> Unit, backdrop: Int? = null, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+        if (backdrop != null) CardBackdrop(backdrop)
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 9.dp)) { content() }
     }
 }
@@ -119,7 +120,7 @@ private fun CardFoot(text: String, color: Color = GreyH) {
 @Composable
 private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val t = vm.hyThermostat
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_temp) {
         CardHead("Temperatuur", TempC)
         Row(verticalAlignment = Alignment.Bottom) {
             Label(deg(vm.hyShown(t, "measure_temperature")), size = 30.sp, weight = Kijk.Bold, color = Color.White)
@@ -141,7 +142,7 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
 private fun LightCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val rooms = vm.hyRooms
     val on = rooms.filter { it.on > 0 }
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_licht) {
         CardHead("Verlichting", LightC)
         Row(verticalAlignment = Alignment.Bottom) {
             Label("${on.size}", size = 30.sp, weight = Kijk.Bold, color = Color.White)
@@ -365,7 +366,7 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
     val items = afvalItems(vm)
     val today = dayStart(vm.now)
     val next = items.firstOrNull { (it.date ?: Long.MAX_VALUE) >= today } ?: items.firstOrNull()
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_afval) {
         CardHead("Afval", AfvalC)
         if (next == null) {
             Label(if (vm.hyAfval == null && vm.hyAfvalSettings == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
@@ -431,7 +432,7 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
 @Composable
 private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val b = vm.hyBell
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_bel) {
         CardHead("Deurbel", BellC)
         HomeyImage(vm, b, Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp, bottom = 5.dp))
         val ring = vm.hyRings.firstOrNull()
@@ -702,16 +703,12 @@ fun CarBattery(percent: Int, target: Int, charging: Boolean, modifier: Modifier 
 private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val car = vm.hyCar ?: return
     val bat = car.battery ?: 0
-    HuisCard(modifier, onClick) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Label("Cupra Leon", Modifier.weight(1f), size = 14.sp, weight = Kijk.Semibold, color = CupraC, maxLines = 1)
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.cupra_logo), "Cupra", Modifier.height(24.dp))
         }
-        // hele auto zichtbaar: passend in het vak (niet bijsnijden), midden
-        Box(Modifier.fillMaxWidth().weight(1f).padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.car_cupra), "Cupra Leon",
-                Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-        }
+        Spacer(Modifier.weight(1f))   // de auto staat nu in de achtergrond
         Row(verticalAlignment = Alignment.CenterVertically) {
             CarBattery(bat, car.target ?: 100, car.charging, Modifier.size(width = 46.dp, height = 22.dp))
             Spacer(Modifier.width(8.dp))
