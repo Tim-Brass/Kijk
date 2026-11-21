@@ -479,7 +479,16 @@ private fun HuisPanel(vm: AppViewModel, kind: String, onClose: () -> Unit) {
         Box(Modifier.fillMaxSize()) {
             val first = remember { FocusRequester() }
             LaunchedEffect(Unit) { delay(80); runCatching { first.requestFocus() } }
-            Column(Modifier.align(Alignment.CenterEnd).width(480.dp).fillMaxHeight().background(PanelBg)
+            // achtergrond van het venster: hetzelfde beeld als de kaart, gedimd zodat de regels leesbaar blijven
+            val (bg, bias) = when (kind) { "temp" -> nl.kijk.tv.R.drawable.huis_temp to 1f; "light" -> nl.kijk.tv.R.drawable.huis_licht to 1f
+                "auto" -> nl.kijk.tv.R.drawable.huis_cupra to 0.88f; else -> nl.kijk.tv.R.drawable.huis_afval to 0.95f }
+            Box(Modifier.align(Alignment.CenterEnd).width(480.dp).fillMaxHeight().background(PanelBg)) {
+                androidx.compose.foundation.Image(backdropBitmap(bg), null, Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(bias, 0f))
+                Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(Color(0xE60B0B0F), Color(0xB30B0B0F), Color(0xD90B0B0F)))))
+            }
+            Column(Modifier.align(Alignment.CenterEnd).width(480.dp).fillMaxHeight()
                 .padding(start = 26.dp, end = Kijk.SafeH, top = Kijk.SafeV + 6.dp, bottom = Kijk.SafeV)) {
                 val (title, color) = when (kind) { "temp" -> "Temperatuur" to TempC; "light" -> "Verlichting" to LightC; "auto" -> "Cupra Leon" to CupraC; else -> "Afval" to AfvalC }
                 Row(verticalAlignment = Alignment.CenterVertically) {
