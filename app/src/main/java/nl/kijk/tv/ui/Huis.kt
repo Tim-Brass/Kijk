@@ -95,7 +95,7 @@ fun HuisRow(vm: AppViewModel, nav: Nav) {
 
 @Composable
 private fun HuisCard(modifier: Modifier, onClick: () -> Unit, backdrop: Int? = null, bias: Float = 1f, light: Boolean = false, zoom: Float = 1f, vBias: Float = 0f, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+    FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true, outline = Outline.Steel) { _ ->
         if (backdrop != null) CardBackdrop(backdrop, bias, light, zoom, vBias)
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 9.dp)) { content() }
     }

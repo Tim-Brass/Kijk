@@ -43,6 +43,12 @@ import androidx.compose.ui.text.font.FontWeight
 /** Schermen in de "donker + blauw randje"-stijl (Live, Gids, Instellingen) zetten dit aan voor al hun tegels. */
 val LocalDarkFocus = androidx.compose.runtime.staticCompositionLocalOf { true }   // overal de donkere stijl
 
+/** Kleuren voor het rustrandje van kaarten. */
+object Outline {
+    val Steel = Color(0xFF9FB8DA)   // koel staal/blauw: standaard
+    val Gold = Color(0xFFD9B26A)    // goud: uitgelichte kaart (volgende wedstrijd)
+}
+
 @Composable
 fun FocusCard(
     onClick: () -> Unit,
@@ -54,6 +60,7 @@ fun FocusCard(
     focusedScale: Float = 1.03f,
     focusRing: Boolean = false,   // dun blauw randje om het geselecteerde item (posters)
     darkFocus: Boolean = false,   // tegel blijft donker bij focus, met een wit randje (sporttegels)
+    outline: Color? = null,       // dun glazen randje in rust (licht aan de bovenkant), bv. Outline.Steel of Outline.Gold
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -61,6 +68,10 @@ fun FocusCard(
     Surface(
         // sporttegels en posters: hetzelfde dunne blauwe randje met een beetje ruimte eromheen
         border = if (focusRing || darkFocus) ClickableSurfaceDefaults.border(
+            // rust: dun lichtrandje, bovenaan het helderst (als glas dat licht vangt)
+            border = outline?.let { o -> androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(1.dp,
+                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(o.copy(alpha = 0.75f), o.copy(alpha = 0.22f), o.copy(alpha = 0.40f)))), inset = 0.dp, shape = shape) }
+                ?: androidx.tv.material3.Border.None,
             focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Kijk.Accent), inset = 3.dp, shape = shape),
         ) else ClickableSurfaceDefaults.border(),
         onClick = onClick,
