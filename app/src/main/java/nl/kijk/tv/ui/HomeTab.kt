@@ -537,6 +537,15 @@ private fun LogoOr(url: String?, modifier: Modifier, fallback: @Composable () ->
 
 private val CardW = 268.dp
 private val CardH = 186.dp
+
+/** Achtergrondbeeld van een sportkaart: rechts uitgelijnd, links extra donker zodat de tekst leesbaar blijft. */
+@Composable
+private fun CardBackdrop(res: Int) {
+    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(res), null, Modifier.fillMaxSize(),
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.CenterEnd)
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
+        0f to Color(0xD90B0B0F), 0.55f to Color(0x800B0B0F), 1f to Color(0x1A0B0B0F))))
+}
 private val F1Red = Color(0xFFE10600)
 private val PsvRed = Color(0xFFED1C24)
 private val KnvbOrange = Color(0xFFFF7A00)
@@ -546,6 +555,7 @@ private fun F1Card(vm: AppViewModel, w: nl.kijk.tv.data.F1Weekend, tv: nl.kijk.t
     val now = vm.now
     val next = w.sessions.firstOrNull { it.start + 2 * 3600_000L > now }
     FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+        CardBackdrop(nl.kijk.tv.R.drawable.sport_f1)
         Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(nl.kijk.tv.data.Sports.F1_LOGO, Modifier.height(26.dp).width(52.dp)) {
@@ -598,6 +608,7 @@ private fun TableCard(t: nl.kijk.tv.data.Table, modifier: Modifier) {
     val shown = if (psv == null || psv.rank <= 5) t.rows.take(5) else t.rows.take(4) + psv
     val round = t.rows.maxOfOrNull { it.played } ?: 0
     FocusCard(onClick = {}, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+        CardBackdrop(nl.kijk.tv.R.drawable.sport_eredivisie)
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(t.logo, Modifier.size(26.dp)) { }
@@ -650,6 +661,7 @@ private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv
     val now = vm.now
     val accent = if (m.team == "PSV") PsvRed else KnvbOrange
     FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
+        CardBackdrop(if (m.team == "Oranje") nl.kijk.tv.R.drawable.sport_oranje else nl.kijk.tv.R.drawable.sport_psv)
         Box(Modifier.fillMaxWidth().height(4.dp).background(accent))   // gekleurde streep bovenaan
         Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
