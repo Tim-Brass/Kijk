@@ -137,7 +137,11 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         if (overlay == null && (hs.tab == TAB_HOME || hs.tab == TAB_FILMS || hs.tab == TAB_SERIES)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
-            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
+            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline()) {
+                // achtergrond van de menubalk: blauwe lichtlijn onderaan, op alle tabbladen
+                androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.menu_balk), null, Modifier.matchParentSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.BottomCenter)
+              Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
                         val m = Modifier.focusRequester(tabFocus[i])
@@ -166,6 +170,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         }
                     }) { c -> LineIcon(LineIconKind.Exit, c) }
                 }
+              }
             }
             // Thuis: iets smallere zijmarges, zodat er meer op past
             val side = 28.dp   // op alle tabbladen dezelfde, iets smallere zijmarges als op Thuis
