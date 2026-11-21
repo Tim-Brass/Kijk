@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.zIndex
@@ -154,7 +155,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
               Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
-                        val m = Modifier.focusRequester(tabFocus[i])
+                        val m = Modifier.focusRequester(tabFocus[i]).tabShade()
                         // wisselen pas bij OK, niet bij alleen erlangs bewegen
                         when (i) {
                             TAB_SEARCH -> LineItem(m, active = hs.tab == i, onClick = { pick(i) }) { c -> LineIcon(LineIconKind.Search, c) }
@@ -174,7 +175,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                         Spacer(Modifier.width(10.dp))
                     }
                     // afsluiten
-                    LineItem(onClick = {
+                    LineItem(modifier = Modifier.tabShade(), onClick = {
                         nav.confirm("Kijk afsluiten?", "Kijk wordt helemaal gesloten. De volgende keer start hij opnieuw op.", yes = "Afsluiten") {
                             quitApp(activity, vm)
                         }
@@ -323,5 +324,15 @@ fun GoodbyeScreen() {
             Spacer(Modifier.height(22.dp))
             Label("Tot Kijk!", size = Kijk.LargeTitle, color = Color.White)
         }
+    }
+}
+
+/** Zachte donkere schaduw achter een tab of icoon, zodat het loskomt van de menubalk-achtergrond. Alleen tekenen, geen extra laag. */
+private fun Modifier.tabShade(): Modifier = this.drawBehind {
+    // elliptische zachte vlek: cirkel met verloop, verticaal platgedrukt
+    val rx = size.width / 2 + size.width * 0.35f + 10.dp.toPx(); val ry = size.height / 2 + size.height * 0.45f
+    scale(1f, ry / rx, pivot = center) {
+        drawCircle(androidx.compose.ui.graphics.Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.3f), Color.Transparent),
+            center = center, radius = rx), radius = rx, center = center)
     }
 }
