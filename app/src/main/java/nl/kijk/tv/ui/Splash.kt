@@ -2,7 +2,11 @@
 
 package nl.kijk.tv.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -19,31 +23,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.res.imageResource
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -54,39 +45,35 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.delay
 import nl.kijk.tv.AppViewModel
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 
-private val OrbitDim = Color(0xFF1F3A8A)
-private val OrbitBright = Color(0xFF2F6BFF)
-private val TileBg = Color(0xFF0F1626)
-private val TileLine = Color(0xFF1D2A44)
-private val IconBlue = Color(0xFF5B8CFF)
-
-/** Wat Kijk aan het doen is, per stap (zelfde volgorde als vm.steps). */
+/** Dezelfde echte laadstappen als in de bestaande Kijk-versie. */
 private val DOING = listOf("Playlist laden", "Zenders laden", "Terugkijken controleren", "Gids laden", "Films en series laden")
 
 /**
- * Laadscherm: zwart, het kijk-logo met oogjes in het midden, vier iconen die langzaam rond het logo
- * vliegen over een blauwe baan, en onderaan gewoon wat Kijk doet met één dun voortgangsbalkje.
- * Eén frameklok; de iconen en de baan worden in twee Canvassen getekend (achter en voor het logo).
+ * Premium zwart laadscherm: het bestaande woordmerk met de bewegende oogjes,
+ * een ingetogen blauwe lichtstreep en een eerlijke laadstatus.
+ *
+ * Geen rondvliegende tiles of netwerkverzoeken: alleen de horizonboog ademt en krijgt een glijdende glans;
+ * EyesLogo animeert zijn eigen Canvas.
+ * De startupflow, voortgangsberekening en de 20s-OK-optie blijven ongewijzigd.
  */
 @Composable
 fun SplashScreen(vm: AppViewModel) {
     val focus = remember { FocusRequester() }
     var canSkip by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() }; delay(20_000); canSkip = true }
-    val frame = remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) { while (true) withFrameNanos { frame.longValue = it } }
-    val start = remember { System.nanoTime() }
-    val ball = ImageBitmap.imageResource(nl.kijk.tv.R.drawable.ic_football)
+    LaunchedEffect(Unit) {
+        runCatching { focus.requestFocus() }
+        delay(20_000)
+        canSkip = true
+    }
 
     val steps = vm.steps
     val done = steps.all { it.state >= 2 }
     val failed = steps.firstOrNull { it.state == 4 }
-    val cur = steps.indexOfFirst { it.state == 1 }.takeIf { it >= 0 } ?: steps.indexOfFirst { it.state == 0 }.takeIf { it >= 0 } ?: steps.lastIndex
-    val prog = steps.sumOf { s ->
+    val cur = steps.indexOfFirst { it.state == 1 }.takeIf { it >= 0 }
+        ?: steps.indexOfFirst { it.state == 0 }.takeIf { it >= 0 }
+        ?: steps.lastIndex
+    val progress = steps.sumOf { s ->
         when {
             s.state >= 2 -> 1.0
             s.state == 1 && s.total > 0 -> 0.15 + 0.8 * (s.done.toDouble() / s.total).coerceIn(0.0, 1.0)
@@ -94,166 +81,93 @@ fun SplashScreen(vm: AppViewModel) {
             else -> 0.0
         }
     }.toFloat() / steps.size.coerceAtLeast(1)
-    val shown by animateFloatAsState(if (done) 1f else prog, tween(450), label = "prog")
+    val shown by animateFloatAsState(if (done) 1f else progress, tween(450), label = "loadingProgress")
+    val transition = rememberInfiniteTransition(label = "loadingLight")
+    // rustig ademen van de gloed
+    val light by transition.animateFloat(
+        initialValue = 0.72f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(3200, easing = androidx.compose.animation.core.FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "lightIntensity",
+    )
+    // een zachte glans die langzaam over de boog glijdt (met pauze aan het eind)
+    val sheen by transition.animateFloat(
+        initialValue = -0.25f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(animation = tween(5200, easing = androidx.compose.animation.core.FastOutSlowInEasing)),
+        label = "sheen",
+    )
 
     Box(
         Modifier.fillMaxSize().background(Color.Black).focusRequester(focus)
-            .onKeyEvent { e ->
-                if (canSkip && e.type == KeyEventType.KeyDown && (e.key == Key.DirectionCenter || e.key == Key.Enter)) { vm.finishStartup(); true } else false
+            .onKeyEvent { event ->
+                if (canSkip && event.type == KeyEventType.KeyDown &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)) {
+                    vm.finishStartup()
+                    true
+                } else false
             }.focusable(),
     ) {
-        // achterste helft van de baan en de iconen die achter het logo langs gaan
-        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = false, ball = ball) }
-        // logo
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            EyesLogo(done = done, modifier = Modifier.offset(y = (-54).dp).height(118.dp))   // midden van de baan (40% hoogte)
+        // Blauwe horizonboog onder het logo: brede zachte gloed, heldere kern, glans die eroverheen glijdt
+        Canvas(Modifier.align(Alignment.Center).offset(y = 58.dp).fillMaxWidth(0.84f).height(150.dp)) {
+            val w = size.width; val h = size.height
+            val top = h * 0.22f
+            val arc = androidx.compose.ui.graphics.Path().apply {
+                moveTo(0f, h * 0.78f); quadraticBezierTo(w / 2, top - h * 0.2f, w, h * 0.78f)
+            }
+            val blue = Color(0xFF0A84FF); val cyan = Color(0xFF64D2FF)
+            // licht onder de horizon (atmosfeer)
+            drawOval(Brush.radialGradient(listOf(blue.copy(alpha = 0.22f * light), Color.Transparent),
+                center = Offset(w / 2, top + h * 0.05f), radius = w * 0.42f),
+                topLeft = Offset(w * 0.08f, top - h * 0.1f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.9f))
+            fun edgeFade(c: Color, a: Float) = Brush.horizontalGradient(0f to Color.Transparent, 0.18f to c.copy(alpha = a), 0.5f to c.copy(alpha = a),
+                0.82f to c.copy(alpha = a), 1f to Color.Transparent)
+            drawPath(arc, edgeFade(blue, 0.10f * light), style = androidx.compose.ui.graphics.drawscope.Stroke(26.dp.toPx(), cap = StrokeCap.Round))
+            drawPath(arc, edgeFade(blue, 0.28f * light), style = androidx.compose.ui.graphics.drawscope.Stroke(8.dp.toPx(), cap = StrokeCap.Round))
+            drawPath(arc, edgeFade(cyan, 0.95f * light), style = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx(), cap = StrokeCap.Round))
+            // glans: smal wit lichtpunt dat over de kern glijdt
+            if (sheen in 0.12f..0.88f) {
+                val d = 0.07f
+                drawPath(arc, Brush.horizontalGradient(
+                    0f to Color.Transparent, (sheen - d).coerceAtLeast(0.001f) to Color.Transparent, sheen to Color.White.copy(alpha = 0.9f),
+                    (sheen + d).coerceAtMost(0.999f) to Color.Transparent, 1f to Color.Transparent),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(2.6.dp.toPx(), cap = StrokeCap.Round))
+                drawPath(arc, Brush.horizontalGradient(
+                    0f to Color.Transparent, (sheen - d * 2).coerceAtLeast(0.001f) to Color.Transparent, sheen to cyan.copy(alpha = 0.35f),
+                    (sheen + d * 2).coerceAtMost(0.999f) to Color.Transparent, 1f to Color.Transparent),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(14.dp.toPx(), cap = StrokeCap.Round))
+            }
         }
-        // voorste helft: iconen die vóór het logo langs gaan
-        Canvas(Modifier.fillMaxSize()) { drawOrbit(frame, start, front = true, ball = ball) }
-        // status
-        Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 92.dp).width(520.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // het Kijk-logo met de bewegende oogjes, net boven de boog
+        EyesLogo(done = done, modifier = Modifier.align(Alignment.Center).offset(y = (-40).dp).height(140.dp))
+
+        Column(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 70.dp).width(520.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             val title = when {
                 failed != null -> "${failed.label}: ${failed.note ?: "niet gelukt"}"
                 done -> "Klaar"
                 else -> DOING.getOrElse(cur) { steps.getOrNull(cur)?.label ?: "" }
             }
-            Label(title, size = 20.sp, weight = Kijk.Semibold, color = if (failed != null) Color(0xFFFF6961) else Color.White, maxLines = 2)
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.width(180.dp).height(4.dp).background(Color(0xFF1C2335), RoundedCornerShape(50))) {
-                Box(Modifier.fillMaxWidth(shown.coerceIn(0f, 1f)).height(4.dp).background(Kijk.Accent, RoundedCornerShape(50)))
+            Label(if (failed == null && !done) "$title…" else title, size = 22.sp, weight = Kijk.Medium,
+                color = if (failed != null) Color(0xFFFF6961) else Color(0xFFE5E5EA), maxLines = 2)
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.width(360.dp).height(7.dp)
+                .background(Color(0xFF3A3A42), RoundedCornerShape(50))) {
+                Box(Modifier.fillMaxWidth(shown.coerceIn(0f, 1f)).height(7.dp)
+                    .background(Brush.horizontalGradient(listOf(
+                        Color(0xFF0A84FF), Color(0xFF64D2FF))), RoundedCornerShape(50)))
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             val note = if (done || failed != null) " " else steps.getOrNull(cur)?.let { s ->
-                s.note ?: if (s.state == 1 && s.total > 0) "${(s.done * 100 / s.total).coerceIn(0, 100)}%" else null
+                s.note ?: if (s.state == 1 && s.total > 0)
+                    "${(s.done * 100 / s.total).coerceIn(0, 100)}%" else null
             } ?: " "
             Label(note, size = Kijk.Caption, color = Kijk.Secondary, maxLines = 1)
-            Spacer(Modifier.height(6.dp))
-            Label(if (canSkip) "Druk op OK om alvast te beginnen" else " ", size = Kijk.Caption, color = Kijk.Secondary)
-        }
-    }
-}
-
-/** De baan (schuine ellips) met vier iconen-tegels. front = alleen wat vóór het logo ligt. */
-private fun DrawScope.drawOrbit(frame: MutableLongState, start: Long, front: Boolean, ball: ImageBitmap) {
-    val t = ((frame.longValue - start).coerceAtLeast(0L)) / 1e9f
-    val cx = size.width / 2f; val cy = size.height * 0.40f
-    val rx = size.width * 0.30f; val ry = size.height * 0.16f
-    val tilt = -8f
-    val oval = Rect(Offset(cx - rx, cy - ry), Size(rx * 2, ry * 2))
-    rotate(tilt, Offset(cx, cy)) {
-        // één baan, overal even dik
-        if (!front) drawOval(OrbitBright.copy(alpha = 0.75f), oval.topLeft, oval.size, style = Stroke(2.dp.toPx()))
-    }
-    val rad = tilt * PI.toFloat() / 180f
-    val tile = 46.dp.toPx()
-    val n = 9
-    for (i in 0 until n) {
-        val a = t * 0.35f + i * 2f * PI.toFloat() / n
-        val x = cos(a) * rx; val y = sin(a) * ry
-        val px = cx + x * cos(rad) - y * sin(rad); val py = cy + x * sin(rad) + y * cos(rad)
-        val inFront = sin(a) > 0f
-        if (inFront != front) continue
-        val depth = (sin(a) + 1f) / 2f              // 0 achter … 1 voor
-        val s = tile * (0.78f + 0.22f * depth)
-        val alpha = 0.45f + 0.55f * depth
-        translate(px - s / 2, py - s / 2) {
-            drawRoundRect(TileBg, Offset.Zero, Size(s, s), CornerRadius(s * 0.24f), alpha = alpha)
-            drawRoundRect(TileLine, Offset.Zero, Size(s, s), CornerRadius(s * 0.24f), style = Stroke(1.dp.toPx()), alpha = alpha)
-            drawTileIcon(i, s, alpha, ball)
-        }
-    }
-}
-
-/** Eenvoudige platte iconen: 0 filmklapper, 1 voetbal, 2 krant, 3 afspelen, 4 terugkijken, 5 raceauto, 6 weer, 7 thermometer, 8 lamp. */
-private fun DrawScope.drawTileIcon(kind: Int, s: Float, alpha: Float, ball: ImageBitmap) {
-    val st = Stroke(s * 0.055f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
-    val c = IconBlue
-    when (kind) {
-        0 -> {   // filmklapper
-            drawRoundRect(c, Offset(s * 0.24f, s * 0.42f), Size(s * 0.52f, s * 0.32f), CornerRadius(s * 0.04f), style = st, alpha = alpha)
-            val top = Path().apply { moveTo(s * 0.24f, s * 0.40f); lineTo(s * 0.72f, s * 0.27f); lineTo(s * 0.75f, s * 0.36f); lineTo(s * 0.27f, s * 0.49f); close() }
-            drawPath(top, c, style = st, alpha = alpha)
-            for (k in 0..2) { val x = s * (0.36f + 0.12f * k); drawLine(c, Offset(x, s * 0.43f - k * s * 0.03f), Offset(x + s * 0.05f, s * 0.33f - k * s * 0.03f), st.width * 0.8f, StrokeCap.Round, alpha = alpha) }
-        }
-        1 -> {   // voetbal (eigen afbeelding, in de icoonkleur)
-            val d = (s * 0.56f).toInt()
-            drawImage(ball, dstOffset = androidx.compose.ui.unit.IntOffset(((s - d) / 2).toInt(), ((s - d) / 2).toInt()),
-                dstSize = androidx.compose.ui.unit.IntSize(d, d), alpha = alpha, colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(c))
-        }
-        2 -> {   // krant
-            drawRoundRect(c, Offset(s * 0.24f, s * 0.26f), Size(s * 0.52f, s * 0.48f), CornerRadius(s * 0.05f), style = st, alpha = alpha)
-            drawLine(c, Offset(s * 0.32f, s * 0.36f), Offset(s * 0.68f, s * 0.36f), st.width * 1.3f, StrokeCap.Round, alpha = alpha)
-            drawRect(c, Offset(s * 0.32f, s * 0.44f), Size(s * 0.14f, s * 0.12f), alpha = alpha)
-            drawLine(c, Offset(s * 0.52f, s * 0.46f), Offset(s * 0.68f, s * 0.46f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
-            drawLine(c, Offset(s * 0.52f, s * 0.54f), Offset(s * 0.68f, s * 0.54f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
-            drawLine(c, Offset(s * 0.32f, s * 0.64f), Offset(s * 0.68f, s * 0.64f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
-        }
-        3 -> {   // afspelen
-            val p = Path().apply { moveTo(s * 0.38f, s * 0.28f); lineTo(s * 0.38f, s * 0.72f); lineTo(s * 0.74f, s * 0.5f); close() }
-            drawPath(p, c, alpha = alpha)
-        }
-        5 -> {   // raceauto (zijaanzicht, formule-wagen)
-            val body = Path().apply {
-                moveTo(s * 0.16f, s * 0.58f); lineTo(s * 0.30f, s * 0.52f); lineTo(s * 0.44f, s * 0.52f); lineTo(s * 0.50f, s * 0.44f)
-                lineTo(s * 0.60f, s * 0.44f); lineTo(s * 0.64f, s * 0.52f); lineTo(s * 0.80f, s * 0.54f); lineTo(s * 0.84f, s * 0.60f)
-                lineTo(s * 0.16f, s * 0.62f); close()
-            }
-            drawPath(body, c, alpha = alpha)
-            drawLine(c, Offset(s * 0.78f, s * 0.40f), Offset(s * 0.86f, s * 0.40f), st.width * 1.2f, StrokeCap.Round, alpha = alpha)   // achtervleugel
-            drawLine(c, Offset(s * 0.82f, s * 0.40f), Offset(s * 0.80f, s * 0.54f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
-            drawCircle(c, s * 0.075f, Offset(s * 0.30f, s * 0.64f), alpha = alpha)
-            drawCircle(c, s * 0.085f, Offset(s * 0.72f, s * 0.63f), alpha = alpha)
-            drawCircle(TileBg, s * 0.03f, Offset(s * 0.30f, s * 0.64f), alpha = alpha)
-            drawCircle(TileBg, s * 0.035f, Offset(s * 0.72f, s * 0.63f), alpha = alpha)
-        }
-        6 -> {   // weer: zonnetje half achter een wolk
-            val sc = Offset(s * 0.42f, s * 0.40f); val sr = s * 0.11f
-            drawCircle(c, sr, sc, style = st, alpha = alpha)
-            for (k in 0 until 6) {
-                val a = (-200f + k * 40f) * PI.toFloat() / 180f
-                drawLine(c, Offset(sc.x + cos(a) * sr * 1.5f, sc.y + sin(a) * sr * 1.5f), Offset(sc.x + cos(a) * sr * 2.1f, sc.y + sin(a) * sr * 2.1f), st.width * 0.9f, StrokeCap.Round, alpha = alpha)
-            }
-            // wolk (gevuld met tegelkleur, zodat hij voor de zon ligt)
-            // één omtrek: de drie vormen samengevoegd (anders zie je de binnenlijnen)
-            val a1 = Path().apply { addOval(Rect(Offset(s * 0.36f, s * 0.46f), Size(s * 0.20f, s * 0.20f))) }
-            val a2 = Path().apply { addOval(Rect(Offset(s * 0.48f, s * 0.40f), Size(s * 0.24f, s * 0.24f))) }
-            val a3 = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(Offset(s * 0.30f, s * 0.54f), Size(s * 0.48f, s * 0.16f)), CornerRadius(s * 0.08f))) }
-            val a12 = Path().apply { op(a1, a2, androidx.compose.ui.graphics.PathOperation.Union) }
-            val cloud = Path().apply { op(a12, a3, androidx.compose.ui.graphics.PathOperation.Union) }
-            drawPath(cloud, TileBg, alpha = alpha)
-            drawPath(cloud, c, style = st, alpha = alpha)
-        }
-        7 -> {   // thermometer (temperatuur)
-            val x = s * 0.5f
-            drawRoundRect(c, Offset(x - s * 0.075f, s * 0.22f), Size(s * 0.15f, s * 0.38f), CornerRadius(s * 0.075f), style = st, alpha = alpha)
-            drawCircle(c, s * 0.12f, Offset(x, s * 0.68f), style = st, alpha = alpha)
-            drawCircle(c, s * 0.07f, Offset(x, s * 0.68f), alpha = alpha)
-            drawLine(c, Offset(x, s * 0.62f), Offset(x, s * 0.38f), st.width * 1.1f, StrokeCap.Round, alpha = alpha)
-            for (k in 0..2) drawLine(c, Offset(x + s * 0.13f, s * (0.30f + 0.09f * k)), Offset(x + s * 0.21f, s * (0.30f + 0.09f * k)), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
-        }
-        8 -> {   // lamp (verlichting)
-            val ctr = Offset(s * 0.5f, s * 0.43f); val r = s * 0.17f
-            val bulb = Path().apply {
-                addArc(Rect(Offset(ctr.x - r, ctr.y - r), Size(r * 2, r * 2)), 140f, 260f)
-                lineTo(ctr.x + r * 0.45f, s * 0.64f); lineTo(ctr.x - r * 0.45f, s * 0.64f); close()
-            }
-            drawPath(bulb, c, style = st, alpha = alpha)
-            drawLine(c, Offset(ctr.x - r * 0.45f, s * 0.70f), Offset(ctr.x + r * 0.45f, s * 0.70f), st.width, StrokeCap.Round, alpha = alpha)
-            drawLine(c, Offset(ctr.x - r * 0.30f, s * 0.76f), Offset(ctr.x + r * 0.30f, s * 0.76f), st.width, StrokeCap.Round, alpha = alpha)
-            for (deg in listOf(-150f, -90f, -30f)) {
-                val a = deg * PI.toFloat() / 180f
-                drawLine(c, Offset(ctr.x + cos(a) * r * 1.35f, ctr.y + sin(a) * r * 1.35f), Offset(ctr.x + cos(a) * r * 1.75f, ctr.y + sin(a) * r * 1.75f), st.width * 0.8f, StrokeCap.Round, alpha = alpha)
-            }
-        }
-        else -> {   // terugkijken: pijl tegen de klok in rond een klokje
-            val r = s * 0.24f; val ctr = Offset(s * 0.5f, s * 0.52f)
-            drawArc(c, -60f, -290f, false, Offset(ctr.x - r, ctr.y - r), Size(r * 2, r * 2), style = st, alpha = alpha)
-            val a = Math.toRadians(-60.0).toFloat()
-            val tip = Offset(ctr.x + cos(a) * r, ctr.y + sin(a) * r)
-            val head = Path().apply { moveTo(tip.x - s * 0.02f, tip.y - s * 0.11f); lineTo(tip.x + s * 0.03f, tip.y + s * 0.01f); lineTo(tip.x - s * 0.10f, tip.y + s * 0.02f); close() }
-            drawPath(head, c, alpha = alpha)
-            drawLine(c, ctr, Offset(ctr.x, ctr.y - r * 0.55f), st.width, StrokeCap.Round, alpha = alpha)
-            drawLine(c, ctr, Offset(ctr.x + r * 0.4f, ctr.y + r * 0.2f), st.width, StrokeCap.Round, alpha = alpha)
+            Spacer(Modifier.height(8.dp))
+            Label(if (canSkip) "Druk op OK om alvast te beginnen" else " ",
+                size = Kijk.Caption, color = Kijk.Secondary)
         }
     }
 }
