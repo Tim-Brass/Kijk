@@ -79,11 +79,21 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
     var tick by remember { mutableStateOf(0) }   // forceert opnieuw tekenen na een wijziging in Store
     fun changed() { tick++ }
     var cat by rememberSaveable { mutableStateOf(0) }
+    // categorie pas wisselen als je even stilstaat: snel langs de lijst bewegen bouwt niet elke categorie op
+    var pending by remember { mutableStateOf(cat) }
+    LaunchedEffect(pending) { if (pending != cat) { delay(140); cat = pending } }
+    // zware tellingen buiten de UI-thread, één keer per wijziging
+    val epgStats by androidx.compose.runtime.produceState<String?>(null, vm.epgBusy, vm.dataVersion, tick) {
+        value = runCatching { withContext(Dispatchers.IO) { vm.epgStatsText() } }.getOrNull() ?: ""
+    }
+    val counts by androidx.compose.runtime.produceState<Pair<Int, Int>?>(null, vm.dataVersion, vm.favorites, tick) {
+        value = runCatching { withContext(Dispatchers.Default) { vm.guideCounts() } }.getOrNull()
+    }
     Row(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         // ---- categorieën
         LazyColumn(Modifier.width(280.dp).fillMaxHeight().dividerRight(), verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
             items(SETTING_CATS.size) { i ->
-                SideItem(SETTING_CATS[i], selected = cat == i, onFocus = { cat = i }) { cat = i }
+                SideItem(SETTING_CATS[i], selected = pending == i, onFocus = { pending = i }) { pending = i; cat = i }
             }
         }
         Spacer(Modifier.width(36.dp))
@@ -98,16 +108,16 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                     item { tick.hashCode(); SettingRow("Playlist vernieuwen", PL_POLICIES.first { it.first == s.refreshPlaylist }.second) { s.refreshPlaylist = next(PL_POLICIES.map { it.first }, s.refreshPlaylist); changed() } }
                     item { tick.hashCode(); SettingRow("Gids vernieuwen", EPG_POLICIES.firstOrNull { it.first == s.refreshEpg }?.second ?: "") { s.refreshEpg = next(EPG_POLICIES.map { it.first }, s.refreshEpg); changed() } }
                     item { tick.hashCode(); SettingRow("Playlist nu vernieuwen", if (s.playlistUpdated > 0) "Bijgewerkt ${Format.dayTime(s.playlistUpdated)}" else "") { vm.load(forcePlaylist = true) } }
-                    item { tick.hashCode(); SettingRow("Gids nu bijwerken", if (vm.epgBusy) "Bezig…" else vm.epgStatsText()) { vm.refreshEpg() } }
+                    item { tick.hashCode(); SettingRow("Gids nu bijwerken", if (vm.epgBusy) "Bezig…" else epgStats ?: "…") { vm.refreshEpg() } }
                 }
                 1 -> {
                     item { tick.hashCode(); SettingRow("Zendergroepen", "${vm.groups.size} van ${vm.allGroups.size} zichtbaar") { nav.push(Screen.Groups("live")) } }
                     item { tick.hashCode(); SettingRow("Verzorgde zenderlogo's", if (vm.store.niceLogos) "Aan · vaste set logo's in één stijl (OK = uit)" else "Uit · logo's van de aanbieder (OK = aan)") {
                         vm.store.niceLogos = !vm.store.niceLogos; nl.kijk.tv.data.TvLogos.enabled = vm.store.niceLogos; changed() } }
-                    item { tick.hashCode(); val (noEpg, merged) = vm.guideCounts()
+                    item { tick.hashCode(); val noEpg = counts?.first?.toString() ?: "…"
                         SettingRow("Gids: zenders zonder gidsinformatie verbergen", if (s.guideHideNoEpg) "Aan · $noEpg zenders verborgen (favorieten blijven) · OK = uit" else "Uit · OK = aan") {
                             s.guideHideNoEpg = !s.guideHideNoEpg; vm.bumpData(); changed() } }
-                    item { tick.hashCode(); val (_, merged) = vm.guideCounts()
+                    item { tick.hashCode(); val merged = counts?.second?.toString() ?: "…"
                         SettingRow("Dubbele zenders samenvoegen (Gids en Live)", if (s.guideMerge) "Aan · $merged dubbele verborgen; kwaliteit kies je met pijl rechts in Live of in de speler · OK = uit" else "Uit · OK = aan") {
                             s.guideMerge = !s.guideMerge; vm.bumpData(); changed() } }
                     item { tick.hashCode(); SettingRow("Zendernamen opschonen", if (s.cleanNames) "Aan · \"NL: NPO 1 FHD\" wordt \"NPO 1\" · OK = uit" else "Uit · OK = aan") {
@@ -235,6 +245,7 @@ fun GroupsScreen(vm: AppViewModel, nav: Nav, kind: String) {
             PillButton("Alles uit") { set(hidden + shown.map { it.id }) }
         }
         if (cats == null) { EmptyState("Laden…"); return@Column }
+        val perGroup = remember(vm.allChannels) { vm.allChannels.groupingBy { it.group }.eachCount() }
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
             items(shown) { c ->
                 val on = c.id !in hidden
@@ -242,7 +253,7 @@ fun GroupsScreen(vm: AppViewModel, nav: Nav, kind: String) {
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                         Label(if (on) "☑" else "☐", Modifier.width(32.dp), size = Kijk.Headline, color = if (on) (if (f) Color(0xFF0050A0) else Kijk.Accent) else secondary(f))
                         Label((if (vm.isLocked(c.name)) "🔒 " else "") + c.name, Modifier.weight(1f), weight = Kijk.Medium)
-                        if (kind == "live") Label("${vm.allChannels.count { it.group == c.id }} zenders", size = Kijk.Caption, color = secondary(f))
+                        if (kind == "live") Label("${perGroup[c.id] ?: 0} zenders", size = Kijk.Caption, color = secondary(f))
                     }
                 }
             }

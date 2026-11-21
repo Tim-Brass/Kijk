@@ -683,7 +683,6 @@ private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv
     val accent = if (m.team == "PSV") PsvRed else KnvbOrange
     FocusCard(onClick = onClick, modifier = modifier.height(CardH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
         CardBackdrop(if (m.team == "Oranje") nl.kijk.tv.R.drawable.sport_oranje else nl.kijk.tv.R.drawable.sport_psv)
-        Box(Modifier.fillMaxWidth().height(4.dp).background(accent))   // gekleurde streep bovenaan
         Column(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoOr(m.competitionLogo, Modifier.size(26.dp)) { }
