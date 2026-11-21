@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
@@ -220,6 +221,10 @@ private fun FavChannelCard(vm: AppViewModel, ch: Channel, onClick: () -> Unit) {
     val cur = vm.nowNext(ch).firstOrNull()?.takeIf { it.isLive(vm.now) }
     // zelfde stijl als de andere kaarten: donker blijven, blauw randje bij selectie
     FocusCard(onClick = onClick, modifier = Modifier.width(230.dp).height(82.dp), focusedScale = 1.06f, darkFocus = true) { _ ->
+        // achtergrond: gedeeld beeld, gedimd zodat logo en titel goed leesbaar blijven
+        androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.fav_kaart), null, Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(0f, -0.15f))
+        Box(Modifier.fillMaxSize().background(Color(0x990B0B0F)))
         Row(Modifier.fillMaxSize().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             ChannelLogo(ch.logo, ch.name, Modifier.size(width = 56.dp, height = 36.dp), plate = false)
             Spacer(Modifier.width(10.dp))
@@ -538,11 +543,24 @@ private fun LogoOr(url: String?, modifier: Modifier, fallback: @Composable () ->
 private val CardW = 268.dp
 private val CardH = 186.dp
 
+/** Achtergronden één keer inlezen (zuinig, 16-bits) en delen tussen alle kaarten, ook bij veel favorieten. */
+private val backdropCache = HashMap<Int, androidx.compose.ui.graphics.ImageBitmap>()
+@Composable
+private fun backdropBitmap(res: Int): androidx.compose.ui.graphics.ImageBitmap {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    return remember(res) {
+        backdropCache.getOrPut(res) {
+            android.graphics.BitmapFactory.decodeResource(ctx.resources, res,
+                android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.RGB_565 }).asImageBitmap()
+        }
+    }
+}
+
 /** Achtergrondbeeld van een sportkaart: rechts uitgelijnd, links extra donker zodat de tekst leesbaar blijft. */
 @Composable
 internal fun CardBackdrop(res: Int, bias: Float = 1f, light: Boolean = false) {
     // bias: welk deel van het beeld in een smalle kaart blijft (1 = rechterrand, 0 = midden)
-    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(res), null, Modifier.fillMaxSize(),
+    androidx.compose.foundation.Image(backdropBitmap(res), null, Modifier.fillMaxSize(),
         contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(bias, 0f))
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
         if (light) listOf(Color(0xA60B0B0F), Color(0x400B0B0F), Color(0x0D0B0B0F))
