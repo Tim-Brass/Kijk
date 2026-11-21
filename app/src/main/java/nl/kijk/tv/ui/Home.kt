@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.drawBehind
@@ -110,6 +111,7 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
     // Terug: eerst naar de tabbalk, dan naar Live, dan vragen of je wilt afsluiten.
     val activity = LocalContext.current as? android.app.Activity
     var tabsFocused by remember { mutableStateOf(false) }
+    var menuBarPx by remember { mutableStateOf(0) }   // hoogte van de menubalk, voor de achtergrond
     val ctx = LocalContext.current
     // na een herinnering-melding de selectie terugzetten
     var hadReminder by remember { mutableStateOf(false) }
@@ -142,11 +144,13 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
             Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         if (overlay == null && (hs.tab == TAB_HOME || hs.tab == TAB_FILMS || hs.tab == TAB_SERIES)) VodBackdrop(hs.backdrop)
         // menubalk-achtergrond: blauwe golf achter de tabs, loopt via zwart zacht over in de rest van het scherm (verloop zit in het plaatje)
-        androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.menu_balk, alpha = true), null,
-            Modifier.fillMaxWidth().aspectRatio(1600f / 440f), contentScale = androidx.compose.ui.layout.ContentScale.FillBounds)
+        // even hoog als de menubalk + een kort verloop (zoals voorheen)
+        val barDp = with(androidx.compose.ui.platform.LocalDensity.current) { menuBarPx.toDp() }
+        if (menuBarPx > 0) androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.menu_balk, alpha = true), null,
+            Modifier.fillMaxWidth().height(barDp + 22.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillBounds)
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
-            Box(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().onSizeChanged { menuBarPx = it.height }) {
               Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
