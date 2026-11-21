@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -713,7 +714,8 @@ private val BatCyan = Color(0xFF22D8F5)
 /** Statuslabel in Cupra-stijl: klein pilletje met gekleurde rand. */
 @Composable
 private fun CarChip(text: String, color: Color, bg: Color) {
-    Box(Modifier.background(bg, RoundedCornerShape(50)).border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(50))
+    // donkere ondergrond zodat het label los komt van de achtergrondfoto
+    Box(Modifier.background(Color(0xD90B0B0F), RoundedCornerShape(50)).background(bg, RoundedCornerShape(50)).border(1.dp, color.copy(alpha = 0.7f), RoundedCornerShape(50))
         .padding(horizontal = 9.dp, vertical = 3.dp)) {
         Label(text, size = 12.sp, weight = Kijk.Semibold, color = color, maxLines = 1)
     }
@@ -783,18 +785,15 @@ private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra, bias = 0.85f, light = true) {
         // koperen Cupra-logo met woordmerk (aangeleverd), in plaats van tekst + los logo
         androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.cupra_woordmerk, alpha = true), "Cupra",
-            Modifier.height(22.dp), contentScale = ContentScale.FillHeight, alignment = Alignment.CenterStart)
+            Modifier.height(28.dp).offset(x = (-4).dp), contentScale = ContentScale.FillHeight, alignment = Alignment.CenterStart)   // incl. ingebakken slagschaduw
         Spacer(Modifier.weight(1f))   // de auto staat nu in de achtergrond
+        // batterij, percentage en bereik op één regel
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CupraBattery(bat, car.charging, Modifier.size(width = 74.dp, height = 27.dp))
-            Spacer(Modifier.width(9.dp))
-            Column {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Label("$bat", size = 24.sp, weight = Kijk.Bold, color = Color.White)
-                    Label("%", Modifier.padding(start = 1.dp, bottom = 3.dp), size = 13.sp, weight = Kijk.Semibold, color = CupraC)
-                }
-                car.range?.let { Label("$it km", size = 12.sp, weight = Kijk.Medium, color = Color(0xFFD1D1D6)) }
-            }
+            CupraBattery(bat, car.charging, Modifier.size(width = 54.dp, height = 20.dp))
+            Spacer(Modifier.width(7.dp))
+            Label("$bat", size = 19.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+            Label("%", Modifier.padding(start = 1.dp), size = 11.sp, weight = Kijk.Semibold, color = CupraC)
+            car.range?.let { Label("  $it km", size = 12.sp, weight = Kijk.Medium, color = Color(0xFFD1D1D6), maxLines = 1) }
         }
         Spacer(Modifier.height(7.dp))
         val tgt = car.target?.takeIf { it in 1..99 }?.let { " · tot $it%" } ?: ""
