@@ -94,8 +94,8 @@ fun HuisRow(vm: AppViewModel, nav: Nav) {
 }
 
 @Composable
-private fun HuisCard(modifier: Modifier, onClick: () -> Unit, backdrop: Int? = null, bias: Float = 1f, light: Boolean = false, zoom: Float = 1f, vBias: Float = 0f, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true, outline = Outline.Steel) { _ ->
+private fun HuisCard(modifier: Modifier, onClick: () -> Unit, backdrop: Int? = null, bias: Float = 1f, light: Boolean = false, zoom: Float = 1f, vBias: Float = 0f, edge: Color = Outline.Steel, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true, outline = edge) { _ ->
         if (backdrop != null) CardBackdrop(backdrop, bias, light, zoom, vBias)
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 9.dp)) { content() }
     }
@@ -121,7 +121,7 @@ private fun CardFoot(text: String, color: Color = GreyH) {
 @Composable
 private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val t = vm.hyThermostat
-    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_temp) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_temp, edge = TempC) {
         CardHead("Temperatuur", TempC)
         Row(verticalAlignment = Alignment.Bottom) {
             Label(deg(vm.hyShown(t, "measure_temperature")), size = 30.sp, weight = Kijk.Bold, color = Color.White)
@@ -143,7 +143,7 @@ private fun TempCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) 
 private fun LightCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val rooms = vm.hyRooms
     val on = rooms.filter { it.on > 0 }
-    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_licht) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_licht, edge = LightC) {
         CardHead("Verlichting", LightC)
         Row(verticalAlignment = Alignment.Bottom) {
             Label("${on.size}", size = 30.sp, weight = Kijk.Bold, color = Color.White)
@@ -367,7 +367,7 @@ private fun AfvalCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit)
     val items = afvalItems(vm)
     val today = dayStart(vm.now)
     val next = items.firstOrNull { (it.date ?: Long.MAX_VALUE) >= today } ?: items.firstOrNull()
-    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_afval) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_afval, edge = AfvalC) {
         CardHead("Afval", AfvalC)
         if (next == null) {
             Label(if (vm.hyAfval == null && vm.hyAfvalSettings == null) "Geen afval-app gevonden" else "Geen ophaaldagen", Modifier.padding(top = 8.dp), size = 13.sp, color = GreyH, maxLines = 2)
@@ -433,7 +433,7 @@ fun HomeyImage(vm: AppViewModel, d: HDevice?, modifier: Modifier) {
 @Composable
 private fun BellCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val b = vm.hyBell
-    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_bel) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_bel, edge = BellC) {
         CardHead("Deurbel", BellC)
         HomeyImage(vm, b, Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp, bottom = 5.dp))
         val ring = vm.hyRings.firstOrNull()
@@ -782,7 +782,7 @@ fun CupraBattery(percent: Int, charging: Boolean, modifier: Modifier = Modifier)
 private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val car = vm.hyCar ?: return
     val bat = car.battery ?: 0
-    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra, bias = 0.8f, light = true, zoom = 1.2f, vBias = 1f) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra, bias = 0.8f, light = true, zoom = 1.2f, vBias = 1f, edge = CupraC) {
         // koperen Cupra-logo met woordmerk (aangeleverd), in plaats van tekst + los logo
         androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.cupra_woordmerk, alpha = true), "Cupra",
             Modifier.height(28.dp).offset(x = (-4).dp), contentScale = ContentScale.FillHeight, alignment = Alignment.CenterStart)   // incl. ingebakken slagschaduw
