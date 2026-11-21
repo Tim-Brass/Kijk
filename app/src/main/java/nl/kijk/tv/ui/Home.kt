@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -134,12 +136,20 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
                 digits = (digits + d).take(5); true
             },
     ) {
+        // Thuis zonder lopende zender: vaste achtergrond (32 bits, anders streperig verloop)
+        if (overlay == null && hs.tab == TAB_HOME) androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.thuis_achtergrond, alpha = true), null,
+            Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
         if (overlay == null && (hs.tab == TAB_HOME || hs.tab == TAB_FILMS || hs.tab == TAB_SERIES)) VodBackdrop(hs.backdrop)
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
-            Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline()) {
+            Box(Modifier.fillMaxWidth().zIndex(1f).background(Color(0xFF0B0B0F)).drawBehind {
+                // zacht verloop onder de menubalk i.p.v. een harde rand
+                val fade = 18.dp.toPx()
+                drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF0B0B0F), Color.Transparent), size.height, size.height + fade),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height), size = androidx.compose.ui.geometry.Size(size.width, fade))
+            }) {
                 // achtergrond van de menubalk: blauwe en gouden lichtlijnen, op alle tabbladen
-                androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.menu_balk), null, Modifier.matchParentSize(),
+                androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.menu_balk, alpha = true), null, Modifier.matchParentSize(),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.Center)
               Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
