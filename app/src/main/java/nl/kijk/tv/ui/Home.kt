@@ -138,9 +138,9 @@ fun HomeScreen(vm: AppViewModel, nav: Nav, overlay: HomeOverlay? = null) {
         Column(Modifier.fillMaxSize()) {
             // menubalk: effen zwart tot aan de grijze lijn (ook boven een lopende zender)
             Box(Modifier.fillMaxWidth().background(Color(0xFF0B0B0F)).baseline()) {
-                // achtergrond van de menubalk: blauwe lichtlijn onderaan, op alle tabbladen
+                // achtergrond van de menubalk: blauwe en gouden lichtlijnen, op alle tabbladen
                 androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.menu_balk), null, Modifier.matchParentSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.BottomCenter)
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.Center)
               Box(Modifier.fillMaxWidth().padding(start = Kijk.SafeH, end = Kijk.SafeH, top = Kijk.SafeV)) {
                 Row(Modifier.align(Alignment.BottomCenter).onFocusChanged { tabsFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Bottom) {
                     TABS.forEachIndexed { i, title ->
