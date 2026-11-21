@@ -708,6 +708,74 @@ fun CarBattery(percent: Int, target: Int, charging: Boolean, modifier: Modifier 
     }
 }
 
+private val BatCyan = Color(0xFF22D8F5)
+
+/** Statuslabel in Cupra-stijl: klein pilletje met gekleurde rand. */
+@Composable
+private fun CarChip(text: String, color: Color, bg: Color) {
+    Box(Modifier.background(bg, RoundedCornerShape(50)).border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(50))
+        .padding(horizontal = 9.dp, vertical = 3.dp)) {
+        Label(text, size = 12.sp, weight = Kijk.Semibold, color = color, maxLines = 1)
+    }
+}
+
+/** Batterij in de stijl van de aangeleverde afbeelding: metalen behuizing (plaatje) met 5 vakjes die we zelf tekenen.
+ *  Laden: lichtgolf door de gevulde vakjes, het vakje dat nu laadt pulseert, bliksem gloeit. Niet laden: stilstaand (geen animatie). */
+@Composable
+fun CupraBattery(percent: Int, charging: Boolean, modifier: Modifier = Modifier) {
+    val p = percent.coerceIn(0, 100)
+    val low = p < 20
+    val top = if (low) Color(0xFFFF9F45) else Color(0xFF5CF2FF)
+    val bottom = if (low) Color(0xFFE5402F) else Color(0xFF0098C8)
+    val anim = if (charging) androidx.compose.animation.core.rememberInfiniteTransition(label = "laden") else null
+    val wave = anim?.animateFloat(-0.3f, 1.3f, androidx.compose.animation.core.infiniteRepeatable<Float>(
+        androidx.compose.animation.core.tween<Float>(1800, easing = androidx.compose.animation.core.LinearEasing)), label = "golf")
+    val pulse = anim?.animateFloat(0.45f, 1f, androidx.compose.animation.core.infiniteRepeatable<Float>(
+        androidx.compose.animation.core.tween<Float>(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "puls")
+    Box(modifier) {
+        androidx.compose.foundation.Image(backdropBitmap(nl.kijk.tv.R.drawable.cupra_batterij), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val W = size.width; val H = size.height
+            // binnenkant van de behuizing (verhoudingen uit de afbeelding)
+            val x0 = W * 0.072f; val x1 = W * 0.847f; val y0 = H * 0.155f; val y1 = H * 0.843f
+            val gap = (x1 - x0) * 0.022f
+            val segW = (x1 - x0 - 4 * gap) / 5
+            val r = androidx.compose.ui.geometry.CornerRadius(H * 0.06f)
+            val brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top, bottom), y0, y1)
+            val charge = ((p - 1) / 20).coerceIn(0, 4)   // vakje dat nu laadt
+            for (i in 0 until 5) {
+                val xa = x0 + i * (segW + gap)
+                val fill = ((p - i * 20) / 20f).coerceIn(0f, 1f)
+                // leeg vakje: donker glas met een zachte rand, zoals het 5e vakje op de afbeelding
+                drawRoundRect(bottom.copy(alpha = 0.16f), androidx.compose.ui.geometry.Offset(xa, y0), androidx.compose.ui.geometry.Size(segW, y1 - y0), r)
+                if (fill <= 0f) continue
+                val a = if (charging && i == charge) (pulse?.value ?: 1f) else 1f
+                drawRoundRect(brush, androidx.compose.ui.geometry.Offset(xa, y0), androidx.compose.ui.geometry.Size(segW * fill, y1 - y0), r, alpha = a)
+                // glans bovenin
+                drawRoundRect(Color.White.copy(alpha = 0.18f * a), androidx.compose.ui.geometry.Offset(xa + segW * 0.08f, y0 + (y1 - y0) * 0.06f),
+                    androidx.compose.ui.geometry.Size(segW * fill * 0.84f, (y1 - y0) * 0.16f), r)
+            }
+            if (charging) {
+                // lichtgolf over het gevulde deel
+                val w = wave?.value ?: 0f
+                val filledEnd = x0 + (x1 - x0) * (p / 100f)
+                val cx = x0 + (x1 - x0) * w
+                if (cx < filledEnd + segW) drawRect(androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), cx - segW, cx + segW),
+                    androidx.compose.ui.geometry.Offset(x0, y0), androidx.compose.ui.geometry.Size(filledEnd - x0, y1 - y0))
+                // bliksem in het midden
+                val bx = (x0 + x1) / 2; val by = (y0 + y1) / 2; val s = (y1 - y0) * 0.42f
+                val bolt = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(bx + s * 0.22f, by - s); lineTo(bx - s * 0.42f, by + s * 0.14f); lineTo(bx - s * 0.02f, by + s * 0.14f)
+                    lineTo(bx - s * 0.22f, by + s); lineTo(bx + s * 0.42f, by - s * 0.14f); lineTo(bx + s * 0.02f, by - s * 0.14f); close()
+                }
+                drawPath(bolt, top, alpha = 0.35f * (pulse?.value ?: 1f), style = androidx.compose.ui.graphics.drawscope.Stroke(s * 0.35f))
+                drawPath(bolt, Color.White, alpha = 0.7f + 0.3f * (pulse?.value ?: 1f))
+            }
+        }
+    }
+}
+
 @Composable
 private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val car = vm.hyCar ?: return
@@ -719,16 +787,22 @@ private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
         }
         Spacer(Modifier.weight(1f))   // de auto staat nu in de achtergrond
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CarBattery(bat, car.target ?: 100, car.charging, Modifier.size(width = 46.dp, height = 22.dp))
-            Spacer(Modifier.width(8.dp))
-            Label("$bat%", size = 20.sp, weight = Kijk.Bold, color = Color.White)
-            car.range?.let { Label("  $it km", size = 12.sp, color = GreyH) }
+            CupraBattery(bat, car.charging, Modifier.size(width = 74.dp, height = 27.dp))
+            Spacer(Modifier.width(9.dp))
+            Column {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Label("$bat", size = 24.sp, weight = Kijk.Bold, color = Color.White)
+                    Label("%", Modifier.padding(start = 1.dp, bottom = 3.dp), size = 13.sp, weight = Kijk.Semibold, color = CupraC)
+                }
+                car.range?.let { Label("$it km", size = 12.sp, weight = Kijk.Medium, color = Color(0xFFD1D1D6)) }
+            }
         }
+        Spacer(Modifier.height(7.dp))
         val tgt = car.target?.takeIf { it in 1..99 }?.let { " · tot $it%" } ?: ""
         when {
-            car.charging -> CardFoot("Laadt$tgt", Color(0xFF30D158))
-            car.plugged -> CardFoot("Aan de lader · laadt niet", TempC)
-            else -> CardFoot("Niet aan de lader")
+            car.charging -> CarChip("⚡ Laadt$tgt", BatCyan, Color(0x2600C8EB))
+            car.plugged -> CarChip("Aan de lader", CupraC, Color(0x26C8865A))
+            else -> CarChip("Niet aan de lader", GreyH, Color(0x1AFFFFFF))
         }
     }
 }

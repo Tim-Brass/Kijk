@@ -1282,12 +1282,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Auto (Cupra) uit Homey-variabelen die je flow "Cupra ophalen" bijhoudt. */
     data class Car(val battery: Int?, val range: Int?, val target: Int?, val charging: Boolean, val plugged: Boolean, val updated: String?)
+    private var lastCar: Car? = null
+    /** Auto uit de Homey-variabelen. Ook "85" als tekst telt; is de waarde even weg, dan de laatst bekende stand. */
     val hyCar: Car? get() {
         fun v(vararg w: String) = hyVars.firstOrNull { x -> val n = x.name.lowercase(); "cupra" in n && w.all { it in n } }?.value
-        fun num(vararg w: String) = (v(*w) as? Number)?.toDouble()?.let { Math.round(it).toInt() }
-        val bat = num("accu") ?: return null
-        return Car(bat, num("bereik"), num("doel"), v("laadt") == true, v("stekker") == true,
-            (v("bijgewerkt") as? String)?.takeIf { it.isNotBlank() })
+        fun num(vararg w: String): Int? = when (val x = v(*w)) {
+            is Number -> Math.round(x.toDouble()).toInt()
+            is String -> x.replace(",", ".").filter { it.isDigit() || it == '.' }.toDoubleOrNull()?.let { Math.round(it).toInt() }
+            else -> null
+        }
+        fun yes(vararg w: String) = when (val x = v(*w)) { is Boolean -> x; is String -> x.trim().lowercase() in setOf("true", "ja", "1", "yes"); is Number -> x.toInt() != 0; else -> false }
+        val bat = num("accu") ?: return lastCar
+        return Car(bat, num("bereik"), num("doel"), yes("laadt"), yes("stekker"),
+            (v("bijgewerkt") as? String)?.takeIf { it.isNotBlank() }).also { lastCar = it }
     }
 
     fun hyChoice(slot: String) = store.homey(slot)
