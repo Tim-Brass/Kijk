@@ -93,9 +93,9 @@ fun HuisRow(vm: AppViewModel, nav: Nav) {
 }
 
 @Composable
-private fun HuisCard(modifier: Modifier, onClick: () -> Unit, backdrop: Int? = null, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun HuisCard(modifier: Modifier, onClick: () -> Unit, backdrop: Int? = null, bias: Float = 1f, light: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     FocusCard(onClick = onClick, modifier = modifier.height(HuisH), shape = RoundedCornerShape(16.dp), focusedScale = 1.04f, darkFocus = true) { _ ->
-        if (backdrop != null) CardBackdrop(backdrop)
+        if (backdrop != null) CardBackdrop(backdrop, bias, light)
         Column(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 9.dp)) { content() }
     }
 }
@@ -703,7 +703,7 @@ fun CarBattery(percent: Int, target: Int, charging: Boolean, modifier: Modifier 
 private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
     val car = vm.hyCar ?: return
     val bat = car.battery ?: 0
-    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra) {
+    HuisCard(modifier, onClick, backdrop = nl.kijk.tv.R.drawable.huis_cupra, bias = 0.85f, light = true) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Label("Cupra Leon", Modifier.weight(1f), size = 14.sp, weight = Kijk.Semibold, color = CupraC, maxLines = 1)
             androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(nl.kijk.tv.R.drawable.cupra_logo), "Cupra", Modifier.height(24.dp))

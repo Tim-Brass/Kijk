@@ -540,11 +540,13 @@ private val CardH = 186.dp
 
 /** Achtergrondbeeld van een sportkaart: rechts uitgelijnd, links extra donker zodat de tekst leesbaar blijft. */
 @Composable
-internal fun CardBackdrop(res: Int) {
+internal fun CardBackdrop(res: Int, bias: Float = 1f, light: Boolean = false) {
+    // bias: welk deel van het beeld in een smalle kaart blijft (1 = rechterrand, 0 = midden)
     androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(res), null, Modifier.fillMaxSize(),
-        contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.CenterEnd)
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = androidx.compose.ui.BiasAlignment(bias, 0f))
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.horizontalGradient(
-        0f to Color(0xD90B0B0F), 0.55f to Color(0x800B0B0F), 1f to Color(0x1A0B0B0F))))
+        if (light) listOf(Color(0xA60B0B0F), Color(0x400B0B0F), Color(0x0D0B0B0F))
+        else listOf(Color(0xD90B0B0F), Color(0x800B0B0F), Color(0x1A0B0B0F)))))
 }
 private val F1Red = Color(0xFFE10600)
 private val PsvRed = Color(0xFFED1C24)
