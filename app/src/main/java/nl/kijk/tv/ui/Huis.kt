@@ -789,11 +789,11 @@ private fun CarCard(vm: AppViewModel, modifier: Modifier, onClick: () -> Unit) {
         Spacer(Modifier.weight(1f))   // de auto staat nu in de achtergrond
         // batterij, percentage en bereik op één regel
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CupraBattery(bat, car.charging, Modifier.size(width = 54.dp, height = 20.dp))
-            Spacer(Modifier.width(7.dp))
-            Label("$bat", size = 19.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
-            Label("%", Modifier.padding(start = 1.dp), size = 11.sp, weight = Kijk.Semibold, color = CupraC)
-            car.range?.let { Label("  $it km", size = 12.sp, weight = Kijk.Medium, color = Color(0xFFD1D1D6), maxLines = 1) }
+            CupraBattery(bat, car.charging, Modifier.size(width = 44.dp, height = 16.dp))
+            Spacer(Modifier.width(6.dp))
+            Label("$bat", size = 17.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+            Label("%", Modifier.padding(start = 1.dp), size = 10.sp, weight = Kijk.Semibold, color = CupraC)
+            car.range?.let { Label(" · $it km", size = 11.sp, weight = Kijk.Medium, color = Color(0xFFD1D1D6), maxLines = 1) }
         }
         Spacer(Modifier.height(7.dp))
         val tgt = car.target?.takeIf { it in 1..99 }?.let { " · tot $it%" } ?: ""

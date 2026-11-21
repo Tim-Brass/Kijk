@@ -845,8 +845,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         store.epgLinks = if (cid == null) store.epgLinks - name else store.epgLinks + (name to cid)
         viewModelScope.launch { epgMatch = withContext(Dispatchers.IO) { epg.match(allChannels, store.epgLinks) }; refreshNowNext(); dataVersion++ }
     }
+    private var statsCache: Pair<Long, nl.kijk.tv.data.EpgStats>? = null
     fun epgStatsText(): String {
-        val s = epg.stats()
+        // tellen in de gids-database is zwaar: alleen opnieuw na een gidsupdate
+        val upd0 = epg.updated()
+        val s = statsCache?.takeIf { it.first == upd0 && upd0 > 0 }?.second ?: epg.stats().also { statsCache = upd0 to it }
         if (s.programmes == 0) return "Nog geen gidsgegevens"
         val upd = epg.updated().takeIf { it > 0 }?.let { " · bijgewerkt ${Format.dayTime(it)}" } ?: ""
         return "${s.programmes} programma's · ${channels.count { it.key in epgMatch }} van ${channels.size} zenders gekoppeld$upd"

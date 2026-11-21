@@ -86,6 +86,10 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
     val epgStats by androidx.compose.runtime.produceState<String?>(null, vm.epgBusy, vm.dataVersion, tick) {
         value = runCatching { withContext(Dispatchers.IO) { vm.epgStatsText() } }.getOrNull() ?: ""
     }
+    // netwerkadres opvragen is traag (alle netwerkkaarten langs): op de achtergrond
+    val address by androidx.compose.runtime.produceState<String?>(null, tick) {
+        value = runCatching { withContext(Dispatchers.IO) { PhoneServer.address() } }.getOrNull() ?: "-"
+    }
     val counts by androidx.compose.runtime.produceState<Pair<Int, Int>?>(null, vm.dataVersion, vm.favorites, tick) {
         value = runCatching { withContext(Dispatchers.Default) { vm.guideCounts() } }.getOrNull()
     }
@@ -102,7 +106,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
             item { Label(SETTING_CATS[cat], Modifier.padding(start = 4.dp, bottom = 8.dp), size = Kijk.Title, weight = Kijk.Bold) }
             when (cat) {
                 0 -> {
-                    item { tick.hashCode(); SettingRow("Instellen via telefoon of laptop", PhoneServer.address()?.let { "$it · code ${PhoneServer.code}" } ?: "Niet beschikbaar (geen netwerk)") { nav.push(Screen.Setup) } }
+                    item { tick.hashCode(); SettingRow("Instellen via telefoon of laptop", when (val a = address) { null -> "…"; "-" -> "Niet beschikbaar (geen netwerk)"; else -> "$a · code ${PhoneServer.code}" }) { nav.push(Screen.Setup) } }
                     item { tick.hashCode(); SettingRow("Playlist", s.playlistUrl.let { u -> nl.kijk.tv.data.Xtream.fromPlaylistUrl(u)?.let { "Xtream · ${it.host}" } ?: u.take(60) }) { nav.push(Screen.Setup) } }
                     item { tick.hashCode(); SettingRow("Gids-link", s.epgUrl.ifBlank { "Uit de playlist" }.take(80)) { nav.push(Screen.Setup) } }
                     item { tick.hashCode(); SettingRow("Playlist vernieuwen", PL_POLICIES.first { it.first == s.refreshPlaylist }.second) { s.refreshPlaylist = next(PL_POLICIES.map { it.first }, s.refreshPlaylist); changed() } }
@@ -198,7 +202,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                     item { tick.hashCode(); val o = vm.hyOffset
                         SettingRow("Temperatuur-offset (thermostaat)", (if (o > 0) "+" else "") + String.format(java.util.Locale("nl"), "%.1f°", o) + " · alleen wat de tv toont; OK = volgende stap") { vm.hyNextOffset(); changed() } }
                     item { SettingRow("Ruimtes verbergen", vm.hyHidden.joinToString(", ").ifEmpty { "Geen" }) { nav.push(Screen.HomeyPick("hide")) } }
-                    item { SettingRow("Melding bij aanbellen", "Homey-flow: Als er wordt aangebeld → HTTP GET http://${PhoneServer.address() ?: "<tv>:8080"}/homey/deurbel") { } }
+                    item { SettingRow("Melding bij aanbellen", "Homey-flow: Als er wordt aangebeld → HTTP GET http://${address?.takeIf { it != "-" } ?: "<tv>:8080"}/homey/deurbel") { } }
                 }
                 else -> {
                     item {
