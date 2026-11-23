@@ -465,7 +465,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun refreshNowNext() {
         val at = System.currentTimeMillis() - offset
-        val m = withContext(Dispatchers.IO) { epg.nowNext(at) }
+        val m = try { withContext(Dispatchers.IO) { epg.nowNext(at) } } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { nl.kijk.tv.data.ImageLog.add("nu/straks: ${e.message ?: e.javaClass.simpleName}"); return }   // nooit de app laten crashen
+        if (m.isEmpty() && nowNextById.isNotEmpty()) return   // mislukt: oude nu/straks houden
         nowNextById = m
         // volgende verversing pas als er ergens een programma afloopt
         nowNextUntil = m.values.mapNotNull { it.firstOrNull()?.stop }.filter { it > at }.minOrNull() ?: (at + 5 * MINUTE)

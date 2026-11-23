@@ -173,9 +173,17 @@ class EpgRepository(ctx: Context) {
     }
 
     fun nowNext(at: Long): Map<String, List<Programme>> {
+        // kan mislukken als de gids net wordt bijgewerkt (cursorvenster ververst over gewijzigde data): één keer opnieuw, anders leeg
+        return try { nowNextRaw(at) } catch (e: Exception) {
+            ImageLog.add("Epg.nowNext: ${e.message ?: e.javaClass.simpleName}")
+            try { Thread.sleep(300); nowNextRaw(at) } catch (_: Exception) { emptyMap() }
+        }
+    }
+
+    private fun nowNextRaw(at: Long): Map<String, List<Programme>> {
         val raw = HashMap<String, MutableList<Programme>>()
         db.rawQuery(
-            "SELECT cid, start, stop, title, descr, cat FROM prog WHERE stop > ? AND start < ? ORDER BY cid, start",
+            "SELECT cid, start, stop, title, substr(descr, 1, 1500), cat FROM prog WHERE stop > ? AND start < ? ORDER BY cid, start",
             arrayOf((at - 3 * HOUR).toString(), (at + 6 * HOUR).toString()),
         ).use { c -> while (c.moveToNext()) raw.getOrPut(c.getString(0)) { ArrayList() } += Programme(c.getLong(1), c.getLong(2), c.getString(3), c.getString(4), c.getString(5)) }
         return raw.mapValues { (_, l) -> dedupe(l).filter { it.stop > at }.take(2) }
@@ -184,7 +192,7 @@ class EpgRepository(ctx: Context) {
     fun programmes(cid: String, from: Long, to: Long): List<Programme> {
         val out = ArrayList<Programme>()
         db.rawQuery(
-            "SELECT start, stop, title, descr, cat FROM prog WHERE cid = ? AND stop > ? AND start < ? ORDER BY start",
+            "SELECT start, stop, title, substr(descr, 1, 1500), cat FROM prog WHERE cid = ? AND stop > ? AND start < ? ORDER BY start",
             arrayOf(cid, (from - 3 * HOUR).toString(), to.toString()),
         ).use { c -> while (c.moveToNext()) out += Programme(c.getLong(0), c.getLong(1), c.getString(2), c.getString(3), c.getString(4)) }
         return dedupe(out)
@@ -198,7 +206,7 @@ class EpgRepository(ctx: Context) {
         val out = ArrayList<FoundProgramme>()
         val seen = HashSet<String>()
         db.rawQuery(
-            "SELECT cid, start, stop, title, descr, cat FROM prog WHERE title LIKE ? AND stop > ? AND start < ? ORDER BY start LIMIT ?",
+            "SELECT cid, start, stop, title, substr(descr, 1, 1500), cat FROM prog WHERE title LIKE ? AND stop > ? AND start < ? ORDER BY start LIMIT ?",
             arrayOf("%$q%", from.toString(), to.toString(), limit.toString()),
         ).use { c ->
             while (c.moveToNext()) {
