@@ -974,6 +974,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val sports = nl.kijk.tv.data.Sports(getApplication<Application>().filesDir)
     var f1 by mutableStateOf<nl.kijk.tv.data.F1Weekend?>(null); private set
     var psvMatch by mutableStateOf<nl.kijk.tv.data.Match?>(null); private set
+    /** Live stand van psvMatch (alleen rond de wedstrijd ververst, elke minuut zolang Kijk in beeld is). */
+    var liveScore by mutableStateOf<nl.kijk.tv.data.LiveScore?>(null); private set
+    private var liveFor = ""
+    private suspend fun pollLiveScore() {
+        val m = psvMatch ?: return
+        val now = System.currentTimeMillis()
+        if (m.eventId != liveFor) { liveScore = null; liveFor = m.eventId }
+        if (now < m.start - 5 * MINUTE || now > m.start + 150 * MINUTE) return   // alleen rond de wedstrijd
+        if (liveScore?.state == "post") return                                     // afgelopen: niet meer vragen
+        withContext(Dispatchers.IO) { runCatching { sports.liveScore(m) }.getOrNull() }?.let { liveScore = it }
+    }
     var eredivisie by mutableStateOf<nl.kijk.tv.data.Table?>(null); private set
     /** Waar het te zien is: zender + programma uit de gids (of alleen de vaste reservezender). */
     var f1Tv by mutableStateOf<SportTv?>(null); private set
@@ -1529,6 +1540,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch { while (true) { now = System.currentTimeMillis(); checkReminders(); delay(15_000) } }
         viewModelScope.launch { while (true) { delay(60_000); if (foreground && System.currentTimeMillis() - offset >= nowNextUntil) refreshNowNext() } }
+        viewModelScope.launch { while (true) { if (foreground) pollLiveScore(); delay(60_000) } }
         viewModelScope.launch {
             while (true) {
                 delay(30 * 60_000L)

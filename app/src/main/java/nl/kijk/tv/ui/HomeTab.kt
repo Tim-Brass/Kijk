@@ -696,16 +696,43 @@ private fun MatchCard(vm: AppViewModel, m: nl.kijk.tv.data.Match, tv: nl.kijk.tv
                 if (m.competitionLogo != null) Spacer(Modifier.width(8.dp))
                 Label(m.competition, size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             }
+            val live = vm.liveScore?.takeIf { it.state != "pre" && vm.psvMatch?.eventId == m.eventId }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 TeamBadge(m.home, m.homeLogo, Modifier.weight(1f))
-                Label("–", size = 20.sp, weight = Kijk.Bold, color = Color(0xFFC7C7CC))
+                if (live != null) Label("${live.home} – ${live.away}", size = 30.sp, weight = Kijk.Bold, color = Color.White)
+                else Label("–", size = 20.sp, weight = Kijk.Bold, color = Color(0xFFC7C7CC))
                 TeamBadge(m.away, m.awayLogo, Modifier.weight(1f))
             }
-            Label(dayDateTime(m.start), Modifier.align(Alignment.CenterHorizontally).padding(top = 2.dp), size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
+            if (live != null) LiveLine(live, Modifier.align(Alignment.CenterHorizontally).padding(top = 2.dp))
+            else Label(dayDateTime(m.start), Modifier.align(Alignment.CenterHorizontally).padding(top = 2.dp), size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
             Label(listOfNotNull(m.venue, if (m.psvHome) "Thuis" else "Uit").joinToString(" · "), Modifier.align(Alignment.CenterHorizontally), size = 12.sp, color = Grey, maxLines = 1)
             Spacer(Modifier.weight(1f))
             SportFooter(sportLive(tv, m.start, "Wedstrijd", now), countdown(m.start, now, 2 * 3600_000L), tv?.channel?.name, accent, vm.hasSportReminder(tv, m.start))
         }
+    }
+}
+
+/** "● LIVE 67'" (rood, knipperend bolletje), "Rust" of "Afgelopen". */
+@Composable
+private fun LiveLine(l: nl.kijk.tv.data.LiveScore, modifier: Modifier) {
+    val d = l.detail.uppercase()
+    val text = when {
+        l.state == "post" -> "Afgelopen" + if ("PEN" in d) " (na strafschoppen)" else if ("AET" in d) " (na verlenging)" else ""
+        d == "HT" || "HALFTIME" in d -> "Rust"
+        "PEN" in d -> "Strafschoppen"
+        else -> l.clock.ifEmpty { l.detail }
+    }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        if (l.state == "in") {
+            val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "live")
+            val a by t.animateFloat(1f, 0.25f, androidx.compose.animation.core.infiniteRepeatable<Float>(
+                androidx.compose.animation.core.tween<Float>(900), androidx.compose.animation.core.RepeatMode.Reverse), label = "knipper")
+            Box(Modifier.size(9.dp).background(Color(0xFFFF453A).copy(alpha = a), RoundedCornerShape(50)))
+            Spacer(Modifier.width(6.dp))
+            Label("LIVE", size = 13.sp, weight = Kijk.Bold, color = Color(0xFFFF453A))
+            Spacer(Modifier.width(6.dp))
+        }
+        Label(text, size = 16.sp, weight = Kijk.Bold, color = Color.White, maxLines = 1)
     }
 }
 

@@ -26,7 +26,11 @@ data class Match(
     val team: String = "PSV",
     val competitionLogo: String? = null,
     val slug: String = "",
+    val eventId: String = "",
 )
+
+/** Live stand van een wedstrijd. state: "pre", "in" of "post". */
+data class LiveScore(val home: Int, val away: Int, val state: String, val clock: String, val detail: String)
 
 data class TableRow(val rank: Int, val team: String, val logo: String?, val played: Int, val points: Int, val isPsv: Boolean)
 data class Table(val competition: String, val logo: String?, val rows: List<TableRow>)
@@ -117,6 +121,22 @@ class Sports(private val dir: File) {
         return m.copy(competitionLogo = leagueLogo(m.slug))
     }
 
+    /** Live stand van deze wedstrijd (ESPN-scorebord van die dag), of null als die niet te vinden is. */
+    fun liveScore(m: Match): LiveScore? = runCatching {
+        if (m.eventId.isEmpty() || m.slug.isEmpty()) return@runCatching null
+        val day = SimpleDateFormat("yyyyMMdd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(m.start)
+        val o = JSONObject(get("https://site.api.espn.com/apis/site/v2/sports/soccer/${m.slug}/scoreboard?dates=$day") ?: return@runCatching null)
+        val events = o.optJSONArray("events") ?: return@runCatching null
+        val e = (0 until events.length()).map { events.getJSONObject(it) }.firstOrNull { it.optString("id") == m.eventId } ?: return@runCatching null
+        val comp = e.optJSONArray("competitions")?.optJSONObject(0) ?: return@runCatching null
+        val st = comp.optJSONObject("status") ?: e.optJSONObject("status") ?: return@runCatching null
+        val type = st.optJSONObject("type")
+        var h = 0; var a = 0
+        val cs = comp.optJSONArray("competitors") ?: return@runCatching null
+        for (i in 0 until cs.length()) { val c = cs.getJSONObject(i); val sc = c.optString("score").toIntOrNull() ?: 0; if (c.optString("homeAway") == "home") h = sc else a = sc }
+        LiveScore(h, a, type?.optString("state") ?: "pre", st.optString("displayClock"), type?.optString("shortDetail") ?: "")
+    }.getOrNull()
+
     /** Huidige stand van de Eredivisie (ESPN). */
     fun eredivisie(): Table? = runCatching {
         val o = JSONObject(get("https://site.api.espn.com/apis/v2/sports/soccer/ned.1/standings") ?: return@runCatching null)
@@ -163,7 +183,7 @@ class Sports(private val dir: File) {
             for (i in 0 until events.length()) {
                 val e = events.getJSONObject(i)
                 val start = iso(e.optString("date")) ?: continue
-                if (start + 2 * 3600_000L < now) continue           // tot 2 uur na de aftrap blijft hij staan
+                if (start + 150 * 60_000L < now) continue           // tot 2,5 uur na de aftrap blijft hij staan (blessuretijd, verlenging)
                 if (best != null && start >= best.start) continue
                 val comp = e.optJSONArray("competitions")?.optJSONObject(0) ?: continue
                 val teams = comp.optJSONArray("competitors") ?: continue
@@ -174,7 +194,7 @@ class Sports(private val dir: File) {
                 fun logo(c: JSONObject) = c.optJSONObject("team")?.let { t -> t.optJSONArray("logos")?.optJSONObject(0)?.optString("href")?.ifEmpty { null } ?: t.optString("logo").ifEmpty { null } }
                 val ourHome = home.optJSONObject("team")?.optString("id") == id
                 best = Match(label, name(home), name(away), logo(home), logo(away), start,
-                    comp.optJSONObject("venue")?.optString("fullName")?.ifEmpty { null }, ourHome, team, slug = slug)
+                    comp.optJSONObject("venue")?.optString("fullName")?.ifEmpty { null }, ourHome, team, slug = slug, eventId = e.optString("id"))
             }
         }
         return best
