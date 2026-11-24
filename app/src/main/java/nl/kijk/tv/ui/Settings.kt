@@ -187,7 +187,7 @@ fun SettingsTab(vm: AppViewModel, nav: Nav) {
                             vm.hyError != null -> "Niet bereikbaar: ${vm.hyError}"
                             vm.hyDevices.isEmpty() -> "Zoeken… (OK om opnieuw te proberen)"
                             else -> "Verbonden · ${vm.hyDevices.size} apparaten · ${vm.homey.base.removePrefix("http://")}"
-                        }) { if (vm.homeyReady) vm.refreshHomey(force = true, meta = true) else vm.githubSyncNow() }
+                        }) { if (vm.homeyReady) { vm.homey.forgetFailure(); vm.refreshHomey(force = true, meta = true) } else vm.githubSyncNow() }
                     }
                     fun pick(t: String, slot: String, cur: String?) {
                         item { SettingRow(t, (if (vm.hyChoice(slot).isEmpty()) "Automatisch: " else "") + (cur ?: "niets gevonden")) { nav.push(Screen.HomeyPick(slot)) } }

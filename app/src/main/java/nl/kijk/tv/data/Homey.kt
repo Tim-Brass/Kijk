@@ -52,6 +52,8 @@ class Homey(
 
     /** Zoekt de Homey: eerst het opgegeven IP, dan het eigen subnet (alleen een antwoord op de juiste sleutel telt). */
     @Volatile private var failedAt = 0L
+    /** Handmatig opnieuw zoeken (Instellingen): de wachttijd na een mislukte zoektocht vervalt. */
+    fun forgetFailure() { failedAt = 0L }
 
     @Synchronized fun discover(): String? {
         if (System.currentTimeMillis() - failedAt < 10 * 60_000L) return null   // niet elke minuut het hele netwerk af
