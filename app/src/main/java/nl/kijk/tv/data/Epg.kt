@@ -219,10 +219,21 @@ class EpgRepository(ctx: Context) {
 
     /** Gidszenders zoeken voor handmatig koppelen. */
     fun search(q: String, limit: Int = 60): List<EpgHit> {
-        val like = "%" + q.trim() + "%"
+        // woord voor woord zoeken, ook zonder spaties ("Viaplay TV" vindt "ViaplayTV.nl" en "Viaplay TV NL");
+        // niets gevonden: dan op het eerste/langste woord alleen ("Viaplay"), zodat je ziet wat er wél is
+        val words = q.trim().lowercase().split(Regex("""[\s:|._-]+""")).filter { it.length >= 2 && it !in setOf("hd", "fhd", "uhd", "4k", "nl", "be") }
+        if (words.isEmpty()) return emptyList()
         val cids = LinkedHashSet<String>()
-        db.rawQuery("SELECT DISTINCT cid FROM disp WHERE name LIKE ? LIMIT ?", arrayOf(like, limit.toString())).use { c -> while (c.moveToNext()) cids += c.getString(0) }
-        db.rawQuery("SELECT DISTINCT cid FROM prog WHERE cid LIKE ? LIMIT ?", arrayOf(like, limit.toString())).use { c -> while (c.moveToNext()) cids += c.getString(0) }
+        fun find(ws: List<String>) {
+            val joined = "%" + ws.joinToString("") + "%"
+            val nameWhere = ws.joinToString(" AND ") { "LOWER(name) LIKE ?" }
+            val cidWhere = ws.joinToString(" AND ") { "LOWER(cid) LIKE ?" }
+            val args = ws.map { "%$it%" }
+            db.rawQuery("SELECT DISTINCT cid FROM disp WHERE ($nameWhere) OR REPLACE(LOWER(name), ' ', '') LIKE ? LIMIT $limit", (args + joined).toTypedArray()).use { c -> while (c.moveToNext()) cids += c.getString(0) }
+            db.rawQuery("SELECT DISTINCT cid FROM chan WHERE ($cidWhere) OR LOWER(cid) LIKE ? LIMIT $limit", (args + joined).toTypedArray()).use { c -> while (c.moveToNext()) cids += c.getString(0) }
+        }
+        find(words)
+        if (cids.isEmpty() && words.size > 1) find(listOf(words.maxBy { it.length }))
         val now = System.currentTimeMillis().toString()
         return cids.take(limit).map { cid ->
             val names = ArrayList<String>()

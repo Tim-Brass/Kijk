@@ -317,7 +317,7 @@ fun EpgLinkScreen(vm: AppViewModel, nav: Nav, channel: Channel) {
         val h = hits
         when {
             h == null -> EmptyState("Zoeken…")
-            h.isEmpty() -> EmptyState("Niets gevonden", "Probeer een kortere naam, bijvoorbeeld zonder 'HD' of landcode.")
+            h.isEmpty() -> EmptyState("Niet in je gids gevonden", "Probeer een deel van de naam. Staat de zender er ook dan niet tussen, dan zit hij niet in je gidsbestand.")
             else -> LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
                 items(h) { hit ->
                     FocusCard(onClick = { vm.linkEpg(channel.name, hit.cid); nav.pop() }, modifier = Modifier.fillMaxWidth(), focusedScale = 1.01f) { f ->
